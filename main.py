@@ -6,6 +6,12 @@ import csv
 import json
 import requests
 from collections import defaultdict
+from dotenv import load_dotenv
+
+load_dotenv()
+
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
+RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
@@ -13,9 +19,6 @@ with open("tcg_sets.json", encoding="utf-8") as f:
 
 with open("tcg_sets_jp.json", encoding="utf-8") as f:
     tcg_sets_jp = list(json.load(f).keys())
-
-RAPIDAPI_KEY = "c6f8dff191mshe22c98cfa3266b2p14b79cjsn8c3969eca4f2"
-RAPIDAPI_HOST = "pokemon-tcg-api.p.rapidapi.com"
 
 class CardEditorApp:
     def __init__(self, root):
@@ -157,7 +160,18 @@ class CardEditorApp:
 
         try:
             url = "https://www.tcggo.com/api/cards/"
-            response = requests.get(url)
+            params = {
+                "name": name_input,
+                "number": number_input,
+                "set": set_input,
+            }
+            headers = {}
+            if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                headers = {
+                    "X-RapidAPI-Key": RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            response = requests.get(url, params=params, headers=headers)
             if response.status_code != 200:
                 print(f"[ERROR] API error: {response.status_code}")
                 return None
@@ -223,7 +237,7 @@ class CardEditorApp:
         return 4.5
 
     def save_and_next(self):
-        data = {k: v.get() if isinstance(v, (tk.Entry, tk.StringVar)) else v.get() for k, v in self.entries.items()}
+        data = {k: v.get() for k, v in self.entries.items()}
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         self.card_counts[key] += 1
         data['ilość'] = self.card_counts[key]
