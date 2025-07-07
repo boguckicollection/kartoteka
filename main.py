@@ -17,7 +17,7 @@ PRICE_DB_PATH = "card_prices.csv"
 
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
-    tcg_sets_eng = list(json.load(f).values())
+    tcg_sets_eng = list(json.load(f).keys())
 
 with open("tcg_sets_jp.json", encoding="utf-8") as f:
     tcg_sets_jp = list(json.load(f).keys())
