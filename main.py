@@ -13,6 +13,8 @@ load_dotenv()
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
+PRICE_DB_PATH = "card_prices.csv"
+
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
     tcg_sets_eng = list(json.load(f).values())
@@ -29,6 +31,7 @@ class CardEditorApp:
         self.image_objects = []
         self.output_data = []
         self.card_counts = defaultdict(int)
+        self.price_db = self.load_price_db()
 
         self.setup_ui()
 
@@ -92,7 +95,7 @@ class CardEditorApp:
         self.entries['cena'] = tk.Entry(self.frame)
         self.entries['cena'].grid(row=8, column=2)
 
-        self.api_button = tk.Button(self.frame, text="Pobierz cenę z API", command=self.fetch_card_data)
+        self.api_button = tk.Button(self.frame, text="Pobierz cenę z bazy", command=self.fetch_card_data)
         self.api_button.grid(row=9, column=1, columnspan=2, pady=5)
 
         self.save_button = tk.Button(self.frame, text="Zapisz i dalej", command=self.save_and_next)
@@ -141,6 +144,49 @@ class CardEditorApp:
         row = (idx // 1000) % 4 + 1
         box = (idx // 4000) + 1
         return f"K{box:02d}R{row}P{pos:04d}"
+
+    def load_price_db(self):
+        if not os.path.exists(PRICE_DB_PATH):
+            return []
+        with open(PRICE_DB_PATH, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            return list(reader)
+
+    def get_price_from_db(self, name, number, set_name):
+        import unicodedata
+
+        def normalize(text: str) -> str:
+            if not text:
+                return ""
+            text = unicodedata.normalize("NFKD", text)
+            text = text.lower()
+            for suffix in [
+                " ex",
+                " gx",
+                " v",
+                " vmax",
+                " vstar",
+                " shiny",
+                " promo",
+            ]:
+                text = text.replace(suffix, "")
+            return text.replace("-", "").replace(" ", "").strip()
+
+        name_input = normalize(name)
+        number_input = number.strip().lower()
+        set_input = set_name.strip().lower()
+
+        for row in self.price_db:
+            if (
+                normalize(row.get("name", "")) == name_input
+                and row.get("number", "").strip().lower() == number_input
+                and row.get("set", "").strip().lower() == set_input
+            ):
+                try:
+                    return float(row.get("price", 0))
+                except (TypeError, ValueError):
+                    return None
+        return None
 
     def fetch_card_price(self, name, number, set_name):
         import unicodedata
@@ -219,12 +265,12 @@ class CardEditorApp:
         number = self.entries['numer'].get()
         set_name = self.entries['set'].get()
 
-        cena = self.fetch_card_price(name, number, set_name)
+        cena = self.get_price_from_db(name, number, set_name)
         if cena:
             self.entries['cena'].delete(0, tk.END)
             self.entries['cena'].insert(0, str(cena))
         else:
-            messagebox.showinfo("Brak wyników", "Nie znaleziono ceny dla podanej karty.")
+            messagebox.showinfo("Brak wyników", "Nie znaleziono ceny dla podanej karty w bazie danych.")
 
 
     def get_exchange_rate(self):
@@ -261,10 +307,10 @@ class CardEditorApp:
         data["rank"] = ""
         data["rank_votes"] = ""
 
-        # Automatyczne pobranie ceny z API
-        cena_api = self.fetch_card_price(data['nazwa'], data['numer'], data['set'])
-        if cena_api:
-            data["cena"] = str(cena_api)
+        # Automatyczne pobranie ceny z bazy
+        cena_local = self.get_price_from_db(data['nazwa'], data['numer'], data['set'])
+        if cena_local:
+            data["cena"] = str(cena_local)
         else:
             data["cena"] = ""
 
