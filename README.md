@@ -6,6 +6,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Load images from a folder and review them one by one
 - Fetch card prices from a local database (`card_prices.csv`)
 - Save collected data to a CSV file
+- Autocomplete set selection and additional rarity checkboxes
 
 ## Requirements
 Install dependencies from `requirements.txt`:

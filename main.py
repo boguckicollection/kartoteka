@@ -70,6 +70,7 @@ class CardEditorApp:
         self.set_var = tk.StringVar()
         self.set_dropdown = ttk.Combobox(self.frame, textvariable=self.set_var)
         self.set_dropdown.grid(row=4, column=2)
+        self.set_dropdown.bind('<KeyRelease>', self.filter_sets)
         self.entries['set'] = self.set_var
 
         tk.Label(self.frame, text="Typ").grid(row=5, column=1, sticky='w')
@@ -79,27 +80,35 @@ class CardEditorApp:
         for i, t in enumerate(typy):
             tk.Radiobutton(self.frame, text=t, variable=self.type_var, value=t).grid(row=5, column=2+i)
 
-        tk.Label(self.frame, text="Suffix").grid(row=6, column=1, sticky='w')
+        tk.Label(self.frame, text="Rarity").grid(row=6, column=1, sticky='w')
+        self.rarity_vars = {}
+        rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE"]
+        for i, r in enumerate(rarities):
+            var = tk.BooleanVar()
+            self.rarity_vars[r] = var
+            tk.Checkbutton(self.frame, text=r, variable=var).grid(row=6, column=2+i)
+
+        tk.Label(self.frame, text="Suffix").grid(row=7, column=1, sticky='w')
         self.suffix_var = tk.StringVar(value="")
         self.entries['suffix'] = self.suffix_var
         suffix_dropdown = ttk.Combobox(self.frame, textvariable=self.suffix_var, values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"])
-        suffix_dropdown.grid(row=6, column=2)
+        suffix_dropdown.grid(row=7, column=2)
 
-        tk.Label(self.frame, text="Stan").grid(row=7, column=1, sticky='w')
+        tk.Label(self.frame, text="Stan").grid(row=8, column=1, sticky='w')
         self.stan_var = tk.StringVar()
         self.entries['stan'] = self.stan_var
         stan_dropdown = ttk.Combobox(self.frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"])
-        stan_dropdown.grid(row=7, column=2)
+        stan_dropdown.grid(row=8, column=2)
 
-        tk.Label(self.frame, text="Cena").grid(row=8, column=1, sticky='w')
+        tk.Label(self.frame, text="Cena").grid(row=9, column=1, sticky='w')
         self.entries['cena'] = tk.Entry(self.frame)
-        self.entries['cena'].grid(row=8, column=2)
+        self.entries['cena'].grid(row=9, column=2)
 
         self.api_button = tk.Button(self.frame, text="Pobierz cenę z bazy", command=self.fetch_card_data)
-        self.api_button.grid(row=9, column=1, columnspan=2, pady=5)
+        self.api_button.grid(row=10, column=1, columnspan=2, pady=5)
 
         self.save_button = tk.Button(self.frame, text="Zapisz i dalej", command=self.save_and_next)
-        self.save_button.grid(row=10, column=1, columnspan=2, pady=5)
+        self.save_button.grid(row=11, column=1, columnspan=2, pady=5)
         self.update_set_options()
 
     def update_set_options(self, event=None):
@@ -108,6 +117,16 @@ class CardEditorApp:
             self.set_dropdown['values'] = sorted(tcg_sets_jp)
         else:
             self.set_dropdown['values'] = sorted(tcg_sets_eng)
+
+    def filter_sets(self, event=None):
+        typed = self.set_var.get().lower()
+        lang = self.lang_var.get().strip().upper()
+        all_sets = tcg_sets_jp if lang == "JP" else tcg_sets_eng
+        if typed:
+            filtered = [s for s in all_sets if typed in s.lower()]
+        else:
+            filtered = all_sets
+        self.set_dropdown['values'] = sorted(filtered)
 
     def load_images(self):
         folder = filedialog.askdirectory()
@@ -138,6 +157,11 @@ class CardEditorApp:
                 entry.delete(0, tk.END)
             elif isinstance(entry, tk.StringVar):
                 entry.set("")
+            elif isinstance(entry, tk.BooleanVar):
+                entry.set(False)
+
+        for var in self.rarity_vars.values():
+            var.set(False)
 
     def generate_location(self, idx):
         pos = idx % 1000 + 1
@@ -284,6 +308,7 @@ class CardEditorApp:
 
     def save_and_next(self):
         data = {k: v.get() for k, v in self.entries.items()}
+        data['rarity'] = ",".join([k for k, v in self.rarity_vars.items() if v.get()])
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         self.card_counts[key] += 1
         data['ilość'] = self.card_counts[key]
