@@ -5,6 +5,7 @@ import os
 import csv
 import json
 import requests
+import re
 from collections import defaultdict
 from dotenv import load_dotenv
 
@@ -324,11 +325,31 @@ class CardEditorApp:
                     return name_no_ext[: -len(suf)]
             return name_no_ext
 
+        def extract_number(name: str):
+            name_no_ext, _ = os.path.splitext(name)
+            m = re.search(r"(\d+)$", name_no_ext)
+            if m:
+                try:
+                    return int(m.group(1))
+                except ValueError:
+                    pass
+            return None
+
         if self.index + 1 < len(self.cards):
             next_file = os.path.basename(self.cards[self.index + 1])
             if core(front_file).lower() == core(next_file).lower():
                 back_file = next_file
                 self.index += 1
+            else:
+                curr_num = extract_number(front_file)
+                next_num = extract_number(next_file)
+                if (
+                    curr_num is not None
+                    and next_num is not None
+                    and next_num == curr_num + 1
+                ):
+                    back_file = next_file
+                    self.index += 1
 
         images = [front_file]
         if back_file:
