@@ -75,11 +75,11 @@ class CardEditorApp:
         self.entries['set'] = self.set_var
 
         tk.Label(self.frame, text="Typ").grid(row=5, column=1, sticky='w')
-        self.type_var = tk.StringVar()
+        self.type_var = tk.StringVar(value="")
         self.entries['typ'] = self.type_var
-        typy = ["Common", "Holo", "Reverse"]
-        for i, t in enumerate(typy):
-            tk.Radiobutton(self.frame, text=t, variable=self.type_var, value=t).grid(row=5, column=2+i)
+        typy = ["", "Common", "Holo", "Reverse"]
+        typ_dropdown = ttk.Combobox(self.frame, textvariable=self.type_var, values=typy, state="readonly")
+        typ_dropdown.grid(row=5, column=2, columnspan=3)
 
         tk.Label(self.frame, text="Rarity").grid(row=6, column=1, sticky='w')
         self.rarity_vars = {}
