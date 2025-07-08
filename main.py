@@ -365,7 +365,10 @@ class CardEditorApp:
         images = [front_file]
         if back_file:
             images.append(back_file)
-        data["images"] = [f"{BASE_IMAGE_URL}/{self.folder_name}/{img}" for img in images]
+        data["images1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
+        data["images2"] = (
+            f"{BASE_IMAGE_URL}/{self.folder_name}/{back_file}" if back_file else ""
+        )
         data["product_code"] = self.generate_location(product_idx)
         data["active"] = 1
         data["vat"] = 23
@@ -411,39 +414,62 @@ class CardEditorApp:
                 combined[key]['stock'] = 1
 
         fieldnames = [
-            "product_code", "active", "name", "price", "vat", "unit", "category", "producer",
-            "other_price", "pkwiu", "weight", "priority", "short_description", "description",
-            "stock", "stock_warnlevel", "availability", "delivery", "views", "rank", "rank_votes", "images"
+            "product_code",
+            "active",
+            "name",
+            "price",
+            "vat",
+            "unit",
+            "category",
+            "producer",
+            "other_price",
+            "pkwiu",
+            "weight",
+            "priority",
+            "short_description",
+            "description",
+            "stock",
+            "stock_warnlevel",
+            "availability",
+            "delivery",
+            "views",
+            "rank",
+            "rank_votes",
+            "images1",
+            "images2",
         ]
 
         with open(file_path, mode="w", encoding="utf-8", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
             for row in combined.values():
-                writer.writerow({
-                    "product_code": row["product_code"],
-                    "active": row["active"],
-                    "name": f"{row['nazwa']} {row['numer']} {row['set']}",
-                    "price": row["cena"],
-                    "vat": row["vat"],
-                    "unit": row["unit"],
-                    "category": row["category"],
-                    "producer": row["producer"],
-                    "other_price": row["other_price"],
-                    "pkwiu": row["pkwiu"],
-                    "weight": row["weight"],
-                    "priority": row["priority"],
-                    "short_description": row["short_description"],
-                    "description": row["description"],
-                    "stock": row["stock"],
-                    "stock_warnlevel": row["stock_warnlevel"],
-                    "availability": row["availability"],
-                    "delivery": row["delivery"],
-                    "views": row["views"],
-                    "rank": row["rank"],
-                    "rank_votes": row["rank_votes"],
-                    "images": ";".join(row.get("images", []))
-                })
+                writer.writerow(
+                    {
+                        "product_code": row["product_code"],
+                        "active": row["active"],
+                        "name": f"{row['nazwa']} {row['numer']} {row['set']}",
+                        "price": row["cena"],
+                        "vat": row["vat"],
+                        "unit": row["unit"],
+                        "category": row["category"],
+                        "producer": row["producer"],
+                        "other_price": row["other_price"],
+                        "pkwiu": row["pkwiu"],
+                        "weight": row["weight"],
+                        "priority": row["priority"],
+                        "short_description": row["short_description"],
+                        "description": row["description"],
+                        "stock": row["stock"],
+                        "stock_warnlevel": row["stock_warnlevel"],
+                        "availability": row["availability"],
+                        "delivery": row["delivery"],
+                        "views": row["views"],
+                        "rank": row["rank"],
+                        "rank_votes": row["rank_votes"],
+                        "images1": row.get("images1", ""),
+                        "images2": row.get("images2", ""),
+                    }
+                )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
 
 if __name__ == "__main__":
