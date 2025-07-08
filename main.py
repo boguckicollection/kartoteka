@@ -83,11 +83,11 @@ class CardEditorApp:
 
         tk.Label(self.frame, text="Rarity").grid(row=6, column=1, sticky='w')
         self.rarity_vars = {}
-        rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE"]
+        rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE", "PROMO"]
         for i, r in enumerate(rarities):
             var = tk.BooleanVar()
             self.rarity_vars[r] = var
-            tk.Checkbutton(self.frame, text=r, variable=var).grid(row=6, column=2+i)
+            tk.Checkbutton(self.frame, text=r, variable=var).grid(row=6, column=2+i, padx=5)
 
         tk.Label(self.frame, text="Suffix").grid(row=7, column=1, sticky='w')
         self.suffix_var = tk.StringVar(value="")
@@ -96,7 +96,7 @@ class CardEditorApp:
         suffix_dropdown.grid(row=7, column=2)
 
         tk.Label(self.frame, text="Stan").grid(row=8, column=1, sticky='w')
-        self.stan_var = tk.StringVar()
+        self.stan_var = tk.StringVar(value="NM")
         self.entries['stan'] = self.stan_var
         stan_dropdown = ttk.Combobox(self.frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"])
         stan_dropdown.grid(row=8, column=2)
@@ -153,11 +153,16 @@ class CardEditorApp:
         self.image_objects.append(img)
         self.image_label.configure(image=img)
 
-        for entry in self.entries.values():
+        for key, entry in self.entries.items():
             if isinstance(entry, tk.Entry):
                 entry.delete(0, tk.END)
             elif isinstance(entry, tk.StringVar):
-                entry.set("")
+                if key == 'język':
+                    entry.set('ENG')
+                elif key == 'stan':
+                    entry.set('NM')
+                else:
+                    entry.set('')
             elif isinstance(entry, tk.BooleanVar):
                 entry.set(False)
 
