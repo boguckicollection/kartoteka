@@ -17,6 +17,13 @@ pip install -r requirements.txt
 
 Ensure a `card_prices.csv` file with columns `name`, `number`, `set` and `price` exists in the project directory.
 
+Create a `.env` file with your RapidAPI credentials:
+
+```bash
+RAPIDAPI_KEY=your-key-here
+RAPIDAPI_HOST=pokemon-tcg-api.p.rapidapi.com
+```
+
 
 ## Running
 Execute the main script with Python 3:
