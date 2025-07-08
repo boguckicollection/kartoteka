@@ -312,8 +312,29 @@ class CardEditorApp:
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         self.card_counts[key] += 1
         data['ilość'] = self.card_counts[key]
-        data["image"] = os.path.basename(self.cards[self.index])
-        data["product_code"] = self.generate_location(self.index)
+        front_path = self.cards[self.index]
+        front_file = os.path.basename(front_path)
+        back_file = None
+        product_idx = self.index
+
+        def core(name: str) -> str:
+            name_no_ext, _ = os.path.splitext(name)
+            for suf in ["_front", "-front", " front", "_back", "-back", " back"]:
+                if name_no_ext.lower().endswith(suf):
+                    return name_no_ext[: -len(suf)]
+            return name_no_ext
+
+        if self.index + 1 < len(self.cards):
+            next_file = os.path.basename(self.cards[self.index + 1])
+            if core(front_file).lower() == core(next_file).lower():
+                back_file = next_file
+                self.index += 1
+
+        images = [front_file]
+        if back_file:
+            images.append(back_file)
+        data["images"] = images
+        data["product_code"] = self.generate_location(product_idx)
         data["active"] = 1
         data["vat"] = 23
         data["unit"] = "szt"
@@ -389,7 +410,7 @@ class CardEditorApp:
                     "views": row["views"],
                     "rank": row["rank"],
                     "rank_votes": row["rank_votes"],
-                    "images": row["image"]
+                    "images": ";".join(row.get("images", []))
                 })
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
 
