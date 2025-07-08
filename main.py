@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BASE_IMAGE_URL = "https://sklep839679.shoparena.pl/upload/images"
+
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
@@ -33,6 +35,8 @@ class CardEditorApp:
         self.output_data = []
         self.card_counts = defaultdict(int)
         self.price_db = self.load_price_db()
+        self.folder_name = ""
+        self.folder_path = ""
 
         self.setup_ui()
 
@@ -133,6 +137,8 @@ class CardEditorApp:
         folder = filedialog.askdirectory()
         if not folder:
             return
+        self.folder_path = folder
+        self.folder_name = os.path.basename(folder)
         self.cards = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.png'))]
         self.cards.sort()
         self.index = 0
@@ -359,7 +365,7 @@ class CardEditorApp:
         images = [front_file]
         if back_file:
             images.append(back_file)
-        data["images"] = images
+        data["images"] = [f"{BASE_IMAGE_URL}/{self.folder_name}/{img}" for img in images]
         data["product_code"] = self.generate_location(product_idx)
         data["active"] = 1
         data["vat"] = 23
