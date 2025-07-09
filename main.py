@@ -519,6 +519,6 @@ class CardEditorApp:
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
 
 if __name__ == "__main__":
-    style = Style("flatly")
+    style = Style("darkly")
     app = CardEditorApp(style.master)
     style.master.mainloop()
