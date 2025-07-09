@@ -270,6 +270,13 @@ class CardEditorApp:
                 return None
 
             cards = response.json()
+            if isinstance(cards, dict):
+                if "cards" in cards:
+                    cards = cards["cards"]
+                elif "data" in cards:
+                    cards = cards["data"]
+                else:
+                    cards = []
             candidates = []
 
             for card in cards:
