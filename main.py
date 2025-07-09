@@ -18,6 +18,7 @@ RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 PRICE_DB_PATH = "card_prices.csv"
+PRICE_MULTIPLIER = 1.23
 
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
@@ -296,7 +297,7 @@ class CardEditorApp:
                 price_eur = best.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
                 if price_eur:
                     eur_pln = self.get_exchange_rate()
-                    price_pln = round(float(price_eur) * eur_pln * 2, 2)
+                    price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER)
                     print(f"[INFO] Cena {best.get('name')} ({number_input}, {set_input}) = {price_pln} PLN")
                     return price_pln
 
