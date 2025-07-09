@@ -166,6 +166,7 @@ class CardEditorApp:
         image.thumbnail((400, 560))
         img = ImageTk.PhotoImage(image)
         self.image_objects.append(img)
+        self.image_objects = self.image_objects[-2:]
         self.image_label.configure(image=img)
 
         for key, entry in self.entries.items():
