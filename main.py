@@ -249,17 +249,20 @@ class CardEditorApp:
         set_input = set_name.strip().lower()
 
         try:
-            url = "https://www.tcggo.com/api/cards/"
-            params = {
-                "name": name_input,
-                "number": number_input,
-                "set": set_input,
-            }
             headers = {}
             if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                url = f"https://{RAPIDAPI_HOST}/cards/search"
+                params = {"search": name_input}
                 headers = {
                     "X-RapidAPI-Key": RAPIDAPI_KEY,
                     "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            else:
+                url = "https://www.tcggo.com/api/cards/"
+                params = {
+                    "name": name_input,
+                    "number": number_input,
+                    "set": set_input,
                 }
             response = requests.get(url, params=params, headers=headers)
             if response.status_code != 200:
