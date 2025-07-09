@@ -310,11 +310,19 @@ class CardEditorApp:
         set_name = self.entries['set'].get()
 
         cena = self.get_price_from_db(name, number, set_name)
-        if cena:
+        if cena is not None:
             self.entries['cena'].delete(0, tk.END)
             self.entries['cena'].insert(0, str(cena))
         else:
-            messagebox.showinfo("Brak wyników", "Nie znaleziono ceny dla podanej karty w bazie danych.")
+            fetched = self.fetch_card_price(name, number, set_name)
+            if fetched is not None:
+                self.entries['cena'].delete(0, tk.END)
+                self.entries['cena'].insert(0, str(fetched))
+            else:
+                messagebox.showinfo(
+                    "Brak wyników",
+                    "Nie znaleziono ceny dla podanej karty w bazie danych.",
+                )
 
 
     def get_exchange_rate(self):
@@ -398,10 +406,14 @@ class CardEditorApp:
 
         # Automatyczne pobranie ceny z bazy
         cena_local = self.get_price_from_db(data['nazwa'], data['numer'], data['set'])
-        if cena_local:
+        if cena_local is not None:
             data["cena"] = str(cena_local)
         else:
-            data["cena"] = ""
+            fetched = self.fetch_card_price(data['nazwa'], data['numer'], data['set'])
+            if fetched is not None:
+                data["cena"] = str(fetched)
+            else:
+                data["cena"] = ""
 
         self.output_data.append(data)
         self.index += 1

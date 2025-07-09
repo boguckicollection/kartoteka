@@ -5,6 +5,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 ## Features
 - Load images from a folder and review them one by one
 - Fetch card prices from a local database (`card_prices.csv`)
+- Automatically query the TCGGO API when a price is missing
 - Save collected data to a CSV file
 - Autocomplete set selection and additional rarity checkboxes
 
@@ -24,6 +25,10 @@ RAPIDAPI_KEY=your-key-here
 RAPIDAPI_HOST=pokemon-tcg-api.p.rapidapi.com
 ```
 
+These credentials are used when a card price is not found in the local
+database. A valid `RAPIDAPI_KEY` allows the application to query the API
+and fill in the missing price automatically.
+
 
 ## Running
 Execute the main script with Python 3:
@@ -32,4 +37,5 @@ Execute the main script with Python 3:
 python main.py
 ```
 
-The interface will allow you to load scans, fetch prices from the local database and export results to CSV.
+The interface will allow you to load scans, fetch prices from the local database
+or the API, and export results to CSV.
