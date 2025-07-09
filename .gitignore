@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+card_prices.csv
+ceny_kart_*.xlsx
+name
