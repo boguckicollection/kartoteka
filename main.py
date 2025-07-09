@@ -114,6 +114,12 @@ class CardEditorApp:
 
         self.save_button = tk.Button(self.frame, text="Zapisz i dalej", command=self.save_and_next)
         self.save_button.grid(row=11, column=1, columnspan=2, pady=5)
+
+        for entry in self.entries.values():
+            if isinstance(entry, tk.Entry):
+                entry.bind("<Return>", lambda e: self.save_and_next())
+
+        self.root.bind("<Return>", lambda e: self.save_and_next())
         self.update_set_options()
 
     def update_set_options(self, event=None):
