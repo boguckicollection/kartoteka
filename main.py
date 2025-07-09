@@ -265,7 +265,7 @@ class CardEditorApp:
                     "number": number_input,
                     "set": set_input,
                 }
-            response = requests.get(url, params=params, headers=headers)
+            response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
                 print(f"[ERROR] API error: {response.status_code}")
                 return None
@@ -308,6 +308,8 @@ class CardEditorApp:
                 if number_input == card_number and set_input in card_set:
                     print(f"- {card.get('name')} | {card_number} | {card.get('episode', {}).get('name')}")
 
+        except requests.Timeout:
+            print("[ERROR] Request timed out")
         except Exception as e:
             print(f"[ERROR] Fetching price from TCGGO failed: {e}")
         return None
@@ -338,10 +340,15 @@ class CardEditorApp:
 
     def get_exchange_rate(self):
         try:
-            res = requests.get("https://api.nbp.pl/api/exchangerates/rates/A/EUR/?format=json")
+            res = requests.get(
+                "https://api.nbp.pl/api/exchangerates/rates/A/EUR/?format=json",
+                timeout=10,
+            )
             if res.status_code == 200:
                 return res.json()['rates'][0]['mid']
-        except:
+        except requests.Timeout:
+            print("[ERROR] Exchange rate request timed out")
+        except Exception:
             pass
         return 4.5
 
