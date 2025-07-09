@@ -443,11 +443,18 @@ class CardEditorApp:
             writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
             for row in combined.values():
+                suffix = row.get("suffix", "").strip()
+                name_parts = [row["nazwa"]]
+                if suffix:
+                    name_parts.append(suffix)
+                name_parts.append(row["numer"])
+                formatted_name = " ".join(name_parts)
+
                 writer.writerow(
                     {
                         "product_code": row["product_code"],
                         "active": row["active"],
-                        "name": f"{row['nazwa']} {row['numer']} {row['set']}",
+                        "name": formatted_name,
                         "price": row["cena"],
                         "vat": row["vat"],
                         "unit": row["unit"],
