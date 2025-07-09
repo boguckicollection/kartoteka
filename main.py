@@ -138,6 +138,7 @@ class CardEditorApp:
         else:
             filtered = all_sets
         self.set_dropdown['values'] = sorted(filtered)
+        self.set_dropdown.event_generate("<Down>")
 
     def load_images(self):
         folder = filedialog.askdirectory()
