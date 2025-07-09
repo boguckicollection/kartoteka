@@ -281,8 +281,8 @@ class CardEditorApp:
 
             for card in cards:
                 card_name = normalize(card.get("name", ""))
-                card_number = card.get("card_number", "").lower()
-                card_set = card.get("episode", {}).get("name", "").lower()
+                card_number = str(card.get("card_number", "")).lower()
+                card_set = str(card.get("episode", {}).get("name", "")).lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -302,8 +302,8 @@ class CardEditorApp:
 
             print("\n[DEBUG] Nie znaleziono dokładnej karty. Zbliżone:")
             for card in cards:
-                card_number = card.get("card_number", "").lower()
-                card_set = card.get("episode", {}).get("name", "").lower()
+                card_number = str(card.get("card_number", "")).lower()
+                card_set = str(card.get("episode", {}).get("name", "")).lower()
                 if number_input == card_number and set_input in card_set:
                     print(f"- {card.get('name')} | {card_number} | {card.get('episode', {}).get('name')}")
 
