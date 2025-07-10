@@ -378,7 +378,7 @@ class CardEditorApp:
                     return None
         return None
 
-    def fetch_card_price(self, name, number, set_name):
+    def fetch_card_price(self, name, number, set_name, is_reverse=False, is_holo=False):
         import unicodedata
 
         def normalize(text):
@@ -399,6 +399,10 @@ class CardEditorApp:
             if RAPIDAPI_KEY and RAPIDAPI_HOST:
                 url = f"https://{RAPIDAPI_HOST}/cards/search"
                 params = {"search": name_input}
+                if is_reverse:
+                    params["isReverseHolo"] = "Y"
+                if is_holo:
+                    params["isHolo"] = "Y"
                 headers = {
                     "X-RapidAPI-Key": RAPIDAPI_KEY,
                     "X-RapidAPI-Host": RAPIDAPI_HOST,
@@ -410,6 +414,10 @@ class CardEditorApp:
                     "number": number_input,
                     "set": set_input,
                 }
+                if is_reverse:
+                    params["isReverseHolo"] = "Y"
+                if is_holo:
+                    params["isHolo"] = "Y"
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
                 print(f"[ERROR] API error: {response.status_code}")
@@ -467,12 +475,15 @@ class CardEditorApp:
         number = self.entries['numer'].get()
         set_name = self.entries['set'].get()
 
+        is_reverse = self.type_vars["Reverse"].get()
+        is_holo = self.type_vars["Holo"].get()
+
         cena = self.get_price_from_db(name, number, set_name)
         if cena is not None:
             self.entries['cena'].delete(0, tk.END)
             self.entries['cena'].insert(0, str(cena))
         else:
-            fetched = self.fetch_card_price(name, number, set_name)
+            fetched = self.fetch_card_price(name, number, set_name, is_reverse=is_reverse, is_holo=is_holo)
             if fetched is not None:
                 self.entries['cena'].delete(0, tk.END)
                 self.entries['cena'].insert(0, str(fetched))
@@ -573,7 +584,15 @@ class CardEditorApp:
         if cena_local is not None:
             data["cena"] = str(cena_local)
         else:
-            fetched = self.fetch_card_price(data['nazwa'], data['numer'], data['set'])
+            is_reverse = self.type_vars["Reverse"].get()
+            is_holo = self.type_vars["Holo"].get()
+            fetched = self.fetch_card_price(
+                data['nazwa'],
+                data['numer'],
+                data['set'],
+                is_reverse=is_reverse,
+                is_holo=is_holo,
+            )
             if fetched is not None:
                 data["cena"] = str(fetched)
             else:
