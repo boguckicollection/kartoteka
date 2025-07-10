@@ -671,8 +671,7 @@ class CardEditorApp:
         """Open a Cardmarket search for the current card in the default browser."""
         name = self.entries['nazwa'].get()
         number = self.entries['numer'].get()
-        set_name = self.entries['set'].get()
-        search_terms = " ".join(t for t in [name, number, set_name] if t)
+        search_terms = " ".join(t for t in [name, number] if t)
         params = urlencode({'searchString': search_terms})
         url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
         webbrowser.open(url)
