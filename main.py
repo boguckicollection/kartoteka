@@ -56,10 +56,50 @@ class CardEditorApp:
         self.folder_name = ""
         self.folder_path = ""
         self.progress_var = tk.StringVar(value="0/0")
+        self.start_frame = None
 
-        self.setup_ui()
+        self.setup_welcome_screen()
 
-    def setup_ui(self):
+    def setup_welcome_screen(self):
+        """Display a simple welcome screen before loading scans."""
+        self.root.geometry("900x700")
+        self.start_frame = tk.Frame(self.root)
+        self.start_frame.pack(expand=True, fill="both")
+
+        logo_path = os.path.join(os.path.dirname(__file__), "LOGO_male.png")
+        if os.path.exists(logo_path):
+            logo_img = Image.open(logo_path)
+            logo_img.thumbnail((300, 120))
+            self.logo_photo = ImageTk.PhotoImage(logo_img)
+            logo_label = tk.Label(self.start_frame, image=self.logo_photo)
+            logo_label.pack(pady=(40, 20))
+
+        greeting = tk.Label(
+            self.start_frame,
+            text="Witaj w narzędziu Bogucki",
+            font=("Helvetica", 16, "bold"),
+        )
+        greeting.pack(pady=5)
+
+        desc = tk.Label(
+            self.start_frame,
+            text=(
+                "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
+            ),
+            wraplength=600,
+            justify="center",
+        )
+        desc.pack(pady=5)
+
+        load_btn = ttk.Button(
+            self.start_frame,
+            text="Załaduj folder skanów",
+            command=self.load_images,
+            bootstyle="primary",
+        )
+        load_btn.pack(pady=20)
+
+    def setup_editor_ui(self):
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
@@ -224,6 +264,10 @@ class CardEditorApp:
         folder = filedialog.askdirectory()
         if not folder:
             return
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+            self.setup_editor_ui()
         self.folder_path = folder
         self.folder_name = os.path.basename(folder)
         self.cards = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.png'))]
