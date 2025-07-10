@@ -17,6 +17,9 @@ Install dependencies from `requirements.txt`:
 pip install -r requirements.txt
 ```
 
+The application uses built-in icons available starting from `ttkbootstrap` 1.10,
+so ensure a recent version is installed.
+
 Ensure a `card_prices.csv` file with columns `name`, `number`, `set` and `price` exists in the project directory.
 
 Create a `.env` file with your RapidAPI credentials:
