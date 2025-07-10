@@ -145,63 +145,67 @@ class CardEditorApp:
         # Container for card information fields
         self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
         self.info_frame.grid(row=2, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew")
+        for i in range(8):
+            self.info_frame.columnconfigure(i, weight=1)
 
         self.entries = {}
 
-        tk.Label(self.info_frame, text="Język").grid(row=0, column=0, sticky='w')
+        grid_opts = {"padx": 5, "pady": 2}
+
+        tk.Label(self.info_frame, text="Język").grid(row=0, column=0, sticky="w", **grid_opts)
         self.lang_var = tk.StringVar(value="ENG")
         self.entries['język'] = self.lang_var
-        lang_dropdown = ttk.Combobox(self.info_frame, textvariable=self.lang_var, values=["ENG", "JP"])
-        lang_dropdown.grid(row=0, column=1)
+        lang_dropdown = ttk.Combobox(self.info_frame, textvariable=self.lang_var, values=["ENG", "JP"], width=20)
+        lang_dropdown.grid(row=0, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
 
-        tk.Label(self.info_frame, text="Nazwa").grid(row=1, column=0, sticky='w')
-        self.entries['nazwa'] = tk.Entry(self.info_frame)
-        self.entries['nazwa'].grid(row=1, column=1)
+        tk.Label(self.info_frame, text="Nazwa").grid(row=1, column=0, sticky="w", **grid_opts)
+        self.entries['nazwa'] = ttk.Entry(self.info_frame, width=20)
+        self.entries['nazwa'].grid(row=1, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Numer").grid(row=2, column=0, sticky='w')
-        self.entries['numer'] = tk.Entry(self.info_frame)
-        self.entries['numer'].grid(row=2, column=1)
+        tk.Label(self.info_frame, text="Numer").grid(row=2, column=0, sticky="w", **grid_opts)
+        self.entries['numer'] = ttk.Entry(self.info_frame, width=20)
+        self.entries['numer'].grid(row=2, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Set").grid(row=3, column=0, sticky='w')
+        tk.Label(self.info_frame, text="Set").grid(row=3, column=0, sticky="w", **grid_opts)
         self.set_var = tk.StringVar()
-        self.set_dropdown = ttk.Combobox(self.info_frame, textvariable=self.set_var)
-        self.set_dropdown.grid(row=3, column=1)
+        self.set_dropdown = ttk.Combobox(self.info_frame, textvariable=self.set_var, width=20)
+        self.set_dropdown.grid(row=3, column=1, sticky="ew", **grid_opts)
         self.set_dropdown.bind('<KeyRelease>', self.filter_sets)
         self.set_dropdown.bind('<Tab>', self.autocomplete_set)
         self.entries['set'] = self.set_var
 
-        tk.Label(self.info_frame, text="Typ").grid(row=4, column=0, sticky='w')
+        tk.Label(self.info_frame, text="Typ").grid(row=4, column=0, sticky="w", **grid_opts)
         self.type_var = tk.StringVar(value="")
         self.entries['typ'] = self.type_var
         typy = ["", "Common", "Holo", "Reverse"]
-        typ_dropdown = ttk.Combobox(self.info_frame, textvariable=self.type_var, values=typy, state="readonly")
-        typ_dropdown.grid(row=4, column=1, columnspan=3)
+        typ_dropdown = ttk.Combobox(self.info_frame, textvariable=self.type_var, values=typy, state="readonly", width=20)
+        typ_dropdown.grid(row=4, column=1, columnspan=3, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky='w')
+        tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky="w", **grid_opts)
         self.rarity_vars = {}
         rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE", "PROMO"]
         for i, r in enumerate(rarities):
             var = tk.BooleanVar()
             self.rarity_vars[r] = var
-            tk.Checkbutton(self.info_frame, text=r, variable=var).grid(row=5, column=1+i, padx=5)
+            tk.Checkbutton(self.info_frame, text=r, variable=var).grid(row=5, column=1+i, sticky="w", **grid_opts)
 
-        tk.Label(self.info_frame, text="Suffix").grid(row=6, column=0, sticky='w')
+        tk.Label(self.info_frame, text="Suffix").grid(row=6, column=0, sticky="w", **grid_opts)
         self.suffix_var = tk.StringVar(value="")
         self.entries['suffix'] = self.suffix_var
-        suffix_dropdown = ttk.Combobox(self.info_frame, textvariable=self.suffix_var, values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"])
-        suffix_dropdown.grid(row=6, column=1)
+        suffix_dropdown = ttk.Combobox(self.info_frame, textvariable=self.suffix_var, values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"], width=20)
+        suffix_dropdown.grid(row=6, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Stan").grid(row=7, column=0, sticky='w')
+        tk.Label(self.info_frame, text="Stan").grid(row=7, column=0, sticky="w", **grid_opts)
         self.stan_var = tk.StringVar(value="NM")
         self.entries['stan'] = self.stan_var
-        stan_dropdown = ttk.Combobox(self.info_frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"])
-        stan_dropdown.grid(row=7, column=1)
+        stan_dropdown = ttk.Combobox(self.info_frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"], width=20)
+        stan_dropdown.grid(row=7, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Cena").grid(row=8, column=0, sticky='w')
-        self.entries['cena'] = tk.Entry(self.info_frame)
-        self.entries['cena'].grid(row=8, column=1)
+        tk.Label(self.info_frame, text="Cena").grid(row=8, column=0, sticky="w", **grid_opts)
+        self.entries['cena'] = ttk.Entry(self.info_frame, width=20)
+        self.entries['cena'].grid(row=8, column=1, sticky="ew", **grid_opts)
 
         self.api_button = ttk.Button(
             self.info_frame,
@@ -211,7 +215,7 @@ class CardEditorApp:
             command=self.fetch_card_data,
             bootstyle="info",
         )
-        self.api_button.grid(row=9, column=0, columnspan=2, pady=5)
+        self.api_button.grid(row=9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         self.save_button = ttk.Button(
             self.info_frame,
@@ -221,10 +225,10 @@ class CardEditorApp:
             command=self.save_and_next,
             bootstyle="primary",
         )
-        self.save_button.grid(row=10, column=0, columnspan=2, pady=5)
+        self.save_button.grid(row=10, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         for entry in self.entries.values():
-            if isinstance(entry, tk.Entry):
+            if isinstance(entry, (tk.Entry, ttk.Entry)):
                 entry.bind("<Return>", lambda e: self.save_and_next())
 
         self.root.bind("<Return>", lambda e: self.save_and_next())
@@ -295,7 +299,7 @@ class CardEditorApp:
         self.image_label.configure(image=img)
 
         for key, entry in self.entries.items():
-            if isinstance(entry, tk.Entry):
+            if isinstance(entry, (tk.Entry, ttk.Entry)):
                 entry.delete(0, tk.END)
             elif isinstance(entry, tk.StringVar):
                 if key == 'język':
