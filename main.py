@@ -62,7 +62,7 @@ class CardEditorApp:
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
-        self.root.geometry("150x700")
+        self.root.geometry("1500x700")
         self.start_frame = tk.Frame(self.root, bg=self.root.cget("background"))
         self.start_frame.pack(expand=True, fill="both")
 
@@ -90,7 +90,7 @@ class CardEditorApp:
             text=(
                 "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
             ),
-            wraplength=140,
+            wraplength=1400,
             justify="center",
         )
         desc.pack(pady=5)
@@ -98,26 +98,32 @@ class CardEditorApp:
         author = tk.Label(
             self.start_frame,
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
-            wraplength=140,
+            wraplength=1400,
             justify="center",
+            font=("Helvetica", 8),
         )
-        author.pack(pady=5)
+        author.pack(side="bottom", pady=5)
+
+        button_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
+        button_frame.pack(pady=10)
 
         scan_btn = ttk.Button(
-            self.start_frame,
+            button_frame,
             text="\U0001F50D Skanuj",
             command=self.load_images,
             bootstyle="primary",
         )
-        scan_btn.pack(pady=5)
+        scan_btn.pack(side="left", padx=5)
 
-        self.placeholder_btn("\U0001F4B0 Wyceniaj").pack(pady=5)
-        self.placeholder_btn("\U0001F5C3\uFE0F Porządkuj").pack(pady=5)
-        self.placeholder_btn("\U0001F4E6 Eksportuj").pack(pady=5)
+        self.placeholder_btn("\U0001F4B0 Wyceniaj", button_frame).pack(side="left", padx=5)
+        self.placeholder_btn("\U0001F5C3\uFE0F Porządkuj", button_frame).pack(side="left", padx=5)
+        self.placeholder_btn("\U0001F4E6 Eksportuj", button_frame).pack(side="left", padx=5)
 
-    def placeholder_btn(self, text: str):
+    def placeholder_btn(self, text: str, master=None):
+        if master is None:
+            master = self.start_frame
         return ttk.Button(
-            self.start_frame,
+            master,
             text=text,
             command=lambda: messagebox.showinfo(
                 "Info", "Funkcja niezaimplementowana."
@@ -126,7 +132,7 @@ class CardEditorApp:
         )
 
     def setup_editor_ui(self):
-        self.root.geometry("1200x900")
+        self.root.geometry("1500x700")
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
