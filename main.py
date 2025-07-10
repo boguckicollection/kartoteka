@@ -110,6 +110,7 @@ class CardEditorApp:
         self.set_dropdown = ttk.Combobox(self.frame, textvariable=self.set_var)
         self.set_dropdown.grid(row=4, column=2)
         self.set_dropdown.bind('<KeyRelease>', self.filter_sets)
+        self.set_dropdown.bind('<Tab>', self.autocomplete_set)
         self.entries['set'] = self.set_var
 
         tk.Label(self.frame, text="Typ").grid(row=5, column=1, sticky='w')
@@ -184,7 +185,19 @@ class CardEditorApp:
         else:
             filtered = all_sets
         self.set_dropdown['values'] = sorted(filtered)
-        self.set_dropdown.event_generate("<Down>")
+
+    def autocomplete_set(self, event=None):
+        typed = self.set_var.get().lower()
+        lang = self.lang_var.get().strip().upper()
+        all_sets = tcg_sets_jp if lang == "JP" else tcg_sets_eng
+        if typed:
+            filtered = [s for s in all_sets if typed in s.lower()]
+        else:
+            filtered = all_sets
+        if filtered:
+            self.set_var.set(filtered[0])
+        event.widget.tk_focusNext().focus()
+        return "break"
 
     def load_images(self):
         folder = filedialog.askdirectory()
