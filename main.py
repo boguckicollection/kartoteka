@@ -62,21 +62,21 @@ class CardEditorApp:
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
-        self.root.geometry("900x700")
+        self.root.geometry("150x700")
         self.start_frame = tk.Frame(self.root, bg=self.root.cget("background"))
         self.start_frame.pack(expand=True, fill="both")
 
         logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
-            logo_img.thumbnail((400, 160))
+            logo_img.thumbnail((140, 140))
             self.logo_photo = ImageTk.PhotoImage(logo_img)
             logo_label = tk.Label(
                 self.start_frame,
                 image=self.logo_photo,
                 bg=self.start_frame.cget("bg"),
             )
-            logo_label.pack(pady=(20, 20))
+            logo_label.pack(pady=(10, 10))
 
         greeting = tk.Label(
             self.start_frame,
@@ -90,7 +90,7 @@ class CardEditorApp:
             text=(
                 "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
             ),
-            wraplength=600,
+            wraplength=140,
             justify="center",
         )
         desc.pack(pady=5)
@@ -98,18 +98,32 @@ class CardEditorApp:
         author = tk.Label(
             self.start_frame,
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
-            wraplength=600,
+            wraplength=140,
             justify="center",
         )
         author.pack(pady=5)
 
-        load_btn = ttk.Button(
+        scan_btn = ttk.Button(
             self.start_frame,
-            text="Załaduj folder skanów",
+            text="\U0001F50D Skanuj",
             command=self.load_images,
             bootstyle="primary",
         )
-        load_btn.pack(pady=20)
+        scan_btn.pack(pady=5)
+
+        self.placeholder_btn("\U0001F4B0 Wyceniaj").pack(pady=5)
+        self.placeholder_btn("\U0001F5C3\uFE0F Porządkuj").pack(pady=5)
+        self.placeholder_btn("\U0001F4E6 Eksportuj").pack(pady=5)
+
+    def placeholder_btn(self, text: str):
+        return ttk.Button(
+            self.start_frame,
+            text=text,
+            command=lambda: messagebox.showinfo(
+                "Info", "Funkcja niezaimplementowana."
+            ),
+            bootstyle="secondary",
+        )
 
     def setup_editor_ui(self):
         self.root.geometry("1200x900")
