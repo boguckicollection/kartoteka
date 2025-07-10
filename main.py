@@ -177,11 +177,12 @@ class CardEditorApp:
         self.entries['set'] = self.set_var
 
         tk.Label(self.info_frame, text="Typ").grid(row=4, column=0, sticky="w", **grid_opts)
-        self.type_var = tk.StringVar(value="")
-        self.entries['typ'] = self.type_var
-        typy = ["", "Common", "Holo", "Reverse"]
-        typ_dropdown = ttk.Combobox(self.info_frame, textvariable=self.type_var, values=typy, state="readonly", width=20)
-        typ_dropdown.grid(row=4, column=1, columnspan=3, sticky="ew", **grid_opts)
+        self.type_vars = {}
+        types = ["Common", "Holo", "Reverse"]
+        for i, t in enumerate(types):
+            var = tk.BooleanVar()
+            self.type_vars[t] = var
+            tk.Checkbutton(self.info_frame, text=t, variable=var).grid(row=4, column=1+i, sticky="w", **grid_opts)
 
         tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky="w", **grid_opts)
         self.rarity_vars = {}
@@ -312,6 +313,9 @@ class CardEditorApp:
                 entry.set(False)
 
         for var in self.rarity_vars.values():
+            var.set(False)
+
+        for var in self.type_vars.values():
             var.set(False)
 
         # focus the name entry so the user can start typing immediately
@@ -487,6 +491,7 @@ class CardEditorApp:
 
     def save_and_next(self):
         data = {k: v.get() for k, v in self.entries.items()}
+        data['typ'] = ",".join([name for name, var in self.type_vars.items() if var.get()])
         data['rarity'] = ",".join([k for k, v in self.rarity_vars.items() if v.get()])
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         self.card_counts[key] += 1
