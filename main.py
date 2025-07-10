@@ -15,6 +15,7 @@ from collections import defaultdict
 from dotenv import load_dotenv
 import webbrowser
 from urllib.parse import urlencode
+import io
 
 load_dotenv()
 
@@ -118,7 +119,12 @@ class CardEditorApp:
         )
         scan_btn.pack(side="left", padx=5)
 
-        self.placeholder_btn("\U0001F4B0 Wyceniaj", button_frame).pack(side="left", padx=5)
+        ttk.Button(
+            button_frame,
+            text="\U0001F4B0 Wyceniaj",
+            command=self.setup_pricing_ui,
+            bootstyle="info",
+        ).pack(side="left", padx=5)
         self.placeholder_btn("\U0001F5C3\uFE0F Porządkuj", button_frame).pack(side="left", padx=5)
         self.placeholder_btn("\U0001F4E6 Eksportuj", button_frame).pack(side="left", padx=5)
 
@@ -133,6 +139,91 @@ class CardEditorApp:
             ),
             bootstyle="secondary",
         )
+
+    def setup_pricing_ui(self):
+        """UI for quick card price lookup."""
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+        if getattr(self, "pricing_frame", None):
+            self.pricing_frame.destroy()
+        self.root.geometry("800x600")
+        self.pricing_frame = tk.Frame(self.root)
+        self.pricing_frame.pack(expand=True, fill="both", padx=10, pady=10)
+
+        tk.Label(self.pricing_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
+        self.price_name_entry = ttk.Entry(self.pricing_frame, width=30)
+        self.price_name_entry.grid(row=0, column=1, sticky="w")
+
+        tk.Label(self.pricing_frame, text="Numer").grid(row=1, column=0, sticky="e")
+        self.price_number_entry = ttk.Entry(self.pricing_frame, width=30)
+        self.price_number_entry.grid(row=1, column=1, sticky="w")
+
+        tk.Label(self.pricing_frame, text="Set").grid(row=2, column=0, sticky="e")
+        self.price_set_entry = ttk.Entry(self.pricing_frame, width=30)
+        self.price_set_entry.grid(row=2, column=1, sticky="w")
+
+        self.price_holo_var = tk.BooleanVar()
+        tk.Checkbutton(
+            self.pricing_frame, text="Holo", variable=self.price_holo_var
+        ).grid(row=0, column=2, sticky="w")
+
+        self.price_reverse_var = tk.BooleanVar()
+        tk.Checkbutton(
+            self.pricing_frame, text="Reverse", variable=self.price_reverse_var
+        ).grid(row=1, column=2, sticky="w")
+
+        ttk.Button(
+            self.pricing_frame,
+            text="Wyszukaj",
+            command=self.run_pricing_search,
+            bootstyle="primary",
+        ).grid(row=3, column=0, columnspan=3, pady=5)
+
+        ttk.Button(
+            self.pricing_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+        ).grid(row=4, column=0, columnspan=3, pady=5)
+
+        self.result_frame = tk.Frame(self.pricing_frame)
+        self.result_frame.grid(row=5, column=0, columnspan=3, pady=10)
+
+    def run_pricing_search(self):
+        """Fetch and display pricing information."""
+        name = self.price_name_entry.get()
+        number = self.price_number_entry.get()
+        set_name = self.price_set_entry.get()
+        is_holo = self.price_holo_var.get()
+        is_reverse = self.price_reverse_var.get()
+
+        info = self.lookup_card_info(name, number, set_name, is_holo=is_holo, is_reverse=is_reverse)
+        for w in self.result_frame.winfo_children():
+            w.destroy()
+        if not info:
+            messagebox.showinfo("Brak wyników", "Nie znaleziono karty.")
+            return
+
+        if info.get("image_url"):
+            try:
+                res = requests.get(info["image_url"], timeout=10)
+                if res.status_code == 200:
+                    img = Image.open(io.BytesIO(res.content))
+                    img.thumbnail((240, 340))
+                    self.pricing_photo = ImageTk.PhotoImage(img)
+                    tk.Label(self.result_frame, image=self.pricing_photo).pack(pady=5)
+            except Exception as e:
+                print(f"[ERROR] Loading image failed: {e}")
+
+        tk.Label(self.result_frame, text=f"Cena EUR: {info['price_eur']}").pack()
+        tk.Label(self.result_frame, text=f"Kurs EUR→PLN: {info['eur_pln_rate']}").pack()
+        tk.Label(self.result_frame, text=f"Cena PLN: {info['price_pln']}").pack()
+        tk.Label(self.result_frame, text=f"80% ceny PLN: {info['price_pln_80']}").pack()
+
+    def back_to_welcome(self):
+        if getattr(self, "pricing_frame", None):
+            self.pricing_frame.destroy()
+        self.setup_welcome_screen()
 
     def setup_editor_ui(self):
         self.root.geometry("1500x900")
@@ -593,6 +684,78 @@ class CardEditorApp:
         except Exception as e:
             print(f"[ERROR] Fetching variants from TCGGO failed: {e}")
         return []
+
+    def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
+        """Return image URL and pricing information for the first matching card."""
+        import unicodedata
+
+        def normalize(text):
+            if not text:
+                return ""
+            text = unicodedata.normalize("NFKD", text)
+            text = text.lower()
+            for suffix in [" ex", " gx", " v", " vmax", " vstar", " shiny", " promo"]:
+                text = text.replace(suffix, "")
+            return text.replace("-", "").replace(" ", "").strip()
+
+        name_input = normalize(name)
+        number_input = number.strip().lower()
+        set_input = set_name.strip().lower()
+
+        try:
+            headers = {}
+            if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                url = f"https://{RAPIDAPI_HOST}/cards/search"
+                params = {"search": name_input}
+                headers = {
+                    "X-RapidAPI-Key": RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            else:
+                url = "https://www.tcggo.com/api/cards/"
+                params = {"name": name_input, "number": number_input, "set": set_input}
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"[ERROR] API error: {response.status_code}")
+                return None
+
+            cards = response.json()
+            if isinstance(cards, dict):
+                if "cards" in cards:
+                    cards = cards["cards"]
+                elif "data" in cards:
+                    cards = cards["data"]
+                else:
+                    cards = []
+
+            for card in cards:
+                card_name = normalize(card.get("name", ""))
+                card_number = str(card.get("card_number", "")).lower()
+                card_set = str(card.get("episode", {}).get("name", "")).lower()
+
+                name_match = name_input in card_name
+                number_match = number_input == card_number
+                set_match = set_input in card_set or card_set.startswith(set_input)
+
+                if name_match and number_match and set_match:
+                    price_eur = card.get("prices", {}).get("cardmarket", {}).get("30d_average", 0) or 0
+                    eur_pln = self.get_exchange_rate() * PRICE_MULTIPLIER
+                    price_pln = round(float(price_eur) * eur_pln, 2)
+                    if is_holo or is_reverse:
+                        price_pln = round(price_pln * HOLO_REVERSE_MULTIPLIER, 2)
+                    return {
+                        "image_url": card.get("images", {}).get("large"),
+                        "price_eur": round(float(price_eur), 2),
+                        "eur_pln_rate": round(eur_pln, 2),
+                        "price_pln": price_pln,
+                        "price_pln_80": round(price_pln * 0.8, 2),
+                    }
+        except requests.Timeout:
+            print("[ERROR] Request timed out")
+        except Exception as e:
+            print(f"[ERROR] Lookup failed: {e}")
+        return None
 
 
 
