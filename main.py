@@ -90,80 +90,84 @@ class CardEditorApp:
         self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=13, column=0, pady=5)
 
+        # Container for card information fields
+        self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
+        self.info_frame.grid(row=1, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew")
+
         self.entries = {}
 
-        tk.Label(self.frame, text="Język").grid(row=1, column=1, sticky='w')
+        tk.Label(self.info_frame, text="Język").grid(row=0, column=0, sticky='w')
         self.lang_var = tk.StringVar(value="ENG")
         self.entries['język'] = self.lang_var
-        lang_dropdown = ttk.Combobox(self.frame, textvariable=self.lang_var, values=["ENG", "JP"])
-        lang_dropdown.grid(row=1, column=2)
+        lang_dropdown = ttk.Combobox(self.info_frame, textvariable=self.lang_var, values=["ENG", "JP"])
+        lang_dropdown.grid(row=0, column=1)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
- 
 
-        tk.Label(self.frame, text="Nazwa").grid(row=2, column=1, sticky='w')
-        self.entries['nazwa'] = tk.Entry(self.frame)
-        self.entries['nazwa'].grid(row=2, column=2)
 
-        tk.Label(self.frame, text="Numer").grid(row=3, column=1, sticky='w')
-        self.entries['numer'] = tk.Entry(self.frame)
-        self.entries['numer'].grid(row=3, column=2)
+        tk.Label(self.info_frame, text="Nazwa").grid(row=1, column=0, sticky='w')
+        self.entries['nazwa'] = tk.Entry(self.info_frame)
+        self.entries['nazwa'].grid(row=1, column=1)
 
-        tk.Label(self.frame, text="Set").grid(row=4, column=1, sticky='w')
+        tk.Label(self.info_frame, text="Numer").grid(row=2, column=0, sticky='w')
+        self.entries['numer'] = tk.Entry(self.info_frame)
+        self.entries['numer'].grid(row=2, column=1)
+
+        tk.Label(self.info_frame, text="Set").grid(row=3, column=0, sticky='w')
         self.set_var = tk.StringVar()
-        self.set_dropdown = ttk.Combobox(self.frame, textvariable=self.set_var)
-        self.set_dropdown.grid(row=4, column=2)
+        self.set_dropdown = ttk.Combobox(self.info_frame, textvariable=self.set_var)
+        self.set_dropdown.grid(row=3, column=1)
         self.set_dropdown.bind('<KeyRelease>', self.filter_sets)
         self.set_dropdown.bind('<Tab>', self.autocomplete_set)
         self.entries['set'] = self.set_var
 
-        tk.Label(self.frame, text="Typ").grid(row=5, column=1, sticky='w')
+        tk.Label(self.info_frame, text="Typ").grid(row=4, column=0, sticky='w')
         self.type_var = tk.StringVar(value="")
         self.entries['typ'] = self.type_var
         typy = ["", "Common", "Holo", "Reverse"]
-        typ_dropdown = ttk.Combobox(self.frame, textvariable=self.type_var, values=typy, state="readonly")
-        typ_dropdown.grid(row=5, column=2, columnspan=3)
+        typ_dropdown = ttk.Combobox(self.info_frame, textvariable=self.type_var, values=typy, state="readonly")
+        typ_dropdown.grid(row=4, column=1, columnspan=3)
 
-        tk.Label(self.frame, text="Rarity").grid(row=6, column=1, sticky='w')
+        tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky='w')
         self.rarity_vars = {}
         rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE", "PROMO"]
         for i, r in enumerate(rarities):
             var = tk.BooleanVar()
             self.rarity_vars[r] = var
-            tk.Checkbutton(self.frame, text=r, variable=var).grid(row=6, column=2+i, padx=5)
+            tk.Checkbutton(self.info_frame, text=r, variable=var).grid(row=5, column=1+i, padx=5)
 
-        tk.Label(self.frame, text="Suffix").grid(row=7, column=1, sticky='w')
+        tk.Label(self.info_frame, text="Suffix").grid(row=6, column=0, sticky='w')
         self.suffix_var = tk.StringVar(value="")
         self.entries['suffix'] = self.suffix_var
-        suffix_dropdown = ttk.Combobox(self.frame, textvariable=self.suffix_var, values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"])
-        suffix_dropdown.grid(row=7, column=2)
+        suffix_dropdown = ttk.Combobox(self.info_frame, textvariable=self.suffix_var, values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"])
+        suffix_dropdown.grid(row=6, column=1)
 
-        tk.Label(self.frame, text="Stan").grid(row=8, column=1, sticky='w')
+        tk.Label(self.info_frame, text="Stan").grid(row=7, column=0, sticky='w')
         self.stan_var = tk.StringVar(value="NM")
         self.entries['stan'] = self.stan_var
-        stan_dropdown = ttk.Combobox(self.frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"])
-        stan_dropdown.grid(row=8, column=2)
+        stan_dropdown = ttk.Combobox(self.info_frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"])
+        stan_dropdown.grid(row=7, column=1)
 
-        tk.Label(self.frame, text="Cena").grid(row=9, column=1, sticky='w')
-        self.entries['cena'] = tk.Entry(self.frame)
-        self.entries['cena'].grid(row=9, column=2)
+        tk.Label(self.info_frame, text="Cena").grid(row=8, column=0, sticky='w')
+        self.entries['cena'] = tk.Entry(self.info_frame)
+        self.entries['cena'].grid(row=8, column=1)
 
         self.api_button = ttk.Button(
-            self.frame,
+            self.info_frame,
             text="Pobierz cenę z bazy",
             image=self.icon_api,
             compound="left",
             command=self.fetch_card_data,
         )
-        self.api_button.grid(row=10, column=1, columnspan=2, pady=5)
+        self.api_button.grid(row=9, column=0, columnspan=2, pady=5)
 
         self.save_button = ttk.Button(
-            self.frame,
+            self.info_frame,
             text="Zapisz i dalej",
             image=self.icon_save,
             compound="left",
             command=self.save_and_next,
         )
-        self.save_button.grid(row=11, column=1, columnspan=2, pady=5)
+        self.save_button.grid(row=10, column=0, columnspan=2, pady=5)
 
         for entry in self.entries.values():
             if isinstance(entry, tk.Entry):
