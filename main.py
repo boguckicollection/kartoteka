@@ -53,6 +53,7 @@ class CardEditorApp:
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
+        self.progress_var = tk.StringVar(value="0/0")
 
         self.setup_ui()
 
@@ -86,6 +87,8 @@ class CardEditorApp:
 
         self.image_label = tk.Label(self.frame)
         self.image_label.grid(row=1, column=0, rowspan=12)
+        self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
+        self.progress_label.grid(row=13, column=0, pady=5)
 
         self.entries = {}
 
@@ -210,6 +213,7 @@ class CardEditorApp:
         self.index = 0
         self.output_data = []
         self.card_counts = defaultdict(int)
+        self.progress_var.set(f"0/{len(self.cards)}")
         self.show_card()
 
     def show_card(self):
@@ -217,6 +221,8 @@ class CardEditorApp:
             messagebox.showinfo("Koniec", "Wszystkie karty zostały zapisane.")
             self.export_csv()
             return
+
+        self.progress_var.set(f"{self.index + 1}/{len(self.cards)}")
 
         image_path = self.cards[self.index]
         image = Image.open(image_path)
