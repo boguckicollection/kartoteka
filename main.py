@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from ttkbootstrap import Style
+from ttkbootstrap.icons import Icon
 from PIL import Image, ImageTk
 import os
 import csv
@@ -46,10 +47,28 @@ class CardEditorApp:
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
-        self.load_button = ttk.Button(self.frame, text="Załaduj folder skanów", command=self.load_images)
+        # Load ttkbootstrap icons
+        self.icon_load = Icon.load("document-open")
+        self.icon_export = Icon.load("document-save")
+        self.icon_api = Icon.load("network-server")
+        self.icon_save = Icon.load("document-save")
+
+        self.load_button = ttk.Button(
+            self.frame,
+            text="Załaduj folder skanów",
+            image=self.icon_load,
+            compound="left",
+            command=self.load_images,
+        )
         self.load_button.grid(row=0, column=0, columnspan=3, pady=5)
 
-        self.end_button = ttk.Button(self.frame, text="Zakończ i zapisz CSV", command=self.export_csv)
+        self.end_button = ttk.Button(
+            self.frame,
+            text="Zakończ i zapisz CSV",
+            image=self.icon_export,
+            compound="left",
+            command=self.export_csv,
+        )
         self.end_button.grid(row=0, column=3, columnspan=2, pady=5)
 
         self.image_label = tk.Label(self.frame)
@@ -111,10 +130,22 @@ class CardEditorApp:
         self.entries['cena'] = tk.Entry(self.frame)
         self.entries['cena'].grid(row=9, column=2)
 
-        self.api_button = ttk.Button(self.frame, text="Pobierz cenę z bazy", command=self.fetch_card_data)
+        self.api_button = ttk.Button(
+            self.frame,
+            text="Pobierz cenę z bazy",
+            image=self.icon_api,
+            compound="left",
+            command=self.fetch_card_data,
+        )
         self.api_button.grid(row=10, column=1, columnspan=2, pady=5)
 
-        self.save_button = ttk.Button(self.frame, text="Zapisz i dalej", command=self.save_and_next)
+        self.save_button = ttk.Button(
+            self.frame,
+            text="Zapisz i dalej",
+            image=self.icon_save,
+            compound="left",
+            command=self.save_and_next,
+        )
         self.save_button.grid(row=11, column=1, columnspan=2, pady=5)
 
         for entry in self.entries.values():
