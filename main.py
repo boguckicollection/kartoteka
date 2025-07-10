@@ -63,16 +63,20 @@ class CardEditorApp:
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
         self.root.geometry("900x700")
-        self.start_frame = tk.Frame(self.root)
+        self.start_frame = tk.Frame(self.root, bg=self.root.cget("background"))
         self.start_frame.pack(expand=True, fill="both")
 
         logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
-            logo_img.thumbnail((300, 120))
+            logo_img.thumbnail((400, 160))
             self.logo_photo = ImageTk.PhotoImage(logo_img)
-            logo_label = tk.Label(self.start_frame, image=self.logo_photo)
-            logo_label.pack(pady=(40, 20))
+            logo_label = tk.Label(
+                self.start_frame,
+                image=self.logo_photo,
+                bg=self.start_frame.cget("bg"),
+            )
+            logo_label.pack(pady=(20, 20))
 
         greeting = tk.Label(
             self.start_frame,
@@ -108,6 +112,7 @@ class CardEditorApp:
         load_btn.pack(pady=20)
 
     def setup_editor_ui(self):
+        self.root.geometry("1200x900")
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
@@ -116,7 +121,11 @@ class CardEditorApp:
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
             self.logo_photo = ImageTk.PhotoImage(logo_img)
-            self.logo_label = tk.Label(self.frame, image=self.logo_photo)
+            self.logo_label = tk.Label(
+                self.frame,
+                image=self.logo_photo,
+                bg=self.frame.cget("bg"),
+            )
             self.logo_label.grid(row=0, column=0, columnspan=5, pady=(0, 10))
 
         # Load ttkbootstrap icons when available
@@ -190,7 +199,12 @@ class CardEditorApp:
         for i, t in enumerate(types):
             var = tk.BooleanVar()
             self.type_vars[t] = var
-            tk.Checkbutton(self.info_frame, text=t, variable=var).grid(row=4, column=1+i, sticky="w", **grid_opts)
+            tk.Checkbutton(
+                self.info_frame,
+                text=t,
+                variable=var,
+                width=8,
+            ).grid(row=4, column=1+i, sticky="w", **grid_opts)
 
         tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky="w", **grid_opts)
         self.rarity_vars = {}
@@ -198,7 +212,12 @@ class CardEditorApp:
         for i, r in enumerate(rarities):
             var = tk.BooleanVar()
             self.rarity_vars[r] = var
-            tk.Checkbutton(self.info_frame, text=r, variable=var).grid(row=5, column=1+i, sticky="w", **grid_opts)
+            tk.Checkbutton(
+                self.info_frame,
+                text=r,
+                variable=var,
+                width=8,
+            ).grid(row=5, column=1+i, sticky="w", **grid_opts)
 
         tk.Label(self.info_frame, text="Suffix").grid(row=6, column=0, sticky="w", **grid_opts)
         self.suffix_var = tk.StringVar(value="")
