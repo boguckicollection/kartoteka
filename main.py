@@ -45,6 +45,8 @@ class CardEditorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Edytor Kart Pokémon")
+        # improve default font for all widgets
+        self.root.option_add("*Font", ("Helvetica", 12))
         self.index = 0
         self.cards = []
         self.image_objects = []
@@ -61,6 +63,14 @@ class CardEditorApp:
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
+        logo_path = os.path.join(os.path.dirname(__file__), "LOGO_male.png")
+        if os.path.exists(logo_path):
+            logo_img = Image.open(logo_path)
+            logo_img.thumbnail((200, 80))
+            self.logo_photo = ImageTk.PhotoImage(logo_img)
+            self.logo_label = tk.Label(self.frame, image=self.logo_photo)
+            self.logo_label.grid(row=0, column=0, columnspan=5, pady=(0, 10))
+
         # Load ttkbootstrap icons when available
         self.icon_load = load_icon("document-open")
         self.icon_export = load_icon("document-save")
@@ -73,8 +83,9 @@ class CardEditorApp:
             image=self.icon_load,
             compound="left",
             command=self.load_images,
+            bootstyle="primary",
         )
-        self.load_button.grid(row=0, column=0, columnspan=3, pady=5)
+        self.load_button.grid(row=1, column=0, columnspan=3, pady=5)
 
         self.end_button = ttk.Button(
             self.frame,
@@ -82,17 +93,18 @@ class CardEditorApp:
             image=self.icon_export,
             compound="left",
             command=self.export_csv,
+            bootstyle="success",
         )
-        self.end_button.grid(row=0, column=3, columnspan=2, pady=5)
+        self.end_button.grid(row=1, column=3, columnspan=2, pady=5)
 
         self.image_label = tk.Label(self.frame)
-        self.image_label.grid(row=1, column=0, rowspan=12)
+        self.image_label.grid(row=2, column=0, rowspan=12)
         self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
-        self.progress_label.grid(row=13, column=0, pady=5)
+        self.progress_label.grid(row=14, column=0, pady=5)
 
         # Container for card information fields
         self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
-        self.info_frame.grid(row=1, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew")
+        self.info_frame.grid(row=2, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew")
 
         self.entries = {}
 
@@ -157,6 +169,7 @@ class CardEditorApp:
             image=self.icon_api,
             compound="left",
             command=self.fetch_card_data,
+            bootstyle="info",
         )
         self.api_button.grid(row=9, column=0, columnspan=2, pady=5)
 
@@ -166,6 +179,7 @@ class CardEditorApp:
             image=self.icon_save,
             compound="left",
             command=self.save_and_next,
+            bootstyle="primary",
         )
         self.save_button.grid(row=10, column=0, columnspan=2, pady=5)
 
@@ -590,5 +604,6 @@ class CardEditorApp:
 
 if __name__ == "__main__":
     style = Style("darkly")
+    style.configure(".", font=("Helvetica", 12))
     app = CardEditorApp(style.master)
     style.master.mainloop()
