@@ -23,6 +23,7 @@ RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
+HOLO_REVERSE_MULTIPLIER = 3.5
 
 
 def load_icon(name: str):
@@ -62,7 +63,7 @@ class CardEditorApp:
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
-        self.root.geometry("1500x700")
+        self.root.geometry("1500x900")
         self.start_frame = tk.Frame(self.root, bg=self.root.cget("background"))
         self.start_frame.pack(expand=True, fill="both")
 
@@ -132,7 +133,7 @@ class CardEditorApp:
         )
 
     def setup_editor_ui(self):
-        self.root.geometry("1500x700")
+        self.root.geometry("1500x900")
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
@@ -264,6 +265,14 @@ class CardEditorApp:
             bootstyle="info",
         )
         self.api_button.grid(row=9, column=0, columnspan=2, sticky="ew", **grid_opts)
+
+        self.variants_button = ttk.Button(
+            self.info_frame,
+            text="Inne warianty",
+            command=self.show_variants,
+            bootstyle="secondary",
+        )
+        self.variants_button.grid(row=9, column=2, columnspan=2, sticky="ew", **grid_opts)
 
         self.save_button = ttk.Button(
             self.info_frame,
@@ -438,10 +447,6 @@ class CardEditorApp:
             if RAPIDAPI_KEY and RAPIDAPI_HOST:
                 url = f"https://{RAPIDAPI_HOST}/cards/search"
                 params = {"search": name_input}
-                if is_reverse:
-                    params["isReverseHolo"] = "Y"
-                if is_holo:
-                    params["isHolo"] = "Y"
                 headers = {
                     "X-RapidAPI-Key": RAPIDAPI_KEY,
                     "X-RapidAPI-Host": RAPIDAPI_HOST,
@@ -453,10 +458,6 @@ class CardEditorApp:
                     "number": number_input,
                     "set": set_input,
                 }
-                if is_reverse:
-                    params["isReverseHolo"] = "Y"
-                if is_holo:
-                    params["isHolo"] = "Y"
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
                 print(f"[ERROR] API error: {response.status_code}")
@@ -506,6 +507,83 @@ class CardEditorApp:
             print(f"[ERROR] Fetching price from TCGGO failed: {e}")
         return None
 
+    def fetch_card_variants(self, name, number, set_name):
+        """Return all matching cards from the API with prices."""
+        import unicodedata
+
+        def normalize(text):
+            if not text:
+                return ""
+            text = unicodedata.normalize("NFKD", text)
+            text = text.lower()
+            for suffix in [" ex", " gx", " v", " vmax", " vstar", " shiny", " promo"]:
+                text = text.replace(suffix, "")
+            return text.replace("-", "").replace(" ", "").strip()
+
+        name_input = normalize(name)
+        number_input = number.strip().lower()
+        set_input = set_name.strip().lower()
+
+        try:
+            headers = {}
+            if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                url = f"https://{RAPIDAPI_HOST}/cards/search"
+                params = {"search": name_input}
+                headers = {
+                    "X-RapidAPI-Key": RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            else:
+                url = "https://www.tcggo.com/api/cards/"
+                params = {
+                    "name": name_input,
+                    "number": number_input,
+                    "set": set_input,
+                }
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"[ERROR] API error: {response.status_code}")
+                return []
+
+            cards = response.json()
+            if isinstance(cards, dict):
+                if "cards" in cards:
+                    cards = cards["cards"]
+                elif "data" in cards:
+                    cards = cards["data"]
+                else:
+                    cards = []
+
+            results = []
+            eur_pln = self.get_exchange_rate()
+            for card in cards:
+                card_name = normalize(card.get("name", ""))
+                card_number = str(card.get("card_number", "")).lower()
+                card_set = str(card.get("episode", {}).get("name", "")).lower()
+
+                name_match = name_input in card_name
+                number_match = number_input == card_number
+                set_match = set_input in card_set or card_set.startswith(set_input)
+
+                if name_match and number_match and set_match:
+                    price_eur = card.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
+                    price_pln = 0
+                    if price_eur:
+                        price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
+                    results.append({
+                        "name": card.get("name"),
+                        "number": card_number,
+                        "set": card.get("episode", {}).get("name", ""),
+                        "price": price_pln,
+                    })
+            return results
+        except requests.Timeout:
+            print("[ERROR] Request timed out")
+        except Exception as e:
+            print(f"[ERROR] Fetching variants from TCGGO failed: {e}")
+        return []
+
 
 
 
@@ -519,11 +597,13 @@ class CardEditorApp:
 
         cena = self.get_price_from_db(name, number, set_name)
         if cena is not None:
+            cena = self.apply_variant_multiplier(cena, is_reverse=is_reverse, is_holo=is_holo)
             self.entries['cena'].delete(0, tk.END)
             self.entries['cena'].insert(0, str(cena))
         else:
-            fetched = self.fetch_card_price(name, number, set_name, is_reverse=is_reverse, is_holo=is_holo)
+            fetched = self.fetch_card_price(name, number, set_name)
             if fetched is not None:
+                fetched = self.apply_variant_multiplier(fetched, is_reverse=is_reverse, is_holo=is_holo)
                 self.entries['cena'].delete(0, tk.END)
                 self.entries['cena'].insert(0, str(fetched))
             else:
@@ -531,6 +611,49 @@ class CardEditorApp:
                     "Brak wyników",
                     "Nie znaleziono ceny dla podanej karty w bazie danych.",
                 )
+
+    def show_variants(self):
+        """Display a list of matching cards from the API."""
+        name = self.entries['nazwa'].get()
+        number = self.entries['numer'].get()
+        set_name = self.entries['set'].get()
+
+        is_reverse = self.type_vars["Reverse"].get()
+        is_holo = self.type_vars["Holo"].get()
+
+        variants = self.fetch_card_variants(name, number, set_name)
+        if not variants:
+            messagebox.showinfo("Brak wyników", "Nie znaleziono dodatkowych wariantów.")
+            return
+
+        top = tk.Toplevel(self.root)
+        top.title("Inne warianty")
+        top.geometry("600x400")
+
+        columns = ("name", "number", "set", "price")
+        tree = ttk.Treeview(top, columns=columns, show="headings")
+        tree.heading("name", text="Nazwa")
+        tree.heading("number", text="Numer")
+        tree.heading("set", text="Set")
+        tree.heading("price", text="Cena (PLN)")
+
+        for card in variants:
+            price = self.apply_variant_multiplier(card["price"], is_reverse=is_reverse, is_holo=is_holo)
+            tree.insert("", "end", values=(card["name"], card["number"], card["set"], price))
+
+        tree.pack(expand=True, fill="both", padx=10, pady=10)
+
+        def set_selected_price(event=None):
+            selected = tree.selection()
+            if not selected:
+                return
+            values = tree.item(selected[0], "values")
+            self.entries['cena'].delete(0, tk.END)
+            self.entries['cena'].insert(0, values[3])
+            top.destroy()
+
+        ttk.Button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
+        tree.bind("<Double-1>", set_selected_price)
 
 
     def get_exchange_rate(self):
@@ -546,6 +669,17 @@ class CardEditorApp:
         except Exception:
             pass
         return 4.5
+
+    def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
+        """Apply holo/reverse multiplier when needed."""
+        if price is None:
+            return None
+        if is_reverse or is_holo:
+            try:
+                return round(float(price) * HOLO_REVERSE_MULTIPLIER, 2)
+            except (TypeError, ValueError):
+                return price
+        return price
 
     def save_and_next(self):
         data = {k: v.get() for k, v in self.entries.items()}
@@ -620,19 +754,19 @@ class CardEditorApp:
 
         # Automatyczne pobranie ceny z bazy
         cena_local = self.get_price_from_db(data['nazwa'], data['numer'], data['set'])
+        is_reverse = self.type_vars["Reverse"].get()
+        is_holo = self.type_vars["Holo"].get()
         if cena_local is not None:
+            cena_local = self.apply_variant_multiplier(cena_local, is_reverse=is_reverse, is_holo=is_holo)
             data["cena"] = str(cena_local)
         else:
-            is_reverse = self.type_vars["Reverse"].get()
-            is_holo = self.type_vars["Holo"].get()
             fetched = self.fetch_card_price(
                 data['nazwa'],
                 data['numer'],
                 data['set'],
-                is_reverse=is_reverse,
-                is_holo=is_holo,
             )
             if fetched is not None:
+                fetched = self.apply_variant_multiplier(fetched, is_reverse=is_reverse, is_holo=is_holo)
                 data["cena"] = str(fetched)
             else:
                 data["cena"] = ""
