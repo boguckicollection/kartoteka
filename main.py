@@ -442,7 +442,7 @@ class CardEditorApp:
                 price_eur = best.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
                 if price_eur:
                     eur_pln = self.get_exchange_rate()
-                    price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER)
+                    price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
                     print(f"[INFO] Cena {best.get('name')} ({number_input}, {set_input}) = {price_pln} PLN")
                     return price_pln
 
