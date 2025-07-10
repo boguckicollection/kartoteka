@@ -44,7 +44,7 @@ with open("tcg_sets_jp.json", encoding="utf-8") as f:
 class CardEditorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Edytor Kart Pokémon")
+        self.root.title("KARTOTEKA")
         # improve default font for all widgets
         self.root.option_add("*Font", ("Helvetica", 12))
         self.index = 0
@@ -66,7 +66,7 @@ class CardEditorApp:
         self.start_frame = tk.Frame(self.root)
         self.start_frame.pack(expand=True, fill="both")
 
-        logo_path = os.path.join(os.path.dirname(__file__), "LOGO_male.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((300, 120))
@@ -76,7 +76,7 @@ class CardEditorApp:
 
         greeting = tk.Label(
             self.start_frame,
-            text="Witaj w narzędziu Bogucki",
+            text="Witaj w aplikacji KARTOTEKA",
             font=("Helvetica", 16, "bold"),
         )
         greeting.pack(pady=5)
@@ -90,6 +90,14 @@ class CardEditorApp:
             justify="center",
         )
         desc.pack(pady=5)
+
+        author = tk.Label(
+            self.start_frame,
+            text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
+            wraplength=600,
+            justify="center",
+        )
+        author.pack(pady=5)
 
         load_btn = ttk.Button(
             self.start_frame,
