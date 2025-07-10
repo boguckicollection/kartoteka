@@ -248,6 +248,9 @@ class CardEditorApp:
         for var in self.rarity_vars.values():
             var.set(False)
 
+        # focus the name entry so the user can start typing immediately
+        self.entries["nazwa"].focus_set()
+
     def generate_location(self, idx):
         pos = idx % 1000 + 1
         row = (idx // 1000) % 4 + 1
