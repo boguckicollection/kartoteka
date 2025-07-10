@@ -13,6 +13,8 @@ import requests
 import re
 from collections import defaultdict
 from dotenv import load_dotenv
+import webbrowser
+from urllib.parse import urlencode
 
 load_dotenv()
 
@@ -273,6 +275,14 @@ class CardEditorApp:
             bootstyle="secondary",
         )
         self.variants_button.grid(row=9, column=2, columnspan=2, sticky="ew", **grid_opts)
+
+        self.cardmarket_button = ttk.Button(
+            self.info_frame,
+            text="Cardmarket",
+            command=self.open_cardmarket_search,
+            bootstyle="secondary",
+        )
+        self.cardmarket_button.grid(row=9, column=4, columnspan=2, sticky="ew", **grid_opts)
 
         self.save_button = ttk.Button(
             self.info_frame,
@@ -624,6 +634,7 @@ class CardEditorApp:
         variants = self.fetch_card_variants(name, number, set_name)
         if not variants:
             messagebox.showinfo("Brak wyników", "Nie znaleziono dodatkowych wariantów.")
+            self.open_cardmarket_search()
             return
 
         top = tk.Toplevel(self.root)
@@ -654,6 +665,17 @@ class CardEditorApp:
 
         ttk.Button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
         tree.bind("<Double-1>", set_selected_price)
+
+
+    def open_cardmarket_search(self):
+        """Open a Cardmarket search for the current card in the default browser."""
+        name = self.entries['nazwa'].get()
+        number = self.entries['numer'].get()
+        set_name = self.entries['set'].get()
+        search_terms = " ".join(t for t in [name, number, set_name] if t)
+        params = urlencode({'searchString': search_terms})
+        url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
+        webbrowser.open(url)
 
 
     def get_exchange_rate(self):
