@@ -1,7 +1,10 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from ttkbootstrap import Style
-from ttkbootstrap.icons import Icon
+try:
+    from ttkbootstrap.icons import Icon
+except Exception:  # pragma: no cover - fall back when icons unavailable
+    Icon = None
 from PIL import Image, ImageTk
 import os
 import csv
@@ -20,6 +23,16 @@ RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
+
+
+def load_icon(name: str):
+    """Safely load ttkbootstrap icon if available."""
+    if Icon and hasattr(Icon, "load"):
+        try:
+            return Icon.load(name)
+        except Exception:
+            return None
+    return None
 
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
@@ -47,11 +60,11 @@ class CardEditorApp:
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
-        # Load ttkbootstrap icons
-        self.icon_load = Icon.load("document-open")
-        self.icon_export = Icon.load("document-save")
-        self.icon_api = Icon.load("network-server")
-        self.icon_save = Icon.load("document-save")
+        # Load ttkbootstrap icons when available
+        self.icon_load = load_icon("document-open")
+        self.icon_export = load_icon("document-save")
+        self.icon_api = load_icon("network-server")
+        self.icon_save = load_icon("document-save")
 
         self.load_button = ttk.Button(
             self.frame,
