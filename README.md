@@ -8,7 +8,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Automatically query the TCGGO API when a price is missing
 - Convert API prices from EUR to PLN using a 1.23 multiplier
 - Save collected data to a CSV file
-- Autocomplete set selection and additional rarity checkboxes
+- Autocomplete set selection (press <kbd>Tab</kbd> to accept a suggestion) and additional rarity checkboxes
 
 ## Requirements
 Install dependencies from `requirements.txt`:
