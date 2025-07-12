@@ -148,6 +148,7 @@ class CardEditorApp:
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
         self.root.geometry("800x600")
+        self.root.resizable(False, False)
         self.pricing_frame = tk.Frame(self.root)
         self.pricing_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
