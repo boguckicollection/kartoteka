@@ -170,8 +170,11 @@ class CardEditorApp:
         ).grid(row=0, column=2, sticky="w")
 
         self.price_reverse_var = tk.BooleanVar()
-        tk.Checkbutton(
-            self.pricing_frame, text="Reverse", variable=self.price_reverse_var
+        ttk.Checkbutton(
+            self.pricing_frame,
+            text="Reverse",
+            variable=self.price_reverse_var,
+            bootstyle="round-toggle",
         ).grid(row=1, column=2, sticky="w")
 
         ttk.Button(
