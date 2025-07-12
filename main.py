@@ -147,61 +147,67 @@ class CardEditorApp:
             self.start_frame = None
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
-        self.root.geometry("800x600")
+        self.root.geometry("1500x900")
         self.root.resizable(False, False)
         self.pricing_frame = tk.Frame(self.root)
         self.pricing_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        tk.Label(self.pricing_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
-        self.price_name_entry = ttk.Entry(self.pricing_frame, width=30)
+        self.pricing_frame.columnconfigure(0, weight=1)
+        self.pricing_frame.columnconfigure(1, weight=1)
+
+        self.input_frame = tk.Frame(self.pricing_frame)
+        self.input_frame.grid(row=0, column=0, sticky="nsew")
+
+        self.image_frame = tk.Frame(self.pricing_frame)
+        self.image_frame.grid(row=0, column=1, sticky="nsew")
+
+        self.input_frame.columnconfigure(0, weight=1)
+        self.input_frame.columnconfigure(1, weight=1)
+
+        tk.Label(self.input_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
+        self.price_name_entry = ttk.Entry(self.input_frame, width=30)
         self.price_name_entry.grid(row=0, column=1, sticky="w")
 
-        tk.Label(self.pricing_frame, text="Numer").grid(row=1, column=0, sticky="e")
-        self.price_number_entry = ttk.Entry(self.pricing_frame, width=30)
+        tk.Label(self.input_frame, text="Numer").grid(row=1, column=0, sticky="e")
+        self.price_number_entry = ttk.Entry(self.input_frame, width=30)
         self.price_number_entry.grid(row=1, column=1, sticky="w")
 
-        tk.Label(self.pricing_frame, text="Set").grid(row=2, column=0, sticky="e")
-        self.price_set_entry = ttk.Entry(self.pricing_frame, width=30)
+        tk.Label(self.input_frame, text="Set").grid(row=2, column=0, sticky="e")
+        self.price_set_entry = ttk.Entry(self.input_frame, width=30)
         self.price_set_entry.grid(row=2, column=1, sticky="w")
-
-        self.price_holo_var = tk.BooleanVar()
-        tk.Checkbutton(
-            self.pricing_frame, text="Holo", variable=self.price_holo_var
-        ).grid(row=0, column=2, sticky="w")
 
         self.price_reverse_var = tk.BooleanVar()
         ttk.Checkbutton(
-            self.pricing_frame,
+            self.input_frame,
             text="Reverse",
             variable=self.price_reverse_var,
             bootstyle="round-toggle",
-        ).grid(row=1, column=2, sticky="w")
+        ).grid(row=3, column=0, columnspan=2, pady=5)
 
         ttk.Button(
-            self.pricing_frame,
+            self.input_frame,
             text="Wyszukaj",
             command=self.run_pricing_search,
             bootstyle="primary",
-        ).grid(row=3, column=0, columnspan=3, pady=5)
+        ).grid(row=4, column=0, columnspan=2, pady=5)
 
         ttk.Button(
-            self.pricing_frame,
+            self.input_frame,
             text="Powrót",
             command=self.back_to_welcome,
-        ).grid(row=4, column=0, columnspan=3, pady=5)
+        ).grid(row=5, column=0, columnspan=2, pady=5)
 
-        self.result_frame = tk.Frame(self.pricing_frame)
-        self.result_frame.grid(row=5, column=0, columnspan=3, pady=10)
+        self.result_frame = tk.Frame(self.image_frame)
+        self.result_frame.pack(expand=True, fill="both", pady=10)
 
     def run_pricing_search(self):
         """Fetch and display pricing information."""
         name = self.price_name_entry.get()
         number = self.price_number_entry.get()
         set_name = self.price_set_entry.get()
-        is_holo = self.price_holo_var.get()
         is_reverse = self.price_reverse_var.get()
 
-        info = self.lookup_card_info(name, number, set_name, is_holo=is_holo, is_reverse=is_reverse)
+        info = self.lookup_card_info(name, number, set_name, is_reverse=is_reverse)
         for w in self.result_frame.winfo_children():
             w.destroy()
         if not info:
@@ -755,7 +761,8 @@ class CardEditorApp:
 
                 if name_match and number_match and set_match:
                     price_eur = card.get("prices", {}).get("cardmarket", {}).get("30d_average", 0) or 0
-                    eur_pln = self.get_exchange_rate() * PRICE_MULTIPLIER
+                    base_rate = self.get_exchange_rate()
+                    eur_pln = base_rate * PRICE_MULTIPLIER
                     price_pln = round(float(price_eur) * eur_pln, 2)
                     if is_holo or is_reverse:
                         price_pln = round(price_pln * HOLO_REVERSE_MULTIPLIER, 2)
@@ -771,7 +778,7 @@ class CardEditorApp:
                         "image_url": card.get("images", {}).get("large"),
                         "set_logo_url": set_logo,
                         "price_eur": round(float(price_eur), 2),
-                        "eur_pln_rate": round(eur_pln, 2),
+                        "eur_pln_rate": round(base_rate, 4),
                         "price_pln": price_pln,
                         "price_pln_80": round(price_pln * 0.8, 2),
                     }
@@ -876,7 +883,7 @@ class CardEditorApp:
             print("[ERROR] Exchange rate request timed out")
         except Exception:
             pass
-        return 4.5
+        return 4.265
 
     def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
         """Apply holo/reverse multiplier when needed."""
