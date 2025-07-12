@@ -215,6 +215,17 @@ class CardEditorApp:
             except Exception as e:
                 print(f"[ERROR] Loading image failed: {e}")
 
+        if info.get("set_logo_url"):
+            try:
+                res = requests.get(info["set_logo_url"], timeout=10)
+                if res.status_code == 200:
+                    img = Image.open(io.BytesIO(res.content))
+                    img.thumbnail((180, 60))
+                    self.set_logo_photo = ImageTk.PhotoImage(img)
+                    tk.Label(self.result_frame, image=self.set_logo_photo).pack(pady=5)
+            except Exception as e:
+                print(f"[ERROR] Loading set logo failed: {e}")
+
         tk.Label(self.result_frame, text=f"Cena EUR: {info['price_eur']}").pack()
         tk.Label(self.result_frame, text=f"Kurs EUR→PLN: {info['eur_pln_rate']}").pack()
         tk.Label(self.result_frame, text=f"Cena PLN: {info['price_pln']}").pack()
@@ -744,8 +755,17 @@ class CardEditorApp:
                     price_pln = round(float(price_eur) * eur_pln, 2)
                     if is_holo or is_reverse:
                         price_pln = round(price_pln * HOLO_REVERSE_MULTIPLIER, 2)
+                    set_info = card.get("episode") or card.get("set") or {}
+                    images = set_info.get("images", {}) if isinstance(set_info, dict) else {}
+                    set_logo = (
+                        images.get("logo")
+                        or images.get("logoUrl")
+                        or images.get("logo_url")
+                        or set_info.get("logo")
+                    )
                     return {
                         "image_url": card.get("images", {}).get("large"),
+                        "set_logo_url": set_logo,
                         "price_eur": round(float(price_eur), 2),
                         "eur_pln_rate": round(eur_pln, 2),
                         "price_pln": price_pln,
