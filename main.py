@@ -68,6 +68,7 @@ class CardEditorApp:
         self.folder_path = ""
         self.progress_var = tk.StringVar(value="0/0")
         self.start_frame = None
+        self.shoper_frame = None
         try:
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
         except Exception as e:
@@ -139,7 +140,7 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
         ttk.Button(
             button_frame,
-            text="\U0001F5C3\uFE0F Porządkuj",
+            text="\U0001F5C3\uFE0F Shoper",
             command=self.open_shoper_window,
             bootstyle="secondary",
         ).pack(side="left", padx=5)
@@ -161,12 +162,36 @@ class CardEditorApp:
         if not self.shoper_client:
             messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
             return
-        window = tk.Toplevel(self.root)
-        window.title("Shoper")
-        window.geometry("600x400")
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+        if getattr(self, "shoper_frame", None):
+            self.shoper_frame.destroy()
+            self.shoper_frame = None
+        self.root.geometry("1500x900")
+        self.root.resizable(False, False)
 
-        btn_frame = tk.Frame(window)
-        btn_frame.pack(fill="x", pady=5)
+        self.shoper_frame = tk.Frame(self.root)
+        self.shoper_frame.pack(expand=True, fill="both", padx=10, pady=10)
+        self.shoper_frame.columnconfigure(0, weight=1)
+        self.shoper_frame.rowconfigure(2, weight=1)
+
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        if os.path.exists(logo_path):
+            logo_img = Image.open(logo_path)
+            logo_img.thumbnail((200, 80))
+            self.shoper_logo_photo = ImageTk.PhotoImage(logo_img)
+            tk.Label(
+                self.shoper_frame,
+                image=self.shoper_logo_photo,
+                bg=self.shoper_frame.cget("bg"),
+            ).grid(row=0, column=0, pady=(0, 10))
+
+        output = tk.Text(self.shoper_frame)
+        output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+
+        btn_frame = tk.Frame(self.shoper_frame)
+        btn_frame.grid(row=1, column=0, pady=5)
 
         ttk.Button(
             btn_frame,
@@ -186,8 +211,11 @@ class CardEditorApp:
             command=lambda: self.fetch_inventory(output),
         ).pack(side="left", padx=5)
 
-        output = tk.Text(window)
-        output.pack(expand=True, fill="both", padx=5, pady=5)
+        ttk.Button(
+            self.shoper_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+        ).grid(row=3, column=0, pady=5)
 
     def list_scans(self, widget):
         try:
@@ -332,6 +360,9 @@ class CardEditorApp:
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
             self.pricing_frame = None
+        if getattr(self, "shoper_frame", None):
+            self.shoper_frame.destroy()
+            self.shoper_frame = None
         if getattr(self, "frame", None):
             self.frame.destroy()
             self.frame = None
