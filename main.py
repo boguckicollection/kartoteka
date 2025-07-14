@@ -156,15 +156,17 @@ class CardEditorApp:
 
         self.pricing_frame.columnconfigure(0, weight=1)
         self.pricing_frame.columnconfigure(1, weight=1)
+        self.pricing_frame.rowconfigure(0, weight=1)
 
         self.input_frame = tk.Frame(self.pricing_frame)
-        self.input_frame.grid(row=0, column=0, sticky="nsew")
+        self.input_frame.grid(row=0, column=0, sticky="n")
 
         self.image_frame = tk.Frame(self.pricing_frame)
         self.image_frame.grid(row=0, column=1, sticky="nsew")
 
         self.input_frame.columnconfigure(0, weight=1)
         self.input_frame.columnconfigure(1, weight=1)
+        self.input_frame.rowconfigure(5, weight=1)
 
         tk.Label(self.input_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
         self.price_name_entry = ttk.Entry(self.input_frame, width=30)
