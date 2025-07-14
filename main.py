@@ -248,6 +248,10 @@ class CardEditorApp:
     def back_to_welcome(self):
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
+            self.pricing_frame = None
+        if getattr(self, "frame", None):
+            self.frame.destroy()
+            self.frame = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
@@ -273,25 +277,37 @@ class CardEditorApp:
         self.icon_api = load_icon("network-server")
         self.icon_save = load_icon("document-save")
 
+        # Bottom frame for action buttons
+        self.button_frame = tk.Frame(self.frame)
+        self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
+
         self.load_button = ttk.Button(
-            self.frame,
-            text="Załaduj folder skanów",
+            self.button_frame,
+            text="Import",
             image=self.icon_load,
             compound="left",
             command=self.load_images,
             bootstyle="primary",
         )
-        self.load_button.grid(row=1, column=0, columnspan=3, pady=5)
+        self.load_button.pack(side="left", padx=5)
 
         self.end_button = ttk.Button(
-            self.frame,
-            text="Zakończ i zapisz CSV",
+            self.button_frame,
+            text="Zakończ i zapisz",
             image=self.icon_export,
             compound="left",
             command=self.export_csv,
             bootstyle="success",
         )
-        self.end_button.grid(row=1, column=3, columnspan=2, pady=5)
+        self.end_button.pack(side="left", padx=5)
+
+        self.back_button = ttk.Button(
+            self.button_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+            bootstyle="secondary",
+        )
+        self.back_button.pack(side="left", padx=5)
 
         self.image_label = tk.Label(self.frame)
         self.image_label.grid(row=2, column=0, rowspan=12)
@@ -1111,6 +1127,7 @@ class CardEditorApp:
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
+        self.back_to_welcome()
 
 if __name__ == "__main__":
     style = Style("darkly")
