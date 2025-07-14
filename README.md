@@ -47,3 +47,9 @@ python main.py
 
 The interface will allow you to load scans, fetch prices from the local database
 or the API, and export results to CSV.
+
+### Cache
+Every time you press **Zapisz i dalej**, the entered values are stored in a
+temporary cache under a key composed of `name|number|set`. When another scan of
+the same card is loaded, the application pre-fills the form with the cached
+data so you do not need to type them again.
