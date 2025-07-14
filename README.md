@@ -28,16 +28,18 @@ built-in icons. On older versions the icons are skipped automatically.
 
 Ensure a `card_prices.csv` file with columns `name`, `number`, `set` and `price` exists in the project directory.
 
-Create a `.env` file with your RapidAPI credentials:
+Create a `.env` file with API credentials:
 
 ```bash
 RAPIDAPI_KEY=your-key-here
 RAPIDAPI_HOST=pokemon-tcg-api.p.rapidapi.com
+SHOPER_API_URL=https://your-store.shop/api
+SHOPER_API_TOKEN=your-token
 ```
 
-These credentials are used when a card price is not found in the local
-database. A valid `RAPIDAPI_KEY` allows the application to query the API
-and fill in the missing price automatically.
+The `RAPIDAPI_*` variables are used when a card price is not found in the local
+database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper
+store for the **Porządkuj** window.
 
 
 ## Running
@@ -55,3 +57,9 @@ Every time you press **Zapisz i dalej**, the entered values are stored in a
 temporary cache under a key composed of `name|number|set`. When another scan of
 the same card is loaded, the application pre-fills the form with the cached
 data so you do not need to type them again.
+
+### Shoper integration
+Use the **Porządkuj** button to open a window with basic actions against your
+Shoper store. You can list uploaded scans, send product data and check current
+inventory. Make sure the Shoper credentials are set in `.env` before launching
+the application.
