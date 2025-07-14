@@ -56,6 +56,8 @@ class CardEditorApp:
         self.image_objects = []
         self.output_data = []
         self.card_counts = defaultdict(int)
+        self.card_cache = {}
+        self.file_to_key = {}
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
@@ -470,6 +472,9 @@ class CardEditorApp:
         self.progress_var.set(f"{self.index + 1}/{len(self.cards)}")
 
         image_path = self.cards[self.index]
+        cache_key = self.file_to_key.get(os.path.basename(image_path))
+        if not cache_key:
+            cache_key = self._guess_key_from_filename(image_path)
         image = Image.open(image_path)
         image.thumbnail((400, 560))
         img = ImageTk.PhotoImage(image)
@@ -496,8 +501,34 @@ class CardEditorApp:
         for var in self.type_vars.values():
             var.set(False)
 
+        if cache_key and cache_key in self.card_cache:
+            cached = self.card_cache[cache_key]
+            for field, value in cached.get("entries", {}).items():
+                entry = self.entries.get(field)
+                if isinstance(entry, (tk.Entry, ttk.Entry)):
+                    entry.insert(0, value)
+                elif isinstance(entry, tk.StringVar):
+                    entry.set(value)
+            for name, val in cached.get("types", {}).items():
+                if name in self.type_vars:
+                    self.type_vars[name].set(val)
+            for name, val in cached.get("rarities", {}).items():
+                if name in self.rarity_vars:
+                    self.rarity_vars[name].set(val)
+            self.update_set_options()
+
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
+
+    def _guess_key_from_filename(self, path: str):
+        base = os.path.splitext(os.path.basename(path))[0]
+        parts = re.split(r"[|_-]", base)
+        if len(parts) >= 3:
+            name = parts[0]
+            number = parts[1]
+            set_name = "_".join(parts[2:])
+            return f"{name}|{number}|{set_name}"
+        return None
 
     def generate_location(self, idx):
         pos = idx % 1000 + 1
@@ -903,6 +934,11 @@ class CardEditorApp:
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         self.card_counts[key] += 1
         data['ilość'] = self.card_counts[key]
+        self.card_cache[key] = {
+            "entries": {k: v for k, v in data.items()},
+            "types": {name: var.get() for name, var in self.type_vars.items()},
+            "rarities": {name: var.get() for name, var in self.rarity_vars.items()},
+        }
         front_path = self.cards[self.index]
         front_file = os.path.basename(front_path)
         back_file = None
@@ -940,6 +976,10 @@ class CardEditorApp:
                 ):
                     back_file = next_file
                     self.index += 1
+
+        self.file_to_key[front_file] = key
+        if back_file:
+            self.file_to_key[back_file] = key
 
         images = [front_file]
         if back_file:
