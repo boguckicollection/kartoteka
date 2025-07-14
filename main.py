@@ -156,13 +156,24 @@ class CardEditorApp:
 
         self.pricing_frame.columnconfigure(0, weight=1)
         self.pricing_frame.columnconfigure(1, weight=1)
-        self.pricing_frame.rowconfigure(0, weight=1)
+        self.pricing_frame.rowconfigure(1, weight=1)
+
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        if os.path.exists(logo_path):
+            logo_img = Image.open(logo_path)
+            logo_img.thumbnail((200, 80))
+            self.pricing_logo_photo = ImageTk.PhotoImage(logo_img)
+            tk.Label(
+                self.pricing_frame,
+                image=self.pricing_logo_photo,
+                bg=self.pricing_frame.cget("bg"),
+            ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
         self.input_frame = tk.Frame(self.pricing_frame)
-        self.input_frame.grid(row=0, column=0, sticky="n")
+        self.input_frame.grid(row=1, column=0, sticky="n")
 
         self.image_frame = tk.Frame(self.pricing_frame)
-        self.image_frame.grid(row=0, column=1, sticky="nsew")
+        self.image_frame.grid(row=1, column=1, sticky="nsew")
 
         self.input_frame.columnconfigure(0, weight=1)
         self.input_frame.columnconfigure(1, weight=1)
@@ -259,7 +270,7 @@ class CardEditorApp:
         self.frame = tk.Frame(self.root)
         self.frame.pack(padx=10, pady=10)
 
-        logo_path = os.path.join(os.path.dirname(__file__), "LOGO_male.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
@@ -883,6 +894,13 @@ class CardEditorApp:
         top = tk.Toplevel(self.root)
         top.title("Inne warianty")
         top.geometry("600x400")
+
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        if os.path.exists(logo_path):
+            logo_img = Image.open(logo_path)
+            logo_img.thumbnail((140, 140))
+            top.logo_photo = ImageTk.PhotoImage(logo_img)
+            tk.Label(top, image=top.logo_photo, bg=top.cget("bg")).pack(pady=(10, 10))
 
         columns = ("name", "number", "set", "price")
         tree = ttk.Treeview(top, columns=columns, show="headings")
