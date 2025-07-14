@@ -6,6 +6,8 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Load images from a folder and review them one by one
 - Fetch card prices from a local database (`card_prices.csv`)
 - Automatically query the TCGGO API when a price is missing
+- Display card images when available, falling back to `image`,
+  `imageUrl` or `image_url` if `images.large` is not provided
 - Prices for "Holo" or "Reverse" variants are calculated by multiplying the
   base price by **3.5**
 - View alternative API results via the **Inne warianty** button

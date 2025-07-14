@@ -834,8 +834,14 @@ class CardEditorApp:
                         or images.get("logo_url")
                         or set_info.get("logo")
                     )
+                    image_url = (
+                        card.get("images", {}).get("large")
+                        or card.get("image")
+                        or card.get("imageUrl")
+                        or card.get("image_url")
+                    )
                     return {
-                        "image_url": card.get("images", {}).get("large"),
+                        "image_url": image_url,
                         "set_logo_url": set_logo,
                         "price_eur": round(float(price_eur), 2),
                         "eur_pln_rate": round(base_rate, 4),
