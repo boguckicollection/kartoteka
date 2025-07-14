@@ -13,6 +13,8 @@ import requests
 import re
 from collections import defaultdict
 from dotenv import load_dotenv
+
+from shoper_client import ShoperClient
 import webbrowser
 from urllib.parse import urlencode
 import io
@@ -23,6 +25,9 @@ BASE_IMAGE_URL = "https://sklep839679.shoparena.pl/upload/images"
 
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
+
+SHOPER_API_URL = os.getenv("SHOPER_API_URL")
+SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN")
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
@@ -63,6 +68,11 @@ class CardEditorApp:
         self.folder_path = ""
         self.progress_var = tk.StringVar(value="0/0")
         self.start_frame = None
+        try:
+            self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
+        except Exception as e:
+            print(f"[WARNING] ShoperClient init failed: {e}")
+            self.shoper_client = None
 
         self.setup_welcome_screen()
 
@@ -127,7 +137,12 @@ class CardEditorApp:
             command=self.setup_pricing_ui,
             bootstyle="info",
         ).pack(side="left", padx=5)
-        self.placeholder_btn("\U0001F5C3\uFE0F Porządkuj", button_frame).pack(side="left", padx=5)
+        ttk.Button(
+            button_frame,
+            text="\U0001F5C3\uFE0F Porządkuj",
+            command=self.open_shoper_window,
+            bootstyle="secondary",
+        ).pack(side="left", padx=5)
         self.placeholder_btn("\U0001F4E6 Eksportuj", button_frame).pack(side="left", padx=5)
 
     def placeholder_btn(self, text: str, master=None):
@@ -141,6 +156,63 @@ class CardEditorApp:
             ),
             bootstyle="secondary",
         )
+
+    def open_shoper_window(self):
+        if not self.shoper_client:
+            messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
+            return
+        window = tk.Toplevel(self.root)
+        window.title("Shoper")
+        window.geometry("600x400")
+
+        btn_frame = tk.Frame(window)
+        btn_frame.pack(fill="x", pady=5)
+
+        ttk.Button(
+            btn_frame,
+            text="Lista skanów",
+            command=lambda: self.list_scans(output),
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            btn_frame,
+            text="Wyślij produkt",
+            command=lambda: self.push_product(output),
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            btn_frame,
+            text="Inwentarz",
+            command=lambda: self.fetch_inventory(output),
+        ).pack(side="left", padx=5)
+
+        output = tk.Text(window)
+        output.pack(expand=True, fill="both", padx=5, pady=5)
+
+    def list_scans(self, widget):
+        try:
+            data = self.shoper_client.list_scans()
+            widget.delete("1.0", tk.END)
+            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
+    def push_product(self, widget):
+        try:
+            sample = {"name": "Sample", "price": 0}
+            data = self.shoper_client.add_product(sample)
+            widget.delete("1.0", tk.END)
+            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
+    def fetch_inventory(self, widget):
+        try:
+            data = self.shoper_client.get_inventory()
+            widget.delete("1.0", tk.END)
+            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""
