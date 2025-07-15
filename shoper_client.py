@@ -44,3 +44,23 @@ class ShoperClient:
 
     def get_inventory(self):
         return self.get("products")
+
+    def search_products(self, filters=None, sort=None, page=1, per_page=50):
+        """Search products with optional filters and sorting."""
+        params = {"page": page, "per-page": per_page}
+        if filters:
+            params.update(filters)
+        if sort:
+            params["sort"] = sort
+        return self.get("products", params=params)
+
+    def list_orders(self, filters=None, page=1, per_page=20):
+        """Return a list of orders filtered by status or other fields."""
+        params = {"page": page, "per-page": per_page}
+        if filters:
+            params.update(filters)
+        return self.get("orders", params=params)
+
+    def get_order(self, order_id):
+        """Retrieve a single order by id."""
+        return self.get(f"orders/{order_id}")
