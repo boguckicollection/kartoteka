@@ -229,6 +229,8 @@ class CardEditorApp:
 
         output = tk.Text(self.shoper_frame)
         output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        # Automatically display current products upon connecting
+        self.fetch_inventory(output)
 
         btn_frame = tk.Frame(self.shoper_frame)
         btn_frame.grid(row=3, column=0, pady=5)
@@ -274,7 +276,20 @@ class CardEditorApp:
         try:
             data = self.shoper_client.get_inventory()
             widget.delete("1.0", tk.END)
-            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+            # Display a friendly list of product names if possible
+            products = data.get("list", data)
+            lines = []
+            for prod in products:
+                translations = prod.get("translations") or {}
+                name = ""
+                if isinstance(translations, dict):
+                    first = next(iter(translations.values()), {})
+                    name = first.get("name", "")
+                lines.append(f"{prod.get('product_id')}: {name}")
+            if lines:
+                widget.insert(tk.END, "\n".join(lines))
+            else:
+                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
