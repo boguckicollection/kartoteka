@@ -69,7 +69,6 @@ class CardEditorApp:
         self.progress_var = tk.StringVar(value="0/0")
         self.start_frame = None
         self.shoper_frame = None
-        self.progress_bar = None
         self.log_widget = None
         try:
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
@@ -125,7 +124,8 @@ class CardEditorApp:
         author.pack(side="bottom", pady=5)
 
         button_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
-        button_frame.pack(pady=10, expand=True, fill="both")
+        # Keep the buttons centered without stretching across the entire window
+        button_frame.pack(pady=10)
 
         scan_btn = ttk.Button(
             button_frame,
@@ -473,6 +473,10 @@ class CardEditorApp:
         self.root.minsize(1000, 700)
         self.frame = tk.Frame(self.root)
         self.frame.pack(expand=True, fill="both", padx=10, pady=10)
+        # Allow widgets inside the frame to expand properly
+        for i in range(5):
+            self.frame.columnconfigure(i, weight=1)
+        self.frame.rowconfigure(2, weight=1)
 
         logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
@@ -494,7 +498,8 @@ class CardEditorApp:
 
         # Bottom frame for action buttons
         self.button_frame = tk.Frame(self.frame)
-        self.button_frame.grid(row=15, column=0, columnspan=5, pady=10, sticky="ew")
+        # Do not stretch the button frame so that buttons remain centered
+        self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
 
         self.load_button = ttk.Button(
             self.button_frame,
@@ -526,10 +531,9 @@ class CardEditorApp:
 
         self.image_label = tk.Label(self.frame)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
-        self.progress_bar = ttk.Progressbar(self.frame, maximum=1, length=300)
-        self.progress_bar.grid(row=13, column=0, pady=5, sticky="ew")
+        # Display only a textual progress indicator below the card image
         self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
-        self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
+        self.progress_label.grid(row=13, column=0, pady=5, sticky="ew")
 
         # Container for card information fields
         self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
@@ -698,9 +702,6 @@ class CardEditorApp:
         self.index = 0
         self.output_data = []
         self.card_counts = defaultdict(int)
-        if self.progress_bar:
-            self.progress_bar.configure(maximum=len(self.cards))
-            self.progress_bar['value'] = 0
         self.progress_var.set(f"0/{len(self.cards)}")
         self.log(f"Loaded {len(self.cards)} cards")
         self.show_card()
@@ -712,8 +713,6 @@ class CardEditorApp:
             return
 
         self.progress_var.set(f"{self.index + 1}/{len(self.cards)}")
-        if self.progress_bar:
-            self.progress_bar['value'] = self.index + 1
 
         image_path = self.cards[self.index]
         cache_key = self.file_to_key.get(os.path.basename(image_path))
@@ -1296,8 +1295,6 @@ class CardEditorApp:
 
         self.output_data.append(data)
         self.index += 1
-        if self.progress_bar:
-            self.progress_bar['value'] = self.index
         self.show_card()
 
     def load_csv_data(self):
