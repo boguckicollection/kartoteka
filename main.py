@@ -190,6 +190,7 @@ class CardEditorApp:
         self.shoper_frame.pack(expand=True, fill="both", padx=10, pady=10)
         self.shoper_frame.columnconfigure(0, weight=1)
         self.shoper_frame.rowconfigure(2, weight=1)
+        self.shoper_frame.rowconfigure(4, weight=1)
 
         logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
@@ -202,11 +203,34 @@ class CardEditorApp:
                 bg=self.shoper_frame.cget("bg"),
             ).grid(row=0, column=0, pady=(0, 10))
 
+        search_frame = tk.Frame(self.shoper_frame)
+        search_frame.grid(row=1, column=0, sticky="ew", pady=5)
+        search_frame.columnconfigure(1, weight=1)
+
+        tk.Label(search_frame, text="Szukaj").grid(row=0, column=0, sticky="e")
+        self.shoper_search_var = tk.StringVar()
+        ttk.Entry(search_frame, textvariable=self.shoper_search_var).grid(
+            row=0, column=1, sticky="ew"
+        )
+        tk.Label(search_frame, text="Sortuj").grid(row=0, column=2, sticky="e")
+        self.shoper_sort_var = tk.StringVar(value="")
+        ttk.Combobox(
+            search_frame,
+            textvariable=self.shoper_sort_var,
+            values=["", "name", "-name", "price", "-price"],
+            width=10,
+        ).grid(row=0, column=3, padx=5)
+        ttk.Button(
+            search_frame,
+            text="Wyszukaj",
+            command=lambda: self.search_products(output),
+        ).grid(row=0, column=4, padx=5)
+
         output = tk.Text(self.shoper_frame)
         output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
         btn_frame = tk.Frame(self.shoper_frame)
-        btn_frame.grid(row=1, column=0, pady=5)
+        btn_frame.grid(row=3, column=0, pady=5)
 
         ttk.Button(
             btn_frame,
@@ -226,11 +250,20 @@ class CardEditorApp:
             command=lambda: self.fetch_inventory(output),
         ).pack(side="left", padx=5)
 
+        orders_output = tk.Text(self.shoper_frame, height=10)
+        orders_output.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
+
+        ttk.Button(
+            btn_frame,
+            text="Zamówienia",
+            command=lambda: self.show_orders(orders_output),
+        ).pack(side="left", padx=5)
+
         ttk.Button(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
-        ).grid(row=3, column=0, pady=5)
+        ).grid(row=5, column=0, pady=5)
 
     def list_scans(self, widget):
         try:
@@ -256,6 +289,47 @@ class CardEditorApp:
             widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
+
+    def search_products(self, widget):
+        """Search products using the Shoper API."""
+        try:
+            filters = {}
+            term = self.shoper_search_var.get().strip()
+            if term:
+                filters["filters[name][like]"] = term
+            sort = self.shoper_sort_var.get().strip()
+            data = self.shoper_client.search_products(filters=filters, sort=sort)
+            widget.delete("1.0", tk.END)
+            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
+    def show_orders(self, widget):
+        """Display new orders with storage location hints."""
+        try:
+            orders = self.shoper_client.list_orders({"filters[status]": "new"})
+            widget.delete("1.0", tk.END)
+            lines = []
+            for order in orders.get("list", orders):
+                oid = order.get("order_id") or order.get("id")
+                lines.append(f"Zamówienie #{oid}")
+                for item in order.get("products", []):
+                    code = item.get("product_code") or item.get("code", "")
+                    location = self.location_from_code(code)
+                    lines.append(
+                        f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
+                    )
+            widget.insert(tk.END, "\n".join(lines))
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
+    @staticmethod
+    def location_from_code(code: str) -> str:
+        match = re.match(r"K(\d+)R(\d)P(\d+)", code or "")
+        if not match:
+            return ""
+        box, row, pos = match.groups()
+        return f"Karton {int(box)} | Rząd {int(row)} | Poz {int(pos)}"
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""

@@ -60,7 +60,8 @@ the same card is loaded, the application pre-fills the form with the cached
 data so you do not need to type them again.
 
 ### Shoper integration
-Use the **Porządkuj** button to open a window with basic actions against your
-Shoper store. You can list uploaded scans, send product data and check current
-inventory. Make sure the Shoper credentials are set in `.env` before launching
-the application.
+Use the **Porządkuj** button to open a window with actions against your Shoper
+store. The interface now lets you search products with sorting options and view
+new orders. Each order item is matched with the generated `product_code` so you
+can quickly locate it in storage. Make sure the Shoper credentials are set in
+`.env` before launching the application.
