@@ -164,13 +164,14 @@ class CardEditorApp:
             return
         # Quick connection test to provide clearer error messages
         try:
-            self.shoper_client.list_scans()
+            # use a known endpoint to verify the connection
+            self.shoper_client.get_inventory()
         except Exception as exc:
             msg = str(exc)
             if "404" in msg:
                 messagebox.showerror(
                     "Błąd",
-                    "Nie znaleziono endpointu Shoper API (brak '/webapi/rest'?)",
+                    "Nie znaleziono endpointu Shoper API ('products'). Czy adres zawiera '/webapi/rest'?",
                 )
             else:
                 messagebox.showerror(
@@ -232,11 +233,6 @@ class CardEditorApp:
         btn_frame = tk.Frame(self.shoper_frame)
         btn_frame.grid(row=3, column=0, pady=5)
 
-        ttk.Button(
-            btn_frame,
-            text="Lista skanów",
-            command=lambda: self.list_scans(output),
-        ).pack(side="left", padx=5)
 
         ttk.Button(
             btn_frame,
@@ -264,14 +260,6 @@ class CardEditorApp:
             text="Powrót",
             command=self.back_to_welcome,
         ).grid(row=5, column=0, pady=5)
-
-    def list_scans(self, widget):
-        try:
-            data = self.shoper_client.list_scans()
-            widget.delete("1.0", tk.END)
-            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
-        except Exception as e:
-            messagebox.showerror("Błąd", str(e))
 
     def push_product(self, widget):
         try:
