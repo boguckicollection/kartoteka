@@ -39,8 +39,8 @@ SHOPER_API_TOKEN=your-token
 
 The `RAPIDAPI_*` variables are used when a card price is not found in the local
 database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper
-store for the **Porządkuj** window. Ensure that `SHOPER_API_URL` includes the
-`/webapi/rest` prefix, as required by the official Shoper documentation.
+store for the **Porządkuj** window. The application expects the `/webapi/rest`
+endpoint and will append it automatically if it is missing.
 
 
 ## Running
