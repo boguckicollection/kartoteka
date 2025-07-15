@@ -144,7 +144,12 @@ class CardEditorApp:
             command=self.open_shoper_window,
             bootstyle="secondary",
         ).pack(side="left", padx=5)
-        self.placeholder_btn("\U0001F4E6 Eksportuj", button_frame).pack(side="left", padx=5)
+        ttk.Button(
+            button_frame,
+            text="\U0001F4C2 Import CSV",
+            command=self.load_csv_data,
+            bootstyle="warning",
+        ).pack(side="left", padx=5)
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
@@ -1266,6 +1271,74 @@ class CardEditorApp:
         self.output_data.append(data)
         self.index += 1
         self.show_card()
+
+    def load_csv_data(self):
+        """Load a CSV file and merge duplicate rows."""
+        file_path = filedialog.askopenfilename(
+            filetypes=[("CSV files", "*.csv")]
+        )
+        if not file_path:
+            return
+
+        with open(file_path, encoding="utf-8") as f:
+            sample = f.read(2048)
+            f.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=";,")
+            except csv.Error:
+                dialect = csv.excel
+            reader = csv.DictReader(f, dialect=dialect)
+            rows = list(reader)
+
+        combined = {}
+        qty_field = None
+
+        for row in rows:
+            key = f"{row.get('nazwa', '').strip()}|{row.get('numer', '').strip()}|{row.get('set', '').strip()}"
+            if qty_field is None:
+                if "stock" in row:
+                    qty_field = "stock"
+                elif "ilość" in row:
+                    qty_field = "ilość"
+            qty = 1
+            if qty_field:
+                try:
+                    qty = int(row.get(qty_field, 0))
+                except ValueError:
+                    qty = 1
+
+            if key in combined:
+                combined[key]["qty"] += qty
+            else:
+                new_row = row.copy()
+                new_row["qty"] = qty
+                combined[key] = new_row
+
+        fieldnames = reader.fieldnames or []
+        if qty_field is None:
+            qty_field = "ilość"
+            if qty_field not in fieldnames:
+                fieldnames.append(qty_field)
+
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".csv", filetypes=[("CSV files", "*.csv")]
+        )
+        if not save_path:
+            return
+
+        with open(save_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            for row in combined.values():
+                row_out = row.copy()
+                row_out[qty_field] = row_out.pop("qty")
+                if qty_field != "stock":
+                    row_out.pop("stock", None)
+                if qty_field != "ilość":
+                    row_out.pop("ilość", None)
+                writer.writerow({k: row_out.get(k, "") for k in fieldnames})
+
+        messagebox.showinfo("Sukces", "Plik CSV został scalony i zapisany.")
 
     def export_csv(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])

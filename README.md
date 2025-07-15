@@ -15,6 +15,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Save collected data to a CSV file
 - Autocomplete set selection (press <kbd>Tab</kbd> to accept a suggestion) and additional rarity checkboxes
 - Toggle the **Reverse** switch on the pricing screen when pricing a reverse card
+- Import CSV files and merge duplicates automatically
 
 ## Requirements
 Install dependencies from `requirements.txt`:
@@ -52,6 +53,12 @@ python main.py
 
 The interface will allow you to load scans, fetch prices from the local database
 or the API, and export results to CSV.
+
+### Importing CSV files
+Use the **Import CSV** button on the welcome screen to merge an existing CSV
+file. Rows that share the `nazwa`, `numer` and `set` columns are combined and
+their quantity summed. If the file lacks a `stock` column, the merged output adds
+an `ilość` column with the calculated totals.
 
 ### Cache
 Every time you press **Zapisz i dalej**, the entered values are stored in a
