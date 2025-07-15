@@ -33,13 +33,14 @@ Create a `.env` file with API credentials:
 ```bash
 RAPIDAPI_KEY=your-key-here
 RAPIDAPI_HOST=pokemon-tcg-api.p.rapidapi.com
-SHOPER_API_URL=https://your-store.shop/api
+SHOPER_API_URL=https://your-store.shop/webapi/rest
 SHOPER_API_TOKEN=your-token
 ```
 
 The `RAPIDAPI_*` variables are used when a card price is not found in the local
 database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper
-store for the **Porządkuj** window.
+store for the **Porządkuj** window. Ensure that `SHOPER_API_URL` includes the
+`/webapi/rest` prefix, as required by the official Shoper documentation.
 
 
 ## Running
