@@ -162,6 +162,21 @@ class CardEditorApp:
         if not self.shoper_client:
             messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
             return
+        # Quick connection test to provide clearer error messages
+        try:
+            self.shoper_client.list_scans()
+        except Exception as exc:
+            msg = str(exc)
+            if "404" in msg:
+                messagebox.showerror(
+                    "Błąd",
+                    "Nie znaleziono endpointu Shoper API (brak '/webapi/rest'?)",
+                )
+            else:
+                messagebox.showerror(
+                    "Błąd", f"Połączenie z Shoper API nie powiodło się: {msg}"
+                )
+            return
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None
