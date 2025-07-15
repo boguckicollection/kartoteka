@@ -36,9 +36,6 @@ class ShoperClient:
     def post(self, endpoint, **kwargs):
         return self._request("POST", endpoint, **kwargs)
 
-    def list_scans(self):
-        return self.get("scans")
-
     def add_product(self, data):
         return self.post("products", json=data)
 
