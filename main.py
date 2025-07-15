@@ -399,18 +399,25 @@ class CardEditorApp:
             bootstyle="round-toggle",
         ).grid(row=3, column=0, columnspan=2, pady=5)
 
+        self.price_reverse_var.trace_add("write", lambda *a: self.on_reverse_toggle())
+
+        btn_frame = tk.Frame(self.input_frame)
+        btn_frame.grid(row=4, column=0, columnspan=2, pady=5, sticky="w")
+
         ttk.Button(
-            self.input_frame,
+            btn_frame,
             text="Wyszukaj",
             command=self.run_pricing_search,
             bootstyle="primary",
-        ).grid(row=4, column=0, columnspan=2, pady=5, sticky="ew")
+            width=12,
+        ).pack(side="left", padx=5)
 
         ttk.Button(
-            self.input_frame,
+            btn_frame,
             text="Powrót",
             command=self.back_to_welcome,
-        ).grid(row=5, column=0, columnspan=2, pady=5, sticky="ew")
+            width=12,
+        ).pack(side="left", padx=5)
 
         self.result_frame = tk.Frame(self.image_frame)
         self.result_frame.pack(expand=True, fill="both", pady=10)
@@ -422,12 +429,16 @@ class CardEditorApp:
         set_name = self.price_set_entry.get()
         is_reverse = self.price_reverse_var.get()
 
-        info = self.lookup_card_info(name, number, set_name, is_reverse=is_reverse)
+        info = self.lookup_card_info(name, number, set_name)
         for w in self.result_frame.winfo_children():
             w.destroy()
+        self.price_labels = []
+        self.result_image_label = None
+        self.set_logo_label = None
         if not info:
             messagebox.showinfo("Brak wyników", "Nie znaleziono karty.")
             return
+        self.current_price_info = info
 
         if info.get("image_url"):
             try:
@@ -436,7 +447,8 @@ class CardEditorApp:
                     img = Image.open(io.BytesIO(res.content))
                     img.thumbnail((240, 340))
                     self.pricing_photo = ImageTk.PhotoImage(img)
-                    tk.Label(self.result_frame, image=self.pricing_photo).pack(pady=5)
+                    self.result_image_label = tk.Label(self.result_frame, image=self.pricing_photo)
+                    self.result_image_label.pack(pady=5)
             except Exception as e:
                 print(f"[ERROR] Loading image failed: {e}")
 
@@ -447,14 +459,34 @@ class CardEditorApp:
                     img = Image.open(io.BytesIO(res.content))
                     img.thumbnail((180, 60))
                     self.set_logo_photo = ImageTk.PhotoImage(img)
-                    tk.Label(self.result_frame, image=self.set_logo_photo).pack(pady=5)
+                    self.set_logo_label = tk.Label(self.result_frame, image=self.set_logo_photo)
+                    self.set_logo_label.pack(pady=5)
             except Exception as e:
                 print(f"[ERROR] Loading set logo failed: {e}")
+        self.display_price_info(info, is_reverse)
 
-        tk.Label(self.result_frame, text=f"Cena EUR: {info['price_eur']}").pack()
-        tk.Label(self.result_frame, text=f"Kurs EUR→PLN: {info['eur_pln_rate']}").pack()
-        tk.Label(self.result_frame, text=f"Cena PLN: {info['price_pln']}").pack()
-        tk.Label(self.result_frame, text=f"80% ceny PLN: {info['price_pln_80']}").pack()
+    def display_price_info(self, info, is_reverse):
+        """Show pricing data with optional reverse multiplier."""
+        price_pln = self.apply_variant_multiplier(info["price_pln"], is_reverse=is_reverse)
+        price_80 = round(price_pln * 0.8, 2)
+        if not getattr(self, "price_labels", None):
+            eur = tk.Label(self.result_frame, text=f"Cena EUR: {info['price_eur']}", fg="blue")
+            rate = tk.Label(self.result_frame, text=f"Kurs EUR→PLN: {info['eur_pln_rate']}", fg="gray")
+            pln = tk.Label(self.result_frame, text=f"Cena PLN: {price_pln}", fg="green")
+            pln80 = tk.Label(self.result_frame, text=f"80% ceny PLN: {price_80}", fg="red")
+            for lbl in (eur, rate, pln, pln80):
+                lbl.pack()
+            self.price_labels = [eur, rate, pln, pln80]
+        else:
+            eur, rate, pln, pln80 = self.price_labels
+            eur.config(text=f"Cena EUR: {info['price_eur']}")
+            rate.config(text=f"Kurs EUR→PLN: {info['eur_pln_rate']}")
+            pln.config(text=f"Cena PLN: {price_pln}")
+            pln80.config(text=f"80% ceny PLN: {price_80}")
+
+    def on_reverse_toggle(self, *args):
+        if getattr(self, "current_price_info", None):
+            self.display_price_info(self.current_price_info, self.price_reverse_var.get())
 
     def back_to_welcome(self):
         if getattr(self, "pricing_frame", None):
@@ -571,29 +603,33 @@ class CardEditorApp:
 
         tk.Label(self.info_frame, text="Typ").grid(row=4, column=0, sticky="w", **grid_opts)
         self.type_vars = {}
+        self.type_frame = tk.Frame(self.info_frame)
+        self.type_frame.grid(row=4, column=1, columnspan=7, sticky="w", **grid_opts)
         types = ["Common", "Holo", "Reverse"]
-        for i, t in enumerate(types):
+        for t in types:
             var = tk.BooleanVar()
             self.type_vars[t] = var
             tk.Checkbutton(
-                self.info_frame,
+                self.type_frame,
                 text=t,
                 variable=var,
                 width=8,
-            ).grid(row=4, column=1+i, sticky="w", **grid_opts)
+            ).pack(side="left", padx=2)
 
         tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky="w", **grid_opts)
         self.rarity_vars = {}
+        self.rarity_frame = tk.Frame(self.info_frame)
+        self.rarity_frame.grid(row=5, column=1, columnspan=7, sticky="w", **grid_opts)
         rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE", "PROMO"]
-        for i, r in enumerate(rarities):
+        for r in rarities:
             var = tk.BooleanVar()
             self.rarity_vars[r] = var
             tk.Checkbutton(
-                self.info_frame,
+                self.rarity_frame,
                 text=r,
                 variable=var,
                 width=8,
-            ).grid(row=5, column=1+i, sticky="w", **grid_opts)
+            ).pack(side="left", padx=2)
 
         tk.Label(self.info_frame, text="Suffix").grid(row=6, column=0, sticky="w", **grid_opts)
         self.suffix_var = tk.StringVar(value="")
