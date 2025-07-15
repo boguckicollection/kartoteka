@@ -69,6 +69,8 @@ class CardEditorApp:
         self.progress_var = tk.StringVar(value="0/0")
         self.start_frame = None
         self.shoper_frame = None
+        self.progress_bar = None
+        self.log_widget = None
         try:
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
         except Exception as e:
@@ -522,6 +524,8 @@ class CardEditorApp:
 
         self.image_label = tk.Label(self.frame)
         self.image_label.grid(row=2, column=0, rowspan=12)
+        self.progress_bar = ttk.Progressbar(self.frame, maximum=1, length=300)
+        self.progress_bar.grid(row=13, column=0, pady=5)
         self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5)
 
@@ -644,6 +648,9 @@ class CardEditorApp:
         self.root.bind("<Return>", lambda e: self.save_and_next())
         self.update_set_options()
 
+        self.log_widget = tk.Text(self.frame, height=4, state="disabled")
+        self.log_widget.grid(row=16, column=0, columnspan=5, sticky="ew")
+
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         if lang == "JP":
@@ -689,7 +696,11 @@ class CardEditorApp:
         self.index = 0
         self.output_data = []
         self.card_counts = defaultdict(int)
+        if self.progress_bar:
+            self.progress_bar.configure(maximum=len(self.cards))
+            self.progress_bar['value'] = 0
         self.progress_var.set(f"0/{len(self.cards)}")
+        self.log(f"Loaded {len(self.cards)} cards")
         self.show_card()
 
     def show_card(self):
@@ -699,6 +710,8 @@ class CardEditorApp:
             return
 
         self.progress_var.set(f"{self.index + 1}/{len(self.cards)}")
+        if self.progress_bar:
+            self.progress_bar['value'] = self.index + 1
 
         image_path = self.cards[self.index]
         cache_key = self.file_to_key.get(os.path.basename(image_path))
@@ -771,6 +784,14 @@ class CardEditorApp:
         with open(PRICE_DB_PATH, encoding="utf-8") as f:
             reader = csv.DictReader(f)
             return list(reader)
+
+    def log(self, message: str):
+        if self.log_widget:
+            self.log_widget.configure(state="normal")
+            self.log_widget.insert(tk.END, message + "\n")
+            self.log_widget.see(tk.END)
+            self.log_widget.configure(state="disabled")
+        print(message)
 
     def get_price_from_db(self, name, number, set_name):
         import unicodedata
@@ -1070,17 +1091,20 @@ class CardEditorApp:
             cena = self.apply_variant_multiplier(cena, is_reverse=is_reverse, is_holo=is_holo)
             self.entries['cena'].delete(0, tk.END)
             self.entries['cena'].insert(0, str(cena))
+            self.log(f"Price for {name} {number}: {cena} zł")
         else:
             fetched = self.fetch_card_price(name, number, set_name)
             if fetched is not None:
                 fetched = self.apply_variant_multiplier(fetched, is_reverse=is_reverse, is_holo=is_holo)
                 self.entries['cena'].delete(0, tk.END)
                 self.entries['cena'].insert(0, str(fetched))
+                self.log(f"Price for {name} {number}: {fetched} zł")
             else:
                 messagebox.showinfo(
                     "Brak wyników",
                     "Nie znaleziono ceny dla podanej karty w bazie danych.",
                 )
+                self.log(f"Card {name} {number} not found")
 
     def show_variants(self):
         """Display a list of matching cards from the API."""
@@ -1270,6 +1294,8 @@ class CardEditorApp:
 
         self.output_data.append(data)
         self.index += 1
+        if self.progress_bar:
+            self.progress_bar['value'] = self.index
         self.show_card()
 
     def load_csv_data(self):
