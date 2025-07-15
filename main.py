@@ -81,7 +81,8 @@ class CardEditorApp:
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
-        self.root.geometry("1500x900")
+        # Allow resizing but provide a sensible minimum size
+        self.root.minsize(1000, 700)
         self.start_frame = tk.Frame(self.root, bg=self.root.cget("background"))
         self.start_frame.pack(expand=True, fill="both")
 
@@ -124,7 +125,7 @@ class CardEditorApp:
         author.pack(side="bottom", pady=5)
 
         button_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
-        button_frame.pack(pady=10)
+        button_frame.pack(pady=10, expand=True, fill="both")
 
         scan_btn = ttk.Button(
             button_frame,
@@ -191,8 +192,8 @@ class CardEditorApp:
         if getattr(self, "shoper_frame", None):
             self.shoper_frame.destroy()
             self.shoper_frame = None
-        self.root.geometry("1500x900")
-        self.root.resizable(False, False)
+        # Ensure the window has a reasonable minimum size
+        self.root.minsize(1000, 700)
 
         self.shoper_frame = tk.Frame(self.root)
         self.shoper_frame.pack(expand=True, fill="both", padx=10, pady=10)
@@ -240,7 +241,7 @@ class CardEditorApp:
         self.fetch_inventory(output)
 
         btn_frame = tk.Frame(self.shoper_frame)
-        btn_frame.grid(row=3, column=0, pady=5)
+        btn_frame.grid(row=3, column=0, pady=5, sticky="ew")
 
 
         ttk.Button(
@@ -348,8 +349,8 @@ class CardEditorApp:
             self.start_frame = None
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
-        self.root.geometry("1500x900")
-        self.root.resizable(False, False)
+        # Set a sensible minimum size and allow resizing
+        self.root.minsize(1000, 700)
         self.pricing_frame = tk.Frame(self.root)
         self.pricing_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
@@ -369,7 +370,7 @@ class CardEditorApp:
             ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
         self.input_frame = tk.Frame(self.pricing_frame)
-        self.input_frame.grid(row=1, column=0, sticky="n")
+        self.input_frame.grid(row=1, column=0, sticky="nsew")
 
         self.image_frame = tk.Frame(self.pricing_frame)
         self.image_frame.grid(row=1, column=1, sticky="nsew")
@@ -380,15 +381,15 @@ class CardEditorApp:
 
         tk.Label(self.input_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
         self.price_name_entry = ttk.Entry(self.input_frame, width=30)
-        self.price_name_entry.grid(row=0, column=1, sticky="w")
+        self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
         tk.Label(self.input_frame, text="Numer").grid(row=1, column=0, sticky="e")
         self.price_number_entry = ttk.Entry(self.input_frame, width=30)
-        self.price_number_entry.grid(row=1, column=1, sticky="w")
+        self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
         tk.Label(self.input_frame, text="Set").grid(row=2, column=0, sticky="e")
         self.price_set_entry = ttk.Entry(self.input_frame, width=30)
-        self.price_set_entry.grid(row=2, column=1, sticky="w")
+        self.price_set_entry.grid(row=2, column=1, sticky="ew")
 
         self.price_reverse_var = tk.BooleanVar()
         ttk.Checkbutton(
@@ -403,13 +404,13 @@ class CardEditorApp:
             text="Wyszukaj",
             command=self.run_pricing_search,
             bootstyle="primary",
-        ).grid(row=4, column=0, columnspan=2, pady=5)
+        ).grid(row=4, column=0, columnspan=2, pady=5, sticky="ew")
 
         ttk.Button(
             self.input_frame,
             text="Powrót",
             command=self.back_to_welcome,
-        ).grid(row=5, column=0, columnspan=2, pady=5)
+        ).grid(row=5, column=0, columnspan=2, pady=5, sticky="ew")
 
         self.result_frame = tk.Frame(self.image_frame)
         self.result_frame.pack(expand=True, fill="both", pady=10)
@@ -468,9 +469,10 @@ class CardEditorApp:
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
-        self.root.geometry("1500x900")
+        # Provide a minimum size and allow the editor to expand
+        self.root.minsize(1000, 700)
         self.frame = tk.Frame(self.root)
-        self.frame.pack(padx=10, pady=10)
+        self.frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
         if os.path.exists(logo_path):
@@ -492,7 +494,7 @@ class CardEditorApp:
 
         # Bottom frame for action buttons
         self.button_frame = tk.Frame(self.frame)
-        self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
+        self.button_frame.grid(row=15, column=0, columnspan=5, pady=10, sticky="ew")
 
         self.load_button = ttk.Button(
             self.button_frame,
@@ -523,11 +525,11 @@ class CardEditorApp:
         self.back_button.pack(side="left", padx=5)
 
         self.image_label = tk.Label(self.frame)
-        self.image_label.grid(row=2, column=0, rowspan=12)
+        self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         self.progress_bar = ttk.Progressbar(self.frame, maximum=1, length=300)
-        self.progress_bar.grid(row=13, column=0, pady=5)
+        self.progress_bar.grid(row=13, column=0, pady=5, sticky="ew")
         self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
-        self.progress_label.grid(row=14, column=0, pady=5)
+        self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
 
         # Container for card information fields
         self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
