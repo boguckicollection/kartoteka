@@ -65,3 +65,6 @@ store. The interface now lets you search products with sorting options and view
 new orders. Each order item is matched with the generated `product_code` so you
 can quickly locate it in storage. Make sure the Shoper credentials are set in
 `.env` before launching the application.
+
+## License
+This project is licensed under the terms of the [MIT License](LICENSE).
