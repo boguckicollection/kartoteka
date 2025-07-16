@@ -68,10 +68,10 @@ data so you do not need to type them again.
 
 ### Shoper integration
 Use the **Porządkuj** button to open a window with actions against your Shoper
-store. The interface now lets you search products with sorting options and view
-new orders. Each order item is matched with the generated `product_code` so you
-can quickly locate it in storage. Make sure the Shoper credentials are set in
-`.env` before launching the application.
+store. The interface now lets you search products by name or card number, apply
+sorting options and view new orders. Each order item is matched with the
+generated `product_code` so you can quickly locate it in storage. Make sure the
+Shoper credentials are set in `.env` before launching the application.
 
 ## License
 This project is licensed under the terms of the [MIT License](LICENSE).
