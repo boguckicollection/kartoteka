@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from ttkbootstrap import Style
+
 try:
     from ttkbootstrap.icons import Icon
 except Exception:  # pragma: no cover - fall back when icons unavailable
@@ -44,12 +45,14 @@ def load_icon(name: str):
             return None
     return None
 
+
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
     tcg_sets_eng = list(json.load(f).keys())
 
 with open("tcg_sets_jp.json", encoding="utf-8") as f:
     tcg_sets_jp = list(json.load(f).keys())
+
 
 class CardEditorApp:
     def __init__(self, root):
@@ -107,9 +110,7 @@ class CardEditorApp:
 
         desc = tk.Label(
             self.start_frame,
-            text=(
-                "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
-            ),
+            text=("Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."),
             wraplength=1400,
             justify="center",
         )
@@ -130,7 +131,7 @@ class CardEditorApp:
 
         scan_btn = ttk.Button(
             button_frame,
-            text="\U0001F50D Skanuj",
+            text="\U0001f50d Skanuj",
             command=self.load_images,
             bootstyle="primary",
         )
@@ -138,26 +139,27 @@ class CardEditorApp:
 
         ttk.Button(
             button_frame,
-            text="\U0001F4B0 Wyceniaj",
+            text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
             bootstyle="info",
         ).pack(side="left", padx=5)
         ttk.Button(
             button_frame,
-            text="\U0001F5C3\uFE0F Shoper",
+            text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
             bootstyle="secondary",
         ).pack(side="left", padx=5)
         ttk.Button(
             button_frame,
-            text="\U0001F4C2 Import CSV",
+            text="\U0001f4c2 Import CSV",
             command=self.load_csv_data,
             bootstyle="warning",
         ).pack(side="left", padx=5)
 
         # Display store statistics when Shoper credentials are available
         stats_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
-        stats_frame.pack(pady=10)
+        # Keep the dashboard centered within the window
+        stats_frame.pack(pady=10, anchor="center")
         stats_frame.grid_anchor("center")
         for i in range(3):
             stats_frame.columnconfigure(i, weight=1)
@@ -170,7 +172,13 @@ class CardEditorApp:
             progress_ship = (total - stats.get("pending_shipments", 0)) / float(total)
 
         stats_map = [
-            ("Nowe dzisiaj", stats.get("new_orders_today", 0), "🆕", "Liczba nowych zamówień dzisiaj", None),
+            (
+                "Nowe dzisiaj",
+                stats.get("new_orders_today", 0),
+                "🆕",
+                "Liczba nowych zamówień dzisiaj",
+                None,
+            ),
             (
                 "Oczekujące wysyłki",
                 stats.get("pending_shipments", 0),
@@ -185,8 +193,20 @@ class CardEditorApp:
                 "Zamówienia bez opłaty",
                 None,
             ),
-            ("Otwarte zwroty", stats.get("open_returns", 0), "↩️", "Zwroty w toku", None),
-            ("Sprzedaż dzisiaj", stats.get("sales_today", 0), "💰", "Łączna dzisiejsza sprzedaż", None),
+            (
+                "Otwarte zwroty",
+                stats.get("open_returns", 0),
+                "↩️",
+                "Zwroty w toku",
+                None,
+            ),
+            (
+                "Sprzedaż dzisiaj",
+                stats.get("sales_today", 0),
+                "💰",
+                "Łączna dzisiejsza sprzedaż",
+                None,
+            ),
             (
                 "Sprzedaż tydzień",
                 stats.get("sales_week", 0),
@@ -208,7 +228,13 @@ class CardEditorApp:
                 "Średnia wartość zamówienia",
                 None,
             ),
-            ("Aktywne karty", stats.get("active_cards", 0), "🃏", "Produkty aktywne w sklepie", None),
+            (
+                "Aktywne karty",
+                stats.get("active_cards", 0),
+                "🃏",
+                "Produkty aktywne w sklepie",
+                None,
+            ),
         ]
 
         colors = [
@@ -222,6 +248,11 @@ class CardEditorApp:
             "#FFFDE7",
             "#EDE7F6",
         ]
+
+        # Ensure rows expand evenly when the window is resized
+        rows = (len(stats_map) + 2) // 3
+        for r in range(rows):
+            stats_frame.rowconfigure(r, weight=1)
 
         for i, (label, value, icon, info, prog) in enumerate(stats_map):
             row = i // 3
@@ -250,17 +281,16 @@ class CardEditorApp:
         return ttk.Button(
             master,
             text=text,
-            command=lambda: messagebox.showinfo(
-                "Info", "Funkcja niezaimplementowana."
-            ),
+            command=lambda: messagebox.showinfo("Info", "Funkcja niezaimplementowana."),
             bootstyle="secondary",
         )
-
 
     def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
         """Create a small dashboard card with optional tooltip and progress bar."""
         frame = tk.Frame(parent, width=160, height=80, bg=color, bd=1, relief="ridge")
+        # Keep the card size constant regardless of its contents
         frame.pack_propagate(False)
+        frame.grid_propagate(False)
         tk.Label(frame, text=icon, font=("Helvetica", 24), bg=color).pack()
         tk.Label(frame, text=title, font=("Helvetica", 12, "bold"), bg=color).pack()
         tk.Label(frame, text=value, font=("Helvetica", 24), bg=color).pack()
@@ -405,7 +435,6 @@ class CardEditorApp:
 
         btn_frame = tk.Frame(self.shoper_frame)
         btn_frame.grid(row=3, column=0, pady=5, sticky="ew")
-
 
         ttk.Button(
             btn_frame,
@@ -613,7 +642,9 @@ class CardEditorApp:
                     img = Image.open(io.BytesIO(res.content))
                     img.thumbnail((240, 340))
                     self.pricing_photo = ImageTk.PhotoImage(img)
-                    self.result_image_label = tk.Label(self.result_frame, image=self.pricing_photo)
+                    self.result_image_label = tk.Label(
+                        self.result_frame, image=self.pricing_photo
+                    )
                     self.result_image_label.pack(pady=5)
             except Exception as e:
                 print(f"[ERROR] Loading image failed: {e}")
@@ -625,7 +656,9 @@ class CardEditorApp:
                     img = Image.open(io.BytesIO(res.content))
                     img.thumbnail((180, 60))
                     self.set_logo_photo = ImageTk.PhotoImage(img)
-                    self.set_logo_label = tk.Label(self.result_frame, image=self.set_logo_photo)
+                    self.set_logo_label = tk.Label(
+                        self.result_frame, image=self.set_logo_photo
+                    )
                     self.set_logo_label.pack(pady=5)
             except Exception as e:
                 print(f"[ERROR] Loading set logo failed: {e}")
@@ -633,13 +666,23 @@ class CardEditorApp:
 
     def display_price_info(self, info, is_reverse):
         """Show pricing data with optional reverse multiplier."""
-        price_pln = self.apply_variant_multiplier(info["price_pln"], is_reverse=is_reverse)
+        price_pln = self.apply_variant_multiplier(
+            info["price_pln"], is_reverse=is_reverse
+        )
         price_80 = round(price_pln * 0.8, 2)
         if not getattr(self, "price_labels", None):
-            eur = tk.Label(self.result_frame, text=f"Cena EUR: {info['price_eur']}", fg="blue")
-            rate = tk.Label(self.result_frame, text=f"Kurs EUR→PLN: {info['eur_pln_rate']}", fg="gray")
+            eur = tk.Label(
+                self.result_frame, text=f"Cena EUR: {info['price_eur']}", fg="blue"
+            )
+            rate = tk.Label(
+                self.result_frame,
+                text=f"Kurs EUR→PLN: {info['eur_pln_rate']}",
+                fg="gray",
+            )
             pln = tk.Label(self.result_frame, text=f"Cena PLN: {price_pln}", fg="green")
-            pln80 = tk.Label(self.result_frame, text=f"80% ceny PLN: {price_80}", fg="red")
+            pln80 = tk.Label(
+                self.result_frame, text=f"80% ceny PLN: {price_80}", fg="red"
+            )
             for lbl in (eur, rate, pln, pln80):
                 lbl.pack()
             self.price_labels = [eur, rate, pln, pln80]
@@ -652,7 +695,9 @@ class CardEditorApp:
 
     def on_reverse_toggle(self, *args):
         if getattr(self, "current_price_info", None):
-            self.display_price_info(self.current_price_info, self.price_reverse_var.get())
+            self.display_price_info(
+                self.current_price_info, self.price_reverse_var.get()
+            )
 
     def back_to_welcome(self):
         if getattr(self, "pricing_frame", None):
@@ -735,7 +780,9 @@ class CardEditorApp:
 
         # Container for card information fields
         self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
-        self.info_frame.grid(row=2, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew")
+        self.info_frame.grid(
+            row=2, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew"
+        )
         for i in range(8):
             self.info_frame.columnconfigure(i, weight=1)
 
@@ -743,31 +790,44 @@ class CardEditorApp:
 
         grid_opts = {"padx": 5, "pady": 2}
 
-        tk.Label(self.info_frame, text="Język").grid(row=0, column=0, sticky="w", **grid_opts)
+        tk.Label(self.info_frame, text="Język").grid(
+            row=0, column=0, sticky="w", **grid_opts
+        )
         self.lang_var = tk.StringVar(value="ENG")
-        self.entries['język'] = self.lang_var
-        lang_dropdown = ttk.Combobox(self.info_frame, textvariable=self.lang_var, values=["ENG", "JP"], width=20)
+        self.entries["język"] = self.lang_var
+        lang_dropdown = ttk.Combobox(
+            self.info_frame, textvariable=self.lang_var, values=["ENG", "JP"], width=20
+        )
         lang_dropdown.grid(row=0, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
+        tk.Label(self.info_frame, text="Nazwa").grid(
+            row=1, column=0, sticky="w", **grid_opts
+        )
+        self.entries["nazwa"] = ttk.Entry(self.info_frame, width=20)
+        self.entries["nazwa"].grid(row=1, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Nazwa").grid(row=1, column=0, sticky="w", **grid_opts)
-        self.entries['nazwa'] = ttk.Entry(self.info_frame, width=20)
-        self.entries['nazwa'].grid(row=1, column=1, sticky="ew", **grid_opts)
+        tk.Label(self.info_frame, text="Numer").grid(
+            row=2, column=0, sticky="w", **grid_opts
+        )
+        self.entries["numer"] = ttk.Entry(self.info_frame, width=20)
+        self.entries["numer"].grid(row=2, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Numer").grid(row=2, column=0, sticky="w", **grid_opts)
-        self.entries['numer'] = ttk.Entry(self.info_frame, width=20)
-        self.entries['numer'].grid(row=2, column=1, sticky="ew", **grid_opts)
-
-        tk.Label(self.info_frame, text="Set").grid(row=3, column=0, sticky="w", **grid_opts)
+        tk.Label(self.info_frame, text="Set").grid(
+            row=3, column=0, sticky="w", **grid_opts
+        )
         self.set_var = tk.StringVar()
-        self.set_dropdown = ttk.Combobox(self.info_frame, textvariable=self.set_var, width=20)
+        self.set_dropdown = ttk.Combobox(
+            self.info_frame, textvariable=self.set_var, width=20
+        )
         self.set_dropdown.grid(row=3, column=1, sticky="ew", **grid_opts)
-        self.set_dropdown.bind('<KeyRelease>', self.filter_sets)
-        self.set_dropdown.bind('<Tab>', self.autocomplete_set)
-        self.entries['set'] = self.set_var
+        self.set_dropdown.bind("<KeyRelease>", self.filter_sets)
+        self.set_dropdown.bind("<Tab>", self.autocomplete_set)
+        self.entries["set"] = self.set_var
 
-        tk.Label(self.info_frame, text="Typ").grid(row=4, column=0, sticky="w", **grid_opts)
+        tk.Label(self.info_frame, text="Typ").grid(
+            row=4, column=0, sticky="w", **grid_opts
+        )
         self.type_vars = {}
         self.type_frame = tk.Frame(self.info_frame)
         self.type_frame.grid(row=4, column=1, columnspan=7, sticky="w", **grid_opts)
@@ -782,7 +842,9 @@ class CardEditorApp:
                 width=8,
             ).pack(side="left", padx=2)
 
-        tk.Label(self.info_frame, text="Rarity").grid(row=5, column=0, sticky="w", **grid_opts)
+        tk.Label(self.info_frame, text="Rarity").grid(
+            row=5, column=0, sticky="w", **grid_opts
+        )
         self.rarity_vars = {}
         self.rarity_frame = tk.Frame(self.info_frame)
         self.rarity_frame.grid(row=5, column=1, columnspan=7, sticky="w", **grid_opts)
@@ -797,21 +859,37 @@ class CardEditorApp:
                 width=8,
             ).pack(side="left", padx=2)
 
-        tk.Label(self.info_frame, text="Suffix").grid(row=6, column=0, sticky="w", **grid_opts)
+        tk.Label(self.info_frame, text="Suffix").grid(
+            row=6, column=0, sticky="w", **grid_opts
+        )
         self.suffix_var = tk.StringVar(value="")
-        self.entries['suffix'] = self.suffix_var
-        suffix_dropdown = ttk.Combobox(self.info_frame, textvariable=self.suffix_var, values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"], width=20)
+        self.entries["suffix"] = self.suffix_var
+        suffix_dropdown = ttk.Combobox(
+            self.info_frame,
+            textvariable=self.suffix_var,
+            values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"],
+            width=20,
+        )
         suffix_dropdown.grid(row=6, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Stan").grid(row=7, column=0, sticky="w", **grid_opts)
+        tk.Label(self.info_frame, text="Stan").grid(
+            row=7, column=0, sticky="w", **grid_opts
+        )
         self.stan_var = tk.StringVar(value="NM")
-        self.entries['stan'] = self.stan_var
-        stan_dropdown = ttk.Combobox(self.info_frame, textvariable=self.stan_var, values=["NM", "LP", "PL", "MP", "HP", "DMG"], width=20)
+        self.entries["stan"] = self.stan_var
+        stan_dropdown = ttk.Combobox(
+            self.info_frame,
+            textvariable=self.stan_var,
+            values=["NM", "LP", "PL", "MP", "HP", "DMG"],
+            width=20,
+        )
         stan_dropdown.grid(row=7, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Cena").grid(row=8, column=0, sticky="w", **grid_opts)
-        self.entries['cena'] = ttk.Entry(self.info_frame, width=20)
-        self.entries['cena'].grid(row=8, column=1, sticky="ew", **grid_opts)
+        tk.Label(self.info_frame, text="Cena").grid(
+            row=8, column=0, sticky="w", **grid_opts
+        )
+        self.entries["cena"] = ttk.Entry(self.info_frame, width=20)
+        self.entries["cena"].grid(row=8, column=1, sticky="ew", **grid_opts)
 
         self.api_button = ttk.Button(
             self.info_frame,
@@ -829,7 +907,9 @@ class CardEditorApp:
             command=self.show_variants,
             bootstyle="secondary",
         )
-        self.variants_button.grid(row=9, column=2, columnspan=2, sticky="ew", **grid_opts)
+        self.variants_button.grid(
+            row=9, column=2, columnspan=2, sticky="ew", **grid_opts
+        )
 
         self.cardmarket_button = ttk.Button(
             self.info_frame,
@@ -837,7 +917,9 @@ class CardEditorApp:
             command=self.open_cardmarket_search,
             bootstyle="secondary",
         )
-        self.cardmarket_button.grid(row=9, column=4, columnspan=2, sticky="ew", **grid_opts)
+        self.cardmarket_button.grid(
+            row=9, column=4, columnspan=2, sticky="ew", **grid_opts
+        )
 
         self.save_button = ttk.Button(
             self.info_frame,
@@ -862,9 +944,9 @@ class CardEditorApp:
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         if lang == "JP":
-            self.set_dropdown['values'] = sorted(tcg_sets_jp)
+            self.set_dropdown["values"] = sorted(tcg_sets_jp)
         else:
-            self.set_dropdown['values'] = sorted(tcg_sets_eng)
+            self.set_dropdown["values"] = sorted(tcg_sets_eng)
 
     def filter_sets(self, event=None):
         typed = self.set_var.get().lower()
@@ -874,7 +956,7 @@ class CardEditorApp:
             filtered = [s for s in all_sets if typed in s.lower()]
         else:
             filtered = all_sets
-        self.set_dropdown['values'] = sorted(filtered)
+        self.set_dropdown["values"] = sorted(filtered)
 
     def autocomplete_set(self, event=None):
         typed = self.set_var.get().lower()
@@ -899,7 +981,11 @@ class CardEditorApp:
             self.setup_editor_ui()
         self.folder_path = folder
         self.folder_name = os.path.basename(folder)
-        self.cards = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.png'))]
+        self.cards = [
+            os.path.join(folder, f)
+            for f in os.listdir(folder)
+            if f.lower().endswith((".jpg", ".png"))
+        ]
         self.cards.sort()
         self.index = 0
         self.output_data = []
@@ -931,12 +1017,12 @@ class CardEditorApp:
             if isinstance(entry, (tk.Entry, ttk.Entry)):
                 entry.delete(0, tk.END)
             elif isinstance(entry, tk.StringVar):
-                if key == 'język':
-                    entry.set('ENG')
-                elif key == 'stan':
-                    entry.set('NM')
+                if key == "język":
+                    entry.set("ENG")
+                elif key == "stan":
+                    entry.set("NM")
                 else:
-                    entry.set('')
+                    entry.set("")
             elif isinstance(entry, tk.BooleanVar):
                 entry.set(False)
 
@@ -1093,11 +1179,15 @@ class CardEditorApp:
 
             if candidates:
                 best = candidates[0]
-                price_eur = best.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
+                price_eur = (
+                    best.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
+                )
                 if price_eur:
                     eur_pln = self.get_exchange_rate()
                     price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
-                    print(f"[INFO] Cena {best.get('name')} ({number_input}, {set_input}) = {price_pln} PLN")
+                    print(
+                        f"[INFO] Cena {best.get('name')} ({number_input}, {set_input}) = {price_pln} PLN"
+                    )
                     return price_pln
 
             print("\n[DEBUG] Nie znaleziono dokładnej karty. Zbliżone:")
@@ -1105,7 +1195,9 @@ class CardEditorApp:
                 card_number = str(card.get("card_number", "")).lower()
                 card_set = str(card.get("episode", {}).get("name", "")).lower()
                 if number_input == card_number and set_input in card_set:
-                    print(f"- {card.get('name')} | {card_number} | {card.get('episode', {}).get('name')}")
+                    print(
+                        f"- {card.get('name')} | {card_number} | {card.get('episode', {}).get('name')}"
+                    )
 
         except requests.Timeout:
             print("[ERROR] Request timed out")
@@ -1173,16 +1265,24 @@ class CardEditorApp:
                 set_match = set_input in card_set or card_set.startswith(set_input)
 
                 if name_match and number_match and set_match:
-                    price_eur = card.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
+                    price_eur = (
+                        card.get("prices", {})
+                        .get("cardmarket", {})
+                        .get("30d_average", 0)
+                    )
                     price_pln = 0
                     if price_eur:
-                        price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
-                    results.append({
-                        "name": card.get("name"),
-                        "number": card_number,
-                        "set": card.get("episode", {}).get("name", ""),
-                        "price": price_pln,
-                    })
+                        price_pln = round(
+                            float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2
+                        )
+                    results.append(
+                        {
+                            "name": card.get("name"),
+                            "number": card_number,
+                            "set": card.get("episode", {}).get("name", ""),
+                            "price": price_pln,
+                        }
+                    )
             return results
         except requests.Timeout:
             print("[ERROR] Request timed out")
@@ -1244,14 +1344,21 @@ class CardEditorApp:
                 set_match = set_input in card_set or card_set.startswith(set_input)
 
                 if name_match and number_match and set_match:
-                    price_eur = card.get("prices", {}).get("cardmarket", {}).get("30d_average", 0) or 0
+                    price_eur = (
+                        card.get("prices", {})
+                        .get("cardmarket", {})
+                        .get("30d_average", 0)
+                        or 0
+                    )
                     base_rate = self.get_exchange_rate()
                     eur_pln = base_rate * PRICE_MULTIPLIER
                     price_pln = round(float(price_eur) * eur_pln, 2)
                     if is_holo or is_reverse:
                         price_pln = round(price_pln * HOLO_REVERSE_MULTIPLIER, 2)
                     set_info = card.get("episode") or card.get("set") or {}
-                    images = set_info.get("images", {}) if isinstance(set_info, dict) else {}
+                    images = (
+                        set_info.get("images", {}) if isinstance(set_info, dict) else {}
+                    )
                     set_logo = (
                         images.get("logo")
                         or images.get("logoUrl")
@@ -1278,29 +1385,30 @@ class CardEditorApp:
             print(f"[ERROR] Lookup failed: {e}")
         return None
 
-
-
-
     def fetch_card_data(self):
-        name = self.entries['nazwa'].get()
-        number = self.entries['numer'].get()
-        set_name = self.entries['set'].get()
+        name = self.entries["nazwa"].get()
+        number = self.entries["numer"].get()
+        set_name = self.entries["set"].get()
 
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
 
         cena = self.get_price_from_db(name, number, set_name)
         if cena is not None:
-            cena = self.apply_variant_multiplier(cena, is_reverse=is_reverse, is_holo=is_holo)
-            self.entries['cena'].delete(0, tk.END)
-            self.entries['cena'].insert(0, str(cena))
+            cena = self.apply_variant_multiplier(
+                cena, is_reverse=is_reverse, is_holo=is_holo
+            )
+            self.entries["cena"].delete(0, tk.END)
+            self.entries["cena"].insert(0, str(cena))
             self.log(f"Price for {name} {number}: {cena} zł")
         else:
             fetched = self.fetch_card_price(name, number, set_name)
             if fetched is not None:
-                fetched = self.apply_variant_multiplier(fetched, is_reverse=is_reverse, is_holo=is_holo)
-                self.entries['cena'].delete(0, tk.END)
-                self.entries['cena'].insert(0, str(fetched))
+                fetched = self.apply_variant_multiplier(
+                    fetched, is_reverse=is_reverse, is_holo=is_holo
+                )
+                self.entries["cena"].delete(0, tk.END)
+                self.entries["cena"].insert(0, str(fetched))
                 self.log(f"Price for {name} {number}: {fetched} zł")
             else:
                 messagebox.showinfo(
@@ -1311,9 +1419,9 @@ class CardEditorApp:
 
     def show_variants(self):
         """Display a list of matching cards from the API."""
-        name = self.entries['nazwa'].get()
-        number = self.entries['numer'].get()
-        set_name = self.entries['set'].get()
+        name = self.entries["nazwa"].get()
+        number = self.entries["numer"].get()
+        set_name = self.entries["set"].get()
 
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
@@ -1343,8 +1451,12 @@ class CardEditorApp:
         tree.heading("price", text="Cena (PLN)")
 
         for card in variants:
-            price = self.apply_variant_multiplier(card["price"], is_reverse=is_reverse, is_holo=is_holo)
-            tree.insert("", "end", values=(card["name"], card["number"], card["set"], price))
+            price = self.apply_variant_multiplier(
+                card["price"], is_reverse=is_reverse, is_holo=is_holo
+            )
+            tree.insert(
+                "", "end", values=(card["name"], card["number"], card["set"], price)
+            )
 
         tree.pack(expand=True, fill="both", padx=10, pady=10)
 
@@ -1353,23 +1465,21 @@ class CardEditorApp:
             if not selected:
                 return
             values = tree.item(selected[0], "values")
-            self.entries['cena'].delete(0, tk.END)
-            self.entries['cena'].insert(0, values[3])
+            self.entries["cena"].delete(0, tk.END)
+            self.entries["cena"].insert(0, values[3])
             top.destroy()
 
         ttk.Button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
         tree.bind("<Double-1>", set_selected_price)
 
-
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card in the default browser."""
-        name = self.entries['nazwa'].get()
-        number = self.entries['numer'].get()
+        name = self.entries["nazwa"].get()
+        number = self.entries["numer"].get()
         search_terms = " ".join(t for t in [name, number] if t)
-        params = urlencode({'searchString': search_terms})
+        params = urlencode({"searchString": search_terms})
         url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
         webbrowser.open(url)
-
 
     def get_exchange_rate(self):
         try:
@@ -1378,7 +1488,7 @@ class CardEditorApp:
                 timeout=10,
             )
             if res.status_code == 200:
-                return res.json()['rates'][0]['mid']
+                return res.json()["rates"][0]["mid"]
         except requests.Timeout:
             print("[ERROR] Exchange rate request timed out")
         except Exception:
@@ -1398,11 +1508,13 @@ class CardEditorApp:
 
     def save_and_next(self):
         data = {k: v.get() for k, v in self.entries.items()}
-        data['typ'] = ",".join([name for name, var in self.type_vars.items() if var.get()])
-        data['rarity'] = ",".join([k for k, v in self.rarity_vars.items() if v.get()])
+        data["typ"] = ",".join(
+            [name for name, var in self.type_vars.items() if var.get()]
+        )
+        data["rarity"] = ",".join([k for k, v in self.rarity_vars.items() if v.get()])
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         self.card_counts[key] += 1
-        data['ilość'] = self.card_counts[key]
+        data["ilość"] = self.card_counts[key]
         self.card_cache[key] = {
             "entries": {k: v for k, v in data.items()},
             "types": {name: var.get() for name, var in self.type_vars.items()},
@@ -1468,7 +1580,9 @@ class CardEditorApp:
         data["weight"] = 0.01
         data["priority"] = 0
         data["short_description"] = f"Stan: {data['stan']}, Język: {data['język']}"
-        data["description"] = f"{data['nazwa']} karta Pokémon z setu {data['set']}, nr {data['numer']}, stan {data['stan']}."
+        data["description"] = (
+            f"{data['nazwa']} karta Pokémon z setu {data['set']}, nr {data['numer']}, stan {data['stan']}."
+        )
         data["stock_warnlevel"] = 0
         data["availability"] = 1
         data["delivery"] = 1
@@ -1477,20 +1591,24 @@ class CardEditorApp:
         data["rank_votes"] = ""
 
         # Automatyczne pobranie ceny z bazy
-        cena_local = self.get_price_from_db(data['nazwa'], data['numer'], data['set'])
+        cena_local = self.get_price_from_db(data["nazwa"], data["numer"], data["set"])
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
         if cena_local is not None:
-            cena_local = self.apply_variant_multiplier(cena_local, is_reverse=is_reverse, is_holo=is_holo)
+            cena_local = self.apply_variant_multiplier(
+                cena_local, is_reverse=is_reverse, is_holo=is_holo
+            )
             data["cena"] = str(cena_local)
         else:
             fetched = self.fetch_card_price(
-                data['nazwa'],
-                data['numer'],
-                data['set'],
+                data["nazwa"],
+                data["numer"],
+                data["set"],
             )
             if fetched is not None:
-                fetched = self.apply_variant_multiplier(fetched, is_reverse=is_reverse, is_holo=is_holo)
+                fetched = self.apply_variant_multiplier(
+                    fetched, is_reverse=is_reverse, is_holo=is_holo
+                )
                 data["cena"] = str(fetched)
             else:
                 data["cena"] = ""
@@ -1501,9 +1619,7 @@ class CardEditorApp:
 
     def load_csv_data(self):
         """Load a CSV file and merge duplicate rows."""
-        file_path = filedialog.askopenfilename(
-            filetypes=[("CSV files", "*.csv")]
-        )
+        file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
         if not file_path:
             return
 
@@ -1568,7 +1684,9 @@ class CardEditorApp:
         messagebox.showinfo("Sukces", "Plik CSV został scalony i zapisany.")
 
     def export_csv(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv", filetypes=[("CSV files", "*.csv")]
+        )
         if not file_path:
             return
 
@@ -1576,10 +1694,10 @@ class CardEditorApp:
         for row in self.output_data:
             key = f"{row['nazwa']}|{row['numer']}|{row['set']}"
             if key in combined:
-                combined[key]['stock'] += 1
+                combined[key]["stock"] += 1
             else:
                 combined[key] = row.copy()
-                combined[key]['stock'] = 1
+                combined[key]["stock"] = 1
 
         fieldnames = [
             "product_code",
@@ -1647,6 +1765,7 @@ class CardEditorApp:
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
         self.back_to_welcome()
+
 
 if __name__ == "__main__":
     style = Style("darkly")
