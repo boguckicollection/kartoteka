@@ -162,41 +162,52 @@ class CardEditorApp:
             stats_frame.columnconfigure(i, weight=1)
 
         stats = self.load_store_stats()
+
+        total = stats.get("total_orders")
+        progress_ship = None
+        if total:
+            progress_ship = (total - stats.get("pending_shipments", 0)) / float(total)
+
         stats_map = [
-            ("Nowe dzisiaj", stats.get("new_orders_today", 0), "🆕", "Liczba nowych zamówień dzisiaj"),
+            ("Nowe dzisiaj", stats.get("new_orders_today", 0), "🆕", "Liczba nowych zamówień dzisiaj", None),
             (
                 "Oczekujące wysyłki",
                 stats.get("pending_shipments", 0),
                 "📦",
                 "Zamówienia gotowe do wysyłki",
+                progress_ship,
             ),
             (
                 "Oczekujące płatności",
                 stats.get("pending_payments", 0),
                 "💸",
                 "Zamówienia bez opłaty",
+                None,
             ),
-            ("Otwarte zwroty", stats.get("open_returns", 0), "↩️", "Zwroty w toku"),
-            ("Sprzedaż dzisiaj", stats.get("sales_today", 0), "💰", "Łączna dzisiejsza sprzedaż"),
+            ("Otwarte zwroty", stats.get("open_returns", 0), "↩️", "Zwroty w toku", None),
+            ("Sprzedaż dzisiaj", stats.get("sales_today", 0), "💰", "Łączna dzisiejsza sprzedaż", None),
             (
                 "Sprzedaż tydzień",
                 stats.get("sales_week", 0),
                 "📈",
                 "Łączna sprzedaż z ostatniego tygodnia",
+                None,
             ),
             (
                 "Sprzedaż miesiąc",
                 stats.get("sales_month", 0),
                 "📊",
                 "Łączna sprzedaż z miesiąca",
+                None,
             ),
             (
                 "Średnia wartość",
                 stats.get("avg_order_value", 0),
                 "💵",
                 "Średnia wartość zamówienia",
+                None,
             ),
-            ("Aktywne karty", stats.get("active_cards", 0), "🃏", "Produkty aktywne w sklepie"),
+            ("Aktywne karty", stats.get("active_cards", 0), "🃏", "Produkty aktywne w sklepie", None),
         ]
 
         colors = [
@@ -211,7 +222,7 @@ class CardEditorApp:
             "#EDE7F6",
         ]
 
-        for i, (label, value, icon, info) in enumerate(stats_map):
+        for i, (label, value, icon, info, prog) in enumerate(stats_map):
             row = i // 3
             col = i % 3
             card = self.create_stat_card(
@@ -221,6 +232,7 @@ class CardEditorApp:
                 icon,
                 colors[i % len(colors)],
                 info,
+                prog,
             )
             card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
@@ -266,13 +278,18 @@ class CardEditorApp:
             self._tooltip.destroy()
             self._tooltip = None
 
-    def create_stat_card(self, parent, title, value, icon, color, info):
-        """Create a small dashboard card with optional tooltip."""
+    def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
+        """Create a small dashboard card with optional tooltip and progress bar."""
         frame = tk.Frame(parent, width=160, height=80, bg=color, bd=1, relief="ridge")
         frame.pack_propagate(False)
         tk.Label(frame, text=icon, font=("Helvetica", 24), bg=color).pack()
         tk.Label(frame, text=title, font=("Helvetica", 12, "bold"), bg=color).pack()
         tk.Label(frame, text=value, font=("Helvetica", 24), bg=color).pack()
+        if progress is not None:
+            bar = ttk.Progressbar(frame, orient="horizontal", mode="determinate")
+            bar["maximum"] = 100
+            bar["value"] = max(0, min(100, progress * 100))
+            bar.pack(fill="x", padx=5, pady=(0, 5))
         for w in (frame,) + tuple(frame.winfo_children()):
             w.bind("<Enter>", lambda e, f=frame, t=info: self.show_tooltip(f, t))
             w.bind("<Leave>", self.hide_tooltip)
@@ -295,6 +312,22 @@ class CardEditorApp:
 
             pending_ship = self.shoper_client.get_orders(status="pending_shipment")
             stats["pending_shipments"] = len(pending_ship.get("list", pending_ship))
+
+            # Attempt to retrieve total order count for progress calculations
+            try:
+                all_orders = self.shoper_client.get_orders()
+                total = (
+                    all_orders.get("records")
+                    or all_orders.get("count")
+                    or len(all_orders.get("list", all_orders))
+                )
+                stats["total_orders"] = total
+                if total:
+                    stats["shipment_progress"] = (
+                        total - stats["pending_shipments"]
+                    ) / float(total)
+            except Exception:
+                pass
 
             pending_pay = self.shoper_client.get_orders(status="pending_payment")
             stats["pending_payments"] = len(pending_pay.get("list", pending_pay))
