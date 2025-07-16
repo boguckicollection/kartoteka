@@ -77,7 +77,9 @@ class CardEditorApp:
         """Display a simple welcome screen before loading scans."""
         # Allow resizing but provide a sensible minimum size
         self.root.minsize(1000, 700)
-        self.start_frame = tk.Frame(self.root, bg=self.root.cget("background"))
+        self.start_frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
         self.start_frame.pack(expand=True, fill="both")
 
         logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
@@ -88,7 +90,7 @@ class CardEditorApp:
             logo_label = tk.Label(
                 self.start_frame,
                 image=self.logo_photo,
-                bg=self.start_frame.cget("bg"),
+                bg=self.root.cget("background"),
             )
             logo_label.pack(pady=(10, 10))
 
@@ -96,14 +98,18 @@ class CardEditorApp:
             self.start_frame,
             text="Witaj w aplikacji KARTOTEKA",
             font=("Helvetica", 16, "bold"),
+            bg=self.root.cget("background"),
         )
         greeting.pack(pady=5)
 
         desc = tk.Label(
             self.start_frame,
-            text=("Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."),
+            text=(
+                "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
+            ),
             wraplength=1400,
             justify="center",
+            bg=self.root.cget("background"),
         )
         desc.pack(pady=5)
 
@@ -113,10 +119,13 @@ class CardEditorApp:
             wraplength=1400,
             justify="center",
             font=("Helvetica", 8),
+            bg=self.root.cget("background"),
         )
         author.pack(side="bottom", pady=5)
 
-        button_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
+        button_frame = tk.Frame(
+            self.start_frame, bg=self.root.cget("background")
+        )
         # Keep the buttons centered without stretching across the entire window
         button_frame.pack(pady=10)
 
@@ -149,7 +158,9 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
 
         # Display store statistics when Shoper credentials are available
-        stats_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
+        stats_frame = tk.Frame(
+            self.start_frame, bg=self.root.cget("background")
+        )
         # Keep the dashboard centered within the window
         stats_frame.pack(pady=10, anchor="center")
         stats_frame.grid_anchor("center")
@@ -397,7 +408,9 @@ class CardEditorApp:
         # Ensure the window has a reasonable minimum size
         self.root.minsize(1000, 700)
 
-        self.shoper_frame = tk.Frame(self.root)
+        self.shoper_frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
         self.shoper_frame.pack(expand=True, fill="both", padx=10, pady=10)
         self.shoper_frame.columnconfigure(0, weight=1)
         self.shoper_frame.rowconfigure(2, weight=1)
@@ -411,25 +424,33 @@ class CardEditorApp:
             tk.Label(
                 self.shoper_frame,
                 image=self.shoper_logo_photo,
-                bg=self.shoper_frame.cget("bg"),
+                bg=self.root.cget("background"),
             ).grid(row=0, column=0, pady=(0, 10))
 
-        search_frame = tk.Frame(self.shoper_frame)
+        search_frame = tk.Frame(
+            self.shoper_frame, bg=self.root.cget("background")
+        )
         search_frame.grid(row=1, column=0, sticky="ew", pady=5)
         search_frame.columnconfigure(1, weight=1)
         search_frame.columnconfigure(3, weight=1)
 
-        tk.Label(search_frame, text="Szukaj").grid(row=0, column=0, sticky="e")
+        tk.Label(
+            search_frame, text="Szukaj", bg=self.root.cget("background")
+        ).grid(row=0, column=0, sticky="e")
         self.shoper_search_var = tk.StringVar()
         ctk.CTkEntry(search_frame, textvariable=self.shoper_search_var).grid(
             row=0, column=1, sticky="ew"
         )
-        tk.Label(search_frame, text="Numer").grid(row=0, column=2, sticky="e")
+        tk.Label(
+            search_frame, text="Numer", bg=self.root.cget("background")
+        ).grid(row=0, column=2, sticky="e")
         self.shoper_number_var = tk.StringVar()
         ctk.CTkEntry(search_frame, textvariable=self.shoper_number_var).grid(
             row=0, column=3, sticky="ew"
         )
-        tk.Label(search_frame, text="Sortuj").grid(row=0, column=4, sticky="e")
+        tk.Label(
+            search_frame, text="Sortuj", bg=self.root.cget("background")
+        ).grid(row=0, column=4, sticky="e")
         self.shoper_sort_var = tk.StringVar(value="")
         ctk.CTkComboBox(
             search_frame,
@@ -443,12 +464,18 @@ class CardEditorApp:
             command=lambda: self.search_products(output),
         ).grid(row=0, column=6, padx=5)
 
-        output = tk.Text(self.shoper_frame)
+        output = tk.Text(
+            self.shoper_frame,
+            bg=self.root.cget("background"),
+            fg="white",
+        )
         output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
         # Automatically display current products upon connecting
         self.fetch_inventory(output)
 
-        btn_frame = tk.Frame(self.shoper_frame)
+        btn_frame = tk.Frame(
+            self.shoper_frame, bg=self.root.cget("background")
+        )
         btn_frame.grid(row=3, column=0, pady=5, sticky="ew")
 
         ctk.CTkButton(
@@ -463,7 +490,12 @@ class CardEditorApp:
             command=lambda: self.fetch_inventory(output),
         ).pack(side="left", padx=5)
 
-        orders_output = tk.Text(self.shoper_frame, height=10)
+        orders_output = tk.Text(
+            self.shoper_frame,
+            height=10,
+            bg=self.root.cget("background"),
+            fg="white",
+        )
         orders_output.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
 
         ctk.CTkButton(
@@ -566,14 +598,18 @@ class CardEditorApp:
         img.thumbnail((150, 150))
         self.mag_box_photo = ImageTk.PhotoImage(img)
 
-        container = tk.Frame(self.magazyn_window)
+        container = tk.Frame(
+            self.magazyn_window, bg=self.root.cget("background")
+        )
         container.pack(padx=10, pady=10)
 
         self.mag_canvases = []
         self.mag_labels = []
         for i in range(8):
-            frame = tk.Frame(container)
-            lbl = tk.Label(frame, text=f"K{i+1}")
+            frame = tk.Frame(container, bg=self.root.cget("background"))
+            lbl = tk.Label(
+                frame, text=f"K{i+1}", bg=self.root.cget("background")
+            )
             lbl.pack()
             canvas = tk.Canvas(
                 frame,
@@ -663,7 +699,9 @@ class CardEditorApp:
             self.pricing_frame.destroy()
         # Set a sensible minimum size and allow resizing
         self.root.minsize(1000, 700)
-        self.pricing_frame = tk.Frame(self.root)
+        self.pricing_frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
         self.pricing_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.pricing_frame.columnconfigure(0, weight=1)
@@ -678,28 +716,38 @@ class CardEditorApp:
             tk.Label(
                 self.pricing_frame,
                 image=self.pricing_logo_photo,
-                bg=self.pricing_frame.cget("bg"),
+                bg=self.root.cget("background"),
             ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
-        self.input_frame = tk.Frame(self.pricing_frame)
+        self.input_frame = tk.Frame(
+            self.pricing_frame, bg=self.root.cget("background")
+        )
         self.input_frame.grid(row=1, column=0, sticky="nsew")
 
-        self.image_frame = tk.Frame(self.pricing_frame)
+        self.image_frame = tk.Frame(
+            self.pricing_frame, bg=self.root.cget("background")
+        )
         self.image_frame.grid(row=1, column=1, sticky="nsew")
 
         self.input_frame.columnconfigure(0, weight=1)
         self.input_frame.columnconfigure(1, weight=1)
         self.input_frame.rowconfigure(5, weight=1)
 
-        tk.Label(self.input_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
+        tk.Label(
+            self.input_frame, text="Nazwa", bg=self.root.cget("background")
+        ).grid(row=0, column=0, sticky="e")
         self.price_name_entry = ctk.CTkEntry(self.input_frame, width=200)
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
-        tk.Label(self.input_frame, text="Numer").grid(row=1, column=0, sticky="e")
+        tk.Label(
+            self.input_frame, text="Numer", bg=self.root.cget("background")
+        ).grid(row=1, column=0, sticky="e")
         self.price_number_entry = ctk.CTkEntry(self.input_frame, width=200)
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
-        tk.Label(self.input_frame, text="Set").grid(row=2, column=0, sticky="e")
+        tk.Label(
+            self.input_frame, text="Set", bg=self.root.cget("background")
+        ).grid(row=2, column=0, sticky="e")
         self.price_set_entry = ctk.CTkEntry(self.input_frame, width=200)
         self.price_set_entry.grid(row=2, column=1, sticky="ew")
 
@@ -712,7 +760,9 @@ class CardEditorApp:
 
         self.price_reverse_var.trace_add("write", lambda *a: self.on_reverse_toggle())
 
-        btn_frame = tk.Frame(self.input_frame)
+        btn_frame = tk.Frame(
+            self.input_frame, bg=self.root.cget("background")
+        )
         btn_frame.grid(row=4, column=0, columnspan=2, pady=5, sticky="w")
 
         ctk.CTkButton(
@@ -729,7 +779,9 @@ class CardEditorApp:
             width=120,
         ).pack(side="left", padx=5)
 
-        self.result_frame = tk.Frame(self.image_frame)
+        self.result_frame = tk.Frame(
+            self.image_frame, bg=self.root.cget("background")
+        )
         self.result_frame.pack(expand=True, fill="both", pady=10)
 
     def run_pricing_search(self):
@@ -829,7 +881,9 @@ class CardEditorApp:
     def setup_editor_ui(self):
         # Provide a minimum size and allow the editor to expand
         self.root.minsize(1000, 700)
-        self.frame = tk.Frame(self.root)
+        self.frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
         self.frame.pack(expand=True, fill="both", padx=10, pady=10)
         # Allow widgets inside the frame to expand properly
         for i in range(5):
@@ -844,13 +898,15 @@ class CardEditorApp:
             self.logo_label = tk.Label(
                 self.frame,
                 image=self.logo_photo,
-                bg=self.frame.cget("bg"),
+                bg=self.root.cget("background"),
             )
             self.logo_label.grid(row=0, column=0, columnspan=5, pady=(0, 10))
 
 
         # Bottom frame for action buttons
-        self.button_frame = tk.Frame(self.frame)
+        self.button_frame = tk.Frame(
+            self.frame, bg=self.root.cget("background")
+        )
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
 
@@ -895,7 +951,9 @@ class CardEditorApp:
 
         grid_opts = {"padx": 5, "pady": 2}
 
-        tk.Label(self.info_frame, text="Język").grid(
+        tk.Label(
+            self.info_frame, text="Język", bg=self.root.cget("background")
+        ).grid(
             row=start_row, column=0, sticky="w", **grid_opts
         )
         self.lang_var = tk.StringVar(value="ENG")
@@ -906,19 +964,25 @@ class CardEditorApp:
         lang_dropdown.grid(row=start_row, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
-        tk.Label(self.info_frame, text="Nazwa").grid(
+        tk.Label(
+            self.info_frame, text="Nazwa", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
         self.entries["nazwa"] = ctk.CTkEntry(self.info_frame, width=200)
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Numer").grid(
+        tk.Label(
+            self.info_frame, text="Numer", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
         self.entries["numer"] = ctk.CTkEntry(self.info_frame, width=200)
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Set").grid(
+        tk.Label(
+            self.info_frame, text="Set", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 3, column=0, sticky="w", **grid_opts
         )
         self.set_var = tk.StringVar()
@@ -930,7 +994,9 @@ class CardEditorApp:
         self.set_dropdown.bind("<Tab>", self.autocomplete_set)
         self.entries["set"] = self.set_var
 
-        tk.Label(self.info_frame, text="Typ").grid(
+        tk.Label(
+            self.info_frame, text="Typ", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 4, column=0, sticky="w", **grid_opts
         )
         self.type_vars = {}
@@ -946,7 +1012,9 @@ class CardEditorApp:
                 variable=var,
             ).pack(side="left", padx=2)
 
-        tk.Label(self.info_frame, text="Rarity").grid(
+        tk.Label(
+            self.info_frame, text="Rarity", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
         self.rarity_vars = {}
@@ -962,7 +1030,9 @@ class CardEditorApp:
                 variable=var,
             ).pack(side="left", padx=2)
 
-        tk.Label(self.info_frame, text="Suffix").grid(
+        tk.Label(
+            self.info_frame, text="Suffix", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 6, column=0, sticky="w", **grid_opts
         )
         self.suffix_var = tk.StringVar(value="")
@@ -975,7 +1045,9 @@ class CardEditorApp:
         )
         suffix_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Stan").grid(
+        tk.Label(
+            self.info_frame, text="Stan", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 7, column=0, sticky="w", **grid_opts
         )
         self.stan_var = tk.StringVar(value="NM")
@@ -988,7 +1060,9 @@ class CardEditorApp:
         )
         stan_dropdown.grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(self.info_frame, text="Cena").grid(
+        tk.Label(
+            self.info_frame, text="Cena", bg=self.root.cget("background")
+        ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
         self.entries["cena"] = ctk.CTkEntry(self.info_frame, width=200)
@@ -1033,7 +1107,13 @@ class CardEditorApp:
         self.root.bind("<Return>", lambda e: self.save_and_next())
         self.update_set_options()
 
-        self.log_widget = tk.Text(self.frame, height=4, state="disabled")
+        self.log_widget = tk.Text(
+            self.frame,
+            height=4,
+            state="disabled",
+            bg=self.root.cget("background"),
+            fg="white",
+        )
         self.log_widget.grid(row=16, column=0, columnspan=5, sticky="ew")
 
     def update_set_options(self, event=None):
