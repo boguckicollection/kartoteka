@@ -20,6 +20,16 @@ class ShoperClient:
         })
 
     def _request(self, method, endpoint, **kwargs):
+        """Send a request to the Shoper API.
+
+        Parameters are passed directly to ``requests.Session.request``.
+        The returned value is the parsed JSON response or ``{}`` when the
+        response body is empty. If the API responds with ``404`` the method
+        also returns an empty dictionary instead of raising an exception.
+
+        Any other HTTP error results in a ``RuntimeError`` being raised.
+        """
+
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         try:
             resp = self.session.request(method, url, timeout=15, **kwargs)
@@ -27,6 +37,10 @@ class ShoperClient:
             if resp.text:
                 return resp.json()
             return {}
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                return {}
+            raise RuntimeError(f"API request failed: {exc}") from exc
         except requests.RequestException as exc:
             raise RuntimeError(f"API request failed: {exc}") from exc
 
