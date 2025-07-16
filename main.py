@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
+import tkinter.ttk as ttk
 from PIL import Image, ImageTk
 import os
 import csv
@@ -432,7 +433,7 @@ class CardEditorApp:
         self.shoper_sort_var = tk.StringVar(value="")
         ctk.CTkComboBox(
             search_frame,
-            textvariable=self.shoper_sort_var,
+            variable=self.shoper_sort_var,
             values=["", "name", "-name", "price", "-price"],
             width=10,
         ).grid(row=0, column=5, padx=5)
@@ -922,7 +923,7 @@ class CardEditorApp:
         )
         self.set_var = tk.StringVar()
         self.set_dropdown = ctk.CTkComboBox(
-            self.info_frame, textvariable=self.set_var, width=20
+            self.info_frame, variable=self.set_var, width=20
         )
         self.set_dropdown.grid(row=start_row + 3, column=1, sticky="ew", **grid_opts)
         self.set_dropdown.bind("<KeyRelease>", self.filter_sets)
@@ -968,7 +969,7 @@ class CardEditorApp:
         self.entries["suffix"] = self.suffix_var
         suffix_dropdown = ctk.CTkComboBox(
             self.info_frame,
-            textvariable=self.suffix_var,
+            variable=self.suffix_var,
             values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"],
             width=20,
         )
@@ -981,7 +982,7 @@ class CardEditorApp:
         self.entries["stan"] = self.stan_var
         stan_dropdown = ctk.CTkComboBox(
             self.info_frame,
-            textvariable=self.stan_var,
+            variable=self.stan_var,
             values=["NM", "LP", "PL", "MP", "HP", "DMG"],
             width=20,
         )
