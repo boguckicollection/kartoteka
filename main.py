@@ -31,6 +31,13 @@ PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 
+# custom theme colors
+BG_COLOR = "#1E1E2E"
+ACCENT_COLOR = "#6C63FF"
+HOVER_COLOR = "#4D47C3"
+TEXT_COLOR = "#FFFFFF"
+BORDER_COLOR = "#3A3A4A"
+
 
 
 
@@ -47,7 +54,9 @@ class CardEditorApp:
         self.root = root
         self.root.title("KARTOTEKA")
         # improve default font for all widgets
-        self.root.option_add("*Font", ("Helvetica", 12))
+        self.root.configure(bg=BG_COLOR, fg_color=BG_COLOR)
+        self.root.option_add("*Font", ("Segoe UI", 12))
+        self.root.option_add("*Foreground", TEXT_COLOR)
         self.index = 0
         self.cards = []
         self.image_objects = []
@@ -78,8 +87,8 @@ class CardEditorApp:
         """Display a simple welcome screen before loading scans."""
         # Allow resizing but provide a sensible minimum size
         self.root.minsize(1000, 700)
-        self.start_frame = tk.Frame(
-            self.root, bg=self.root.cget("background")
+        self.start_frame = ctk.CTkFrame(
+            self.root, fg_color=BG_COLOR, corner_radius=10
         )
         self.start_frame.pack(expand=True, fill="both")
 
@@ -95,32 +104,32 @@ class CardEditorApp:
             )
             logo_label.pack(pady=(10, 10))
 
-        greeting = tk.Label(
+        greeting = ctk.CTkLabel(
             self.start_frame,
             text="Witaj w aplikacji KARTOTEKA",
-            font=("Helvetica", 16, "bold"),
-            bg=self.root.cget("background"),
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 24, "bold"),
         )
         greeting.pack(pady=5)
 
-        desc = tk.Label(
+        desc = ctk.CTkLabel(
             self.start_frame,
             text=(
                 "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
             ),
             wraplength=1400,
             justify="center",
-            bg=self.root.cget("background"),
+            text_color=TEXT_COLOR,
         )
         desc.pack(pady=5)
 
-        author = tk.Label(
+        author = ctk.CTkLabel(
             self.start_frame,
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
             wraplength=1400,
             justify="center",
-            font=("Helvetica", 8),
-            bg=self.root.cget("background"),
+            font=("Inter", 10),
+            text_color="#CCCCCC",
         )
         author.pack(side="bottom", pady=5)
 
@@ -130,29 +139,28 @@ class CardEditorApp:
         # Keep the buttons centered without stretching across the entire window
         button_frame.pack(pady=10)
 
-        scan_btn = ctk.CTkButton(
+        scan_btn = self.create_button(
             button_frame,
             text="\U0001f50d Skanuj",
             command=self.load_images,
         )
         scan_btn.pack(side="left", padx=5)
-
-        ctk.CTkButton(
+        self.create_button(
             button_frame,
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
         ).pack(side="left", padx=5)
-        ctk.CTkButton(
+        self.create_button(
             button_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
         ).pack(side="left", padx=5)
-        ctk.CTkButton(
+        self.create_button(
             button_frame,
             text="\U0001f4e6 Magazyn",
             command=self.open_magazyn_window,
         ).pack(side="left", padx=5)
-        ctk.CTkButton(
+        self.create_button(
             button_frame,
             text="\U0001f4c2 Import CSV",
             command=self.load_csv_data,
@@ -276,7 +284,7 @@ class CardEditorApp:
             )
             card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
-        ctk.CTkButton(
+        self.create_button(
             stats_frame,
             text="Pokaż szczegóły",
             command=self.open_shoper_window,
@@ -285,10 +293,21 @@ class CardEditorApp:
     def placeholder_btn(self, text: str, master=None):
         if master is None:
             master = self.start_frame
-        return ctk.CTkButton(
+        return self.create_button(
             master,
             text=text,
             command=lambda: messagebox.showinfo("Info", "Funkcja niezaimplementowana."),
+        )
+
+    def create_button(self, master=None, **kwargs):
+        if master is None:
+            master = self.root
+        return ctk.CTkButton(
+            master,
+            fg_color=ACCENT_COLOR,
+            hover_color=HOVER_COLOR,
+            corner_radius=10,
+            **kwargs,
         )
 
     def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
@@ -439,14 +458,14 @@ class CardEditorApp:
             search_frame, text="Szukaj", bg=self.root.cget("background")
         ).grid(row=0, column=0, sticky="e")
         self.shoper_search_var = tk.StringVar()
-        ctk.CTkEntry(search_frame, textvariable=self.shoper_search_var).grid(
+        ctk.CTkEntry(search_frame, textvariable=self.shoper_search_var, placeholder_text="Nazwa produktu").grid(
             row=0, column=1, sticky="ew"
         )
         tk.Label(
             search_frame, text="Numer", bg=self.root.cget("background")
         ).grid(row=0, column=2, sticky="e")
         self.shoper_number_var = tk.StringVar()
-        ctk.CTkEntry(search_frame, textvariable=self.shoper_number_var).grid(
+        ctk.CTkEntry(search_frame, textvariable=self.shoper_number_var, placeholder_text="Kod").grid(
             row=0, column=3, sticky="ew"
         )
         tk.Label(
@@ -459,7 +478,7 @@ class CardEditorApp:
             values=["", "name", "-name", "price", "-price"],
             width=10,
         ).grid(row=0, column=5, padx=5)
-        ctk.CTkButton(
+        self.create_button(
             search_frame,
             text="Wyszukaj",
             command=lambda: self.search_products(output),
@@ -479,13 +498,13 @@ class CardEditorApp:
         )
         btn_frame.grid(row=3, column=0, pady=5, sticky="ew")
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame,
             text="Wyślij produkt",
             command=lambda: self.push_product(output),
         ).pack(side="left", padx=5)
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame,
             text="Inwentarz",
             command=lambda: self.fetch_inventory(output),
@@ -499,13 +518,13 @@ class CardEditorApp:
         )
         orders_output.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame,
             text="Zamówienia",
             command=lambda: self.show_orders(orders_output),
         ).pack(side="left", padx=5)
 
-        ctk.CTkButton(
+        self.create_button(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
@@ -644,11 +663,11 @@ class CardEditorApp:
         )
         btn_frame.pack(pady=5)
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame, text="Odśwież", command=self.refresh_magazyn
         ).pack(side="left", padx=5)
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame, text="Powrót", command=self.back_to_welcome
         ).pack(side="left", padx=5)
 
@@ -766,19 +785,25 @@ class CardEditorApp:
         tk.Label(
             self.input_frame, text="Nazwa", bg=self.root.cget("background")
         ).grid(row=0, column=0, sticky="e")
-        self.price_name_entry = ctk.CTkEntry(self.input_frame, width=200)
+        self.price_name_entry = ctk.CTkEntry(
+            self.input_frame, width=200, placeholder_text="Nazwa karty"
+        )
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
         tk.Label(
             self.input_frame, text="Numer", bg=self.root.cget("background")
         ).grid(row=1, column=0, sticky="e")
-        self.price_number_entry = ctk.CTkEntry(self.input_frame, width=200)
+        self.price_number_entry = ctk.CTkEntry(
+            self.input_frame, width=200, placeholder_text="Numer"
+        )
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
         tk.Label(
             self.input_frame, text="Set", bg=self.root.cget("background")
         ).grid(row=2, column=0, sticky="e")
-        self.price_set_entry = ctk.CTkEntry(self.input_frame, width=200)
+        self.price_set_entry = ctk.CTkEntry(
+            self.input_frame, width=200, placeholder_text="Set"
+        )
         self.price_set_entry.grid(row=2, column=1, sticky="ew")
 
         self.price_reverse_var = tk.BooleanVar()
@@ -795,14 +820,14 @@ class CardEditorApp:
         )
         btn_frame.grid(row=4, column=0, columnspan=2, pady=5, sticky="w")
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame,
             text="Wyszukaj",
             command=self.run_pricing_search,
             width=120,
         ).pack(side="left", padx=5)
 
-        ctk.CTkButton(
+        self.create_button(
             btn_frame,
             text="Powrót",
             command=self.back_to_welcome,
@@ -943,21 +968,21 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
 
-        self.load_button = ctk.CTkButton(
+        self.load_button = self.create_button(
             self.button_frame,
             text="Import",
             command=self.load_images,
         )
         self.load_button.pack(side="left", padx=5)
 
-        self.end_button = ctk.CTkButton(
+        self.end_button = self.create_button(
             self.button_frame,
             text="Zakończ i zapisz",
             command=self.export_csv,
         )
         self.end_button.pack(side="left", padx=5)
 
-        self.back_button = ctk.CTkButton(
+        self.back_button = self.create_button(
             self.button_frame,
             text="Powrót",
             command=self.back_to_welcome,
@@ -1002,7 +1027,9 @@ class CardEditorApp:
         ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
-        self.entries["nazwa"] = ctk.CTkEntry(self.info_frame, width=200)
+        self.entries["nazwa"] = ctk.CTkEntry(
+            self.info_frame, width=200, placeholder_text="Nazwa"
+        )
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
@@ -1010,7 +1037,9 @@ class CardEditorApp:
         ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
-        self.entries["numer"] = ctk.CTkEntry(self.info_frame, width=200)
+        self.entries["numer"] = ctk.CTkEntry(
+            self.info_frame, width=200, placeholder_text="Numer"
+        )
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
@@ -1098,17 +1127,19 @@ class CardEditorApp:
         ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
-        self.entries["cena"] = ctk.CTkEntry(self.info_frame, width=200)
+        self.entries["cena"] = ctk.CTkEntry(
+            self.info_frame, width=200, placeholder_text="Cena"
+        )
         self.entries["cena"].grid(row=start_row + 8, column=1, sticky="ew", **grid_opts)
 
-        self.api_button = ctk.CTkButton(
+        self.api_button = self.create_button(
             self.info_frame,
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
         )
         self.api_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
-        self.variants_button = ctk.CTkButton(
+        self.variants_button = self.create_button(
             self.info_frame,
             text="Inne warianty",
             command=self.show_variants,
@@ -1117,7 +1148,7 @@ class CardEditorApp:
             row=start_row + 9, column=2, columnspan=2, sticky="ew", **grid_opts
         )
 
-        self.cardmarket_button = ctk.CTkButton(
+        self.cardmarket_button = self.create_button(
             self.info_frame,
             text="Cardmarket",
             command=self.open_cardmarket_search,
@@ -1126,7 +1157,7 @@ class CardEditorApp:
             row=start_row + 9, column=4, columnspan=2, sticky="ew", **grid_opts
         )
 
-        self.save_button = ctk.CTkButton(
+        self.save_button = self.create_button(
             self.info_frame,
             text="Zapisz i dalej",
             command=self.save_and_next,
@@ -1677,7 +1708,7 @@ class CardEditorApp:
             self.entries["cena"].insert(0, values[3])
             top.destroy()
 
-        ctk.CTkButton(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
+        self.create_button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
         tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
