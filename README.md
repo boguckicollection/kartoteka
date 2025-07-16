@@ -73,5 +73,12 @@ sorting options and view new orders. Each order item is matched with the
 generated `product_code` so you can quickly locate it in storage. Make sure the
 Shoper credentials are set in `.env` before launching the application.
 
+### Dashboard
+The welcome screen displays a small dashboard with store statistics fetched from
+your Shoper account: counts of new orders, pending shipments or payments and
+recent sales totals. To populate these fields the token must have permissions to
+read orders and statistics. Use the **Pokaż szczegóły** button to open the Shoper
+window with full functionality.
+
 ## License
 This project is licensed under the terms of the [MIT License](LICENSE).

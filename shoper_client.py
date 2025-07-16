@@ -61,3 +61,17 @@ class ShoperClient:
     def get_order(self, order_id):
         """Retrieve a single order by id."""
         return self.get(f"orders/{order_id}")
+
+    # New helper methods for dashboard statistics
+    def get_orders(self, status=None, filters=None, page=1, per_page=20):
+        """Return orders optionally filtered by status and other criteria."""
+        params = {"page": page, "per-page": per_page}
+        if filters:
+            params.update(filters)
+        if status:
+            params["filters[status]"] = status
+        return self.get("orders", params=params)
+
+    def get_sales_stats(self, params=None):
+        """Return sales statistics using the built-in Shoper endpoint."""
+        return self.get("orders/stats", params=params or {})
