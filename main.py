@@ -618,11 +618,15 @@ class CardEditorApp:
         )
         container.pack(padx=10, pady=10)
 
+        # Order boxes so that the grid layout is:
+        # row0 -> K1 K2 K5 K6
+        # row1 -> K3 K4 K7 K8
+        self.mag_box_order = [1, 2, 5, 6, 3, 4, 7, 8]
         self.mag_canvases = []
         self.mag_labels = []
-        for i in range(8):
+        for i, box_num in enumerate(self.mag_box_order):
             frame = tk.Frame(container, bg=self.root.cget("background"))
-            lbl = tk.Label(frame, text=f"K{i+1}", bg=self.root.cget("background"))
+            lbl = tk.Label(frame, text=f"K{box_num}", bg=self.root.cget("background"))
             lbl.pack()
             canvas = tk.Canvas(
                 frame,
@@ -631,7 +635,7 @@ class CardEditorApp:
             )
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
             canvas.pack()
-            frame.grid(row=i // 2, column=i % 2, padx=5, pady=5)
+            frame.grid(row=i // 4, column=i % 4, padx=5, pady=5)
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
@@ -669,7 +673,11 @@ class CardEditorApp:
         if not self.mag_canvases:
             return
         for idx, canvas in enumerate(self.mag_canvases):
-            box = idx + 1
+            box = (
+                self.mag_box_order[idx]
+                if hasattr(self, "mag_box_order")
+                else idx + 1
+            )
             canvas.delete("stats")
             col_w = self.mag_box_photo.width() / 4
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
