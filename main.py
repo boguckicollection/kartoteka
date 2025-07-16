@@ -176,9 +176,13 @@ class CardEditorApp:
         stats = self.load_store_stats()
 
         total = stats.get("total_orders")
+        try:
+            total_num = int(total)
+        except (TypeError, ValueError):
+            total_num = None
         progress_ship = None
-        if total:
-            progress_ship = (total - stats.get("pending_shipments", 0)) / float(total)
+        if total_num:
+            progress_ship = (total_num - stats.get("pending_shipments", 0)) / float(total_num)
 
         stats_map = [
             (
@@ -313,7 +317,11 @@ class CardEditorApp:
         return frame
 
     def load_store_stats(self):
-        """Retrieve various store statistics from Shoper."""
+        """Retrieve various store statistics from Shoper.
+
+        Numeric fields returned by the API are converted to integers when
+        possible so they can be used safely in calculations.
+        """
         if not self.shoper_client:
             return {}
         from datetime import date
@@ -338,6 +346,10 @@ class CardEditorApp:
                     or all_orders.get("count")
                     or len(all_orders.get("list", all_orders))
                 )
+                try:
+                    total = int(float(total))
+                except (TypeError, ValueError):
+                    total = 0
                 stats["total_orders"] = total
                 if total:
                     stats["shipment_progress"] = (
@@ -353,11 +365,25 @@ class CardEditorApp:
             stats["open_returns"] = len(open_ret.get("list", open_ret))
 
             sales = self.shoper_client.get_sales_stats()
-            stats["sales_today"] = sales.get("today", 0)
-            stats["sales_week"] = sales.get("week", 0)
-            stats["sales_month"] = sales.get("month", 0)
-            stats["avg_order_value"] = sales.get("avg_order_value", 0)
-            stats["active_cards"] = sales.get("active_products", 0)
+            for key, default in {
+                "today": 0,
+                "week": 0,
+                "month": 0,
+                "avg_order_value": 0,
+                "active_products": 0,
+            }.items():
+                try:
+                    value = int(float(sales.get(key, default)))
+                except (TypeError, ValueError):
+                    value = default
+                stats_key = {
+                    "today": "sales_today",
+                    "week": "sales_week",
+                    "month": "sales_month",
+                    "avg_order_value": "avg_order_value",
+                    "active_products": "active_cards",
+                }[key]
+                stats[stats_key] = value
         except Exception as exc:  # pragma: no cover - network failure
             print(f"[WARNING] store stats failed: {exc}")
         return stats
