@@ -543,11 +543,11 @@ class CardEditorApp:
         match = re.match(r"K(\d+)R(\d)P(\d+)", code or "")
         if not match:
             return ""
-        box, row, pos = match.groups()
-        return f"Karton {int(box)} | Rząd {int(row)} | Poz {int(pos)}"
+        box, column, pos = match.groups()
+        return f"Karton {int(box)} | Kolumna {int(column)} | Poz {int(pos)}"
 
     def open_magazyn_window(self):
-        """Display storage occupancy per box and row."""
+        """Display storage occupancy per box and column."""
         if self.magazyn_window and self.magazyn_window.winfo_exists():
             self.magazyn_window.lift()
             return
@@ -580,28 +580,28 @@ class CardEditorApp:
 
         self.refresh_magazyn()
 
-    def compute_row_occupancy(self):
-        """Return dictionary of used slots per box row."""
-        occ = {b: {r: 0 for r in range(1, 5)} for b in range(1, 9)}
+    def compute_column_occupancy(self):
+        """Return dictionary of used slots per box column."""
+        occ = {b: {c: 0 for c in range(1, 5)} for b in range(1, 9)}
         for row in self.output_data:
             code = row.get("product_code") or ""
             m = re.match(r"K(\d+)R(\d)P(\d+)", code)
             if not m:
                 continue
             box = int(m.group(1))
-            r = int(m.group(2))
-            if box in occ and r in occ[box]:
-                occ[box][r] += 1
+            c = int(m.group(2))
+            if box in occ and c in occ[box]:
+                occ[box][c] += 1
         return occ
 
     def refresh_magazyn(self):
-        occ = self.compute_row_occupancy()
+        occ = self.compute_column_occupancy()
         if not self.mag_canvases:
             return
         for idx, canvas in enumerate(self.mag_canvases):
             box = idx + 1
             canvas.delete("stats")
-            row_h = self.mag_box_photo.height() / 4
+            col_w = self.mag_box_photo.width() / 4
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
             canvas.create_text(
                 self.mag_box_photo.width() / 2,
@@ -610,25 +610,42 @@ class CardEditorApp:
                 font=("Helvetica", 10, "bold"),
                 tags="stats",
             )
-            for r in range(1, 5):
-                filled = occ.get(box, {}).get(r, 0)
+            for c in range(1, 5):
+                filled = occ.get(box, {}).get(c, 0)
                 free_percent = (1000 - filled) / 10
-                y1 = (r - 1) * row_h
-                y_mid = y1 + row_h / 2
+                x1 = (c - 1) * col_w
+                x_mid = x1 + col_w / 2
                 if free_percent >= 30:
                     canvas.create_rectangle(
+                        x1,
                         0,
-                        y1,
-                        self.mag_box_photo.width(),
-                        y1 + row_h,
+                        x1 + col_w,
+                        self.mag_box_photo.height(),
                         fill="#c8f7c8",
                         width=0,
                         tags="stats",
                     )
+                # Draw 100-card sections
+                filled_sections = filled // 100
+                seg_h = self.mag_box_photo.height() / 10
+                for i in range(10):
+                    y1 = self.mag_box_photo.height() - seg_h * (i + 1)
+                    y2 = self.mag_box_photo.height() - seg_h * i
+                    color = "#e0e0e0" if i < filled_sections else ""
+                    canvas.create_rectangle(
+                        x1,
+                        y1,
+                        x1 + col_w,
+                        y2,
+                        fill=color,
+                        outline="black",
+                        width=1,
+                        tags="stats",
+                    )
                 canvas.create_text(
-                    self.mag_box_photo.width() / 2,
-                    y_mid,
-                    text=f"R{r}: {free_percent:.0f}%",
+                    x_mid,
+                    self.mag_box_photo.height() / 2,
+                    text=f"C{c}: {free_percent:.0f}%",
                     tags="stats",
                 )
 
@@ -1158,9 +1175,9 @@ class CardEditorApp:
 
     def generate_location(self, idx):
         pos = idx % 1000 + 1
-        row = (idx // 1000) % 4 + 1
+        column = (idx // 1000) % 4 + 1
         box = (idx // 4000) + 1
-        return f"K{box:02d}R{row}P{pos:04d}"
+        return f"K{box:02d}R{column}P{pos:04d}"
 
     def load_price_db(self):
         if not os.path.exists(PRICE_DB_PATH):
