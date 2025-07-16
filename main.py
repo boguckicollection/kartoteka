@@ -15,6 +15,7 @@ from collections import defaultdict
 from dotenv import load_dotenv
 
 from shoper_client import ShoperClient
+from tooltip import Tooltip
 import webbrowser
 from urllib.parse import urlencode
 import io
@@ -255,28 +256,6 @@ class CardEditorApp:
             bootstyle="secondary",
         )
 
-    def show_tooltip(self, widget, text: str):
-        """Display a small tooltip near the given widget."""
-        if hasattr(self, "_tooltip") and self._tooltip:
-            self._tooltip.destroy()
-        x = widget.winfo_rootx() + 10
-        y = widget.winfo_rooty() + widget.winfo_height() + 10
-        self._tooltip = tk.Toplevel(widget)
-        self._tooltip.wm_overrideredirect(True)
-        tk.Label(
-            self._tooltip,
-            text=text,
-            background="lightyellow",
-            relief="solid",
-            borderwidth=1,
-            font=("Helvetica", 10),
-        ).pack()
-        self._tooltip.wm_geometry(f"+{x}+{y}")
-
-    def hide_tooltip(self, *_):
-        if hasattr(self, "_tooltip") and self._tooltip:
-            self._tooltip.destroy()
-            self._tooltip = None
 
     def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
         """Create a small dashboard card with optional tooltip and progress bar."""
@@ -291,8 +270,7 @@ class CardEditorApp:
             bar["value"] = max(0, min(100, progress * 100))
             bar.pack(fill="x", padx=5, pady=(0, 5))
         for w in (frame,) + tuple(frame.winfo_children()):
-            w.bind("<Enter>", lambda e, f=frame, t=info: self.show_tooltip(f, t))
-            w.bind("<Leave>", self.hide_tooltip)
+            Tooltip(w, info)
         return frame
 
     def load_store_stats(self):
