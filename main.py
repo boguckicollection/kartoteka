@@ -215,25 +215,31 @@ class CardEditorApp:
         search_frame = tk.Frame(self.shoper_frame)
         search_frame.grid(row=1, column=0, sticky="ew", pady=5)
         search_frame.columnconfigure(1, weight=1)
+        search_frame.columnconfigure(3, weight=1)
 
         tk.Label(search_frame, text="Szukaj").grid(row=0, column=0, sticky="e")
         self.shoper_search_var = tk.StringVar()
         ttk.Entry(search_frame, textvariable=self.shoper_search_var).grid(
             row=0, column=1, sticky="ew"
         )
-        tk.Label(search_frame, text="Sortuj").grid(row=0, column=2, sticky="e")
+        tk.Label(search_frame, text="Numer").grid(row=0, column=2, sticky="e")
+        self.shoper_number_var = tk.StringVar()
+        ttk.Entry(search_frame, textvariable=self.shoper_number_var).grid(
+            row=0, column=3, sticky="ew"
+        )
+        tk.Label(search_frame, text="Sortuj").grid(row=0, column=4, sticky="e")
         self.shoper_sort_var = tk.StringVar(value="")
         ttk.Combobox(
             search_frame,
             textvariable=self.shoper_sort_var,
             values=["", "name", "-name", "price", "-price"],
             width=10,
-        ).grid(row=0, column=3, padx=5)
+        ).grid(row=0, column=5, padx=5)
         ttk.Button(
             search_frame,
             text="Wyszukaj",
             command=lambda: self.search_products(output),
-        ).grid(row=0, column=4, padx=5)
+        ).grid(row=0, column=6, padx=5)
 
         output = tk.Text(self.shoper_frame)
         output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
@@ -306,8 +312,11 @@ class CardEditorApp:
         try:
             filters = {}
             term = self.shoper_search_var.get().strip()
+            number = self.shoper_number_var.get().strip()
             if term:
                 filters["filters[name][like]"] = term
+            if number:
+                filters["filters[code][like]"] = number
             sort = self.shoper_sort_var.get().strip()
             data = self.shoper_client.search_products(filters=filters, sort=sort)
             widget.delete("1.0", tk.END)
