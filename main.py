@@ -564,15 +564,21 @@ class CardEditorApp:
         container.pack(padx=10, pady=10)
 
         self.mag_canvases = []
+        self.mag_labels = []
         for i in range(8):
+            frame = tk.Frame(container)
+            lbl = tk.Label(frame, text=f"K{i+1}")
+            lbl.pack()
             canvas = tk.Canvas(
-                container,
+                frame,
                 width=self.mag_box_photo.width(),
                 height=self.mag_box_photo.height(),
             )
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
-            canvas.grid(row=i // 4, column=i % 4, padx=5, pady=5)
+            canvas.pack()
+            frame.grid(row=i // 2, column=i % 2, padx=5, pady=5)
             self.mag_canvases.append(canvas)
+            self.mag_labels.append(lbl)
 
         ttk.Button(
             self.magazyn_window, text="Odśwież", command=self.refresh_magazyn
@@ -603,13 +609,6 @@ class CardEditorApp:
             canvas.delete("stats")
             col_w = self.mag_box_photo.width() / 4
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
-            canvas.create_text(
-                self.mag_box_photo.width() / 2,
-                10,
-                text=f"K{box:02d}",
-                font=("Helvetica", 10, "bold"),
-                tags="stats",
-            )
             for c in range(1, 5):
                 filled = occ.get(box, {}).get(c, 0)
                 free_percent = (1000 - filled) / 10
