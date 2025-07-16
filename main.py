@@ -157,31 +157,79 @@ class CardEditorApp:
         # Display store statistics when Shoper credentials are available
         stats_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
         stats_frame.pack(pady=10)
+        stats_frame.grid_anchor("center")
+        for i in range(3):
+            stats_frame.columnconfigure(i, weight=1)
+
         stats = self.load_store_stats()
         stats_map = [
-            ("Nowe dzisiaj", stats.get("new_orders_today", 0)),
-            ("Oczekujące wysyłki", stats.get("pending_shipments", 0)),
-            ("Oczekujące płatności", stats.get("pending_payments", 0)),
-            ("Otwarte zwroty", stats.get("open_returns", 0)),
-            ("Sprzedaż dzisiaj", stats.get("sales_today", 0)),
-            ("Sprzedaż tydzień", stats.get("sales_week", 0)),
-            ("Sprzedaż miesiąc", stats.get("sales_month", 0)),
-            ("Średnia wartość", stats.get("avg_order_value", 0)),
-            ("Aktywne karty", stats.get("active_cards", 0)),
+            ("Nowe dzisiaj", stats.get("new_orders_today", 0), "🆕", "Liczba nowych zamówień dzisiaj"),
+            (
+                "Oczekujące wysyłki",
+                stats.get("pending_shipments", 0),
+                "📦",
+                "Zamówienia gotowe do wysyłki",
+            ),
+            (
+                "Oczekujące płatności",
+                stats.get("pending_payments", 0),
+                "💸",
+                "Zamówienia bez opłaty",
+            ),
+            ("Otwarte zwroty", stats.get("open_returns", 0), "↩️", "Zwroty w toku"),
+            ("Sprzedaż dzisiaj", stats.get("sales_today", 0), "💰", "Łączna dzisiejsza sprzedaż"),
+            (
+                "Sprzedaż tydzień",
+                stats.get("sales_week", 0),
+                "📈",
+                "Łączna sprzedaż z ostatniego tygodnia",
+            ),
+            (
+                "Sprzedaż miesiąc",
+                stats.get("sales_month", 0),
+                "📊",
+                "Łączna sprzedaż z miesiąca",
+            ),
+            (
+                "Średnia wartość",
+                stats.get("avg_order_value", 0),
+                "💵",
+                "Średnia wartość zamówienia",
+            ),
+            ("Aktywne karty", stats.get("active_cards", 0), "🃏", "Produkty aktywne w sklepie"),
         ]
-        for i, (label, value) in enumerate(stats_map):
-            tk.Label(
+
+        colors = [
+            "#FCE4EC",
+            "#E3F2FD",
+            "#E8F5E9",
+            "#FFF3E0",
+            "#F3E5F5",
+            "#E0F7FA",
+            "#F1F8E9",
+            "#FFFDE7",
+            "#EDE7F6",
+        ]
+
+        for i, (label, value, icon, info) in enumerate(stats_map):
+            row = i // 3
+            col = i % 3
+            card = self.create_stat_card(
                 stats_frame,
-                text=f"{label}: {value}",
-                anchor="w",
-            ).grid(row=i, column=0, sticky="w")
+                label,
+                value,
+                icon,
+                colors[i % len(colors)],
+                info,
+            )
+            card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
         ttk.Button(
             stats_frame,
             text="Pokaż szczegóły",
             command=self.open_shoper_window,
             bootstyle="secondary",
-        ).grid(row=len(stats_map), column=0, pady=5)
+        ).grid(row=len(stats_map) // 3 + 1, column=0, columnspan=3, pady=5)
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
@@ -194,6 +242,41 @@ class CardEditorApp:
             ),
             bootstyle="secondary",
         )
+
+    def show_tooltip(self, widget, text: str):
+        """Display a small tooltip near the given widget."""
+        if hasattr(self, "_tooltip") and self._tooltip:
+            self._tooltip.destroy()
+        x = widget.winfo_rootx() + 10
+        y = widget.winfo_rooty() + widget.winfo_height() + 10
+        self._tooltip = tk.Toplevel(widget)
+        self._tooltip.wm_overrideredirect(True)
+        tk.Label(
+            self._tooltip,
+            text=text,
+            background="lightyellow",
+            relief="solid",
+            borderwidth=1,
+            font=("Helvetica", 10),
+        ).pack()
+        self._tooltip.wm_geometry(f"+{x}+{y}")
+
+    def hide_tooltip(self, *_):
+        if hasattr(self, "_tooltip") and self._tooltip:
+            self._tooltip.destroy()
+            self._tooltip = None
+
+    def create_stat_card(self, parent, title, value, icon, color, info):
+        """Create a small dashboard card with optional tooltip."""
+        frame = tk.Frame(parent, width=160, height=80, bg=color, bd=1, relief="ridge")
+        frame.pack_propagate(False)
+        tk.Label(frame, text=icon, font=("Helvetica", 24), bg=color).pack()
+        tk.Label(frame, text=title, font=("Helvetica", 12, "bold"), bg=color).pack()
+        tk.Label(frame, text=value, font=("Helvetica", 24), bg=color).pack()
+        for w in (frame,) + tuple(frame.winfo_children()):
+            w.bind("<Enter>", lambda e, f=frame, t=info: self.show_tooltip(f, t))
+            w.bind("<Leave>", self.hide_tooltip)
+        return frame
 
     def load_store_stats(self):
         """Retrieve various store statistics from Shoper."""
