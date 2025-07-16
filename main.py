@@ -776,7 +776,7 @@ class CardEditorApp:
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         # Display only a textual progress indicator below the card image
         self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
-        self.progress_label.grid(row=13, column=0, pady=5, sticky="ew")
+        self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
 
         # Container for card information fields
         self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
