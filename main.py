@@ -1,11 +1,6 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-from ttkbootstrap import Style
-
-try:
-    from ttkbootstrap.icons import Icon
-except Exception:  # pragma: no cover - fall back when icons unavailable
-    Icon = None
+from tkinter import filedialog, messagebox
+import customtkinter as ctk
 from PIL import Image, ImageTk
 import os
 import csv
@@ -36,14 +31,6 @@ PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 
 
-def load_icon(name: str):
-    """Safely load ttkbootstrap icon if available."""
-    if Icon and hasattr(Icon, "load"):
-        try:
-            return Icon.load(name)
-        except Exception:
-            return None
-    return None
 
 
 # Wczytanie danych setów
@@ -132,37 +119,32 @@ class CardEditorApp:
         # Keep the buttons centered without stretching across the entire window
         button_frame.pack(pady=10)
 
-        scan_btn = ttk.Button(
+        scan_btn = ctk.CTkButton(
             button_frame,
             text="\U0001f50d Skanuj",
             command=self.load_images,
-            bootstyle="primary",
         )
         scan_btn.pack(side="left", padx=5)
 
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
-            bootstyle="info",
         ).pack(side="left", padx=5)
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
-            bootstyle="secondary",
         ).pack(side="left", padx=5)
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="\U0001f4e6 Magazyn",
             command=self.open_magazyn_window,
-            bootstyle="secondary",
         ).pack(side="left", padx=5)
-        ttk.Button(
+        ctk.CTkButton(
             button_frame,
             text="\U0001f4c2 Import CSV",
             command=self.load_csv_data,
-            bootstyle="warning",
         ).pack(side="left", padx=5)
 
         # Display store statistics when Shoper credentials are available
@@ -281,21 +263,19 @@ class CardEditorApp:
             )
             card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
-        ttk.Button(
+        ctk.CTkButton(
             stats_frame,
             text="Pokaż szczegóły",
             command=self.open_shoper_window,
-            bootstyle="secondary",
         ).grid(row=len(stats_map) // 3 + 1, column=0, columnspan=3, pady=5)
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
             master = self.start_frame
-        return ttk.Button(
+        return ctk.CTkButton(
             master,
             text=text,
             command=lambda: messagebox.showinfo("Info", "Funkcja niezaimplementowana."),
-            bootstyle="secondary",
         )
 
     def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
@@ -308,9 +288,8 @@ class CardEditorApp:
         tk.Label(frame, text=title, font=("Helvetica", 12, "bold"), bg=color).pack()
         tk.Label(frame, text=value, font=("Helvetica", 24), bg=color).pack()
         if progress is not None:
-            bar = ttk.Progressbar(frame, orient="horizontal", mode="determinate")
-            bar["maximum"] = 100
-            bar["value"] = max(0, min(100, progress * 100))
+            bar = ctk.CTkProgressBar(frame)
+            bar.set(max(0, min(1, progress)))
             bar.pack(fill="x", padx=5, pady=(0, 5))
         for w in (frame,) + tuple(frame.winfo_children()):
             Tooltip(w, info)
@@ -441,23 +420,23 @@ class CardEditorApp:
 
         tk.Label(search_frame, text="Szukaj").grid(row=0, column=0, sticky="e")
         self.shoper_search_var = tk.StringVar()
-        ttk.Entry(search_frame, textvariable=self.shoper_search_var).grid(
+        ctk.CTkEntry(search_frame, textvariable=self.shoper_search_var).grid(
             row=0, column=1, sticky="ew"
         )
         tk.Label(search_frame, text="Numer").grid(row=0, column=2, sticky="e")
         self.shoper_number_var = tk.StringVar()
-        ttk.Entry(search_frame, textvariable=self.shoper_number_var).grid(
+        ctk.CTkEntry(search_frame, textvariable=self.shoper_number_var).grid(
             row=0, column=3, sticky="ew"
         )
         tk.Label(search_frame, text="Sortuj").grid(row=0, column=4, sticky="e")
         self.shoper_sort_var = tk.StringVar(value="")
-        ttk.Combobox(
+        ctk.CTkComboBox(
             search_frame,
             textvariable=self.shoper_sort_var,
             values=["", "name", "-name", "price", "-price"],
             width=10,
         ).grid(row=0, column=5, padx=5)
-        ttk.Button(
+        ctk.CTkButton(
             search_frame,
             text="Wyszukaj",
             command=lambda: self.search_products(output),
@@ -471,13 +450,13 @@ class CardEditorApp:
         btn_frame = tk.Frame(self.shoper_frame)
         btn_frame.grid(row=3, column=0, pady=5, sticky="ew")
 
-        ttk.Button(
+        ctk.CTkButton(
             btn_frame,
             text="Wyślij produkt",
             command=lambda: self.push_product(output),
         ).pack(side="left", padx=5)
 
-        ttk.Button(
+        ctk.CTkButton(
             btn_frame,
             text="Inwentarz",
             command=lambda: self.fetch_inventory(output),
@@ -486,13 +465,13 @@ class CardEditorApp:
         orders_output = tk.Text(self.shoper_frame, height=10)
         orders_output.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
 
-        ttk.Button(
+        ctk.CTkButton(
             btn_frame,
             text="Zamówienia",
             command=lambda: self.show_orders(orders_output),
         ).pack(side="left", padx=5)
 
-        ttk.Button(
+        ctk.CTkButton(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
@@ -578,7 +557,7 @@ class CardEditorApp:
             self.magazyn_window.lift()
             return
 
-        self.magazyn_window = tk.Toplevel(self.root)
+        self.magazyn_window = ctk.CTkToplevel(self.root)
         self.magazyn_window.title("Magazyn")
 
         img_path = os.path.join(os.path.dirname(__file__), "box.png")
@@ -606,7 +585,7 @@ class CardEditorApp:
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
-        ttk.Button(
+        ctk.CTkButton(
             self.magazyn_window, text="Odśwież", command=self.refresh_magazyn
         ).pack(pady=5)
 
@@ -712,23 +691,22 @@ class CardEditorApp:
         self.input_frame.rowconfigure(5, weight=1)
 
         tk.Label(self.input_frame, text="Nazwa").grid(row=0, column=0, sticky="e")
-        self.price_name_entry = ttk.Entry(self.input_frame, width=30)
+        self.price_name_entry = ctk.CTkEntry(self.input_frame, width=200)
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
         tk.Label(self.input_frame, text="Numer").grid(row=1, column=0, sticky="e")
-        self.price_number_entry = ttk.Entry(self.input_frame, width=30)
+        self.price_number_entry = ctk.CTkEntry(self.input_frame, width=200)
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
         tk.Label(self.input_frame, text="Set").grid(row=2, column=0, sticky="e")
-        self.price_set_entry = ttk.Entry(self.input_frame, width=30)
+        self.price_set_entry = ctk.CTkEntry(self.input_frame, width=200)
         self.price_set_entry.grid(row=2, column=1, sticky="ew")
 
         self.price_reverse_var = tk.BooleanVar()
-        ttk.Checkbutton(
+        ctk.CTkCheckBox(
             self.input_frame,
             text="Reverse",
             variable=self.price_reverse_var,
-            bootstyle="round-toggle",
         ).grid(row=3, column=0, columnspan=2, pady=5)
 
         self.price_reverse_var.trace_add("write", lambda *a: self.on_reverse_toggle())
@@ -736,19 +714,18 @@ class CardEditorApp:
         btn_frame = tk.Frame(self.input_frame)
         btn_frame.grid(row=4, column=0, columnspan=2, pady=5, sticky="w")
 
-        ttk.Button(
+        ctk.CTkButton(
             btn_frame,
             text="Wyszukaj",
             command=self.run_pricing_search,
-            bootstyle="primary",
-            width=12,
+            width=120,
         ).pack(side="left", padx=5)
 
-        ttk.Button(
+        ctk.CTkButton(
             btn_frame,
             text="Powrót",
             command=self.back_to_welcome,
-            width=12,
+            width=120,
         ).pack(side="left", padx=5)
 
         self.result_frame = tk.Frame(self.image_frame)
@@ -870,56 +847,46 @@ class CardEditorApp:
             )
             self.logo_label.grid(row=0, column=0, columnspan=5, pady=(0, 10))
 
-        # Load ttkbootstrap icons when available
-        self.icon_load = load_icon("document-open")
-        self.icon_export = load_icon("document-save")
-        self.icon_api = load_icon("network-server")
-        self.icon_save = load_icon("document-save")
 
         # Bottom frame for action buttons
         self.button_frame = tk.Frame(self.frame)
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
 
-        self.load_button = ttk.Button(
+        self.load_button = ctk.CTkButton(
             self.button_frame,
             text="Import",
-            image=self.icon_load,
-            compound="left",
             command=self.load_images,
-            bootstyle="primary",
         )
         self.load_button.pack(side="left", padx=5)
 
-        self.end_button = ttk.Button(
+        self.end_button = ctk.CTkButton(
             self.button_frame,
             text="Zakończ i zapisz",
-            image=self.icon_export,
-            compound="left",
             command=self.export_csv,
-            bootstyle="success",
         )
         self.end_button.pack(side="left", padx=5)
 
-        self.back_button = ttk.Button(
+        self.back_button = ctk.CTkButton(
             self.button_frame,
             text="Powrót",
             command=self.back_to_welcome,
-            bootstyle="secondary",
         )
         self.back_button.pack(side="left", padx=5)
 
-        self.image_label = tk.Label(self.frame)
+        self.image_label = ctk.CTkLabel(self.frame)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         # Display only a textual progress indicator below the card image
-        self.progress_label = ttk.Label(self.frame, textvariable=self.progress_var)
+        self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
 
         # Container for card information fields
-        self.info_frame = ttk.LabelFrame(self.frame, text="Informacje o karcie")
+        self.info_frame = ctk.CTkFrame(self.frame)
         self.info_frame.grid(
             row=2, column=1, columnspan=4, rowspan=12, padx=10, sticky="nsew"
         )
+        ctk.CTkLabel(self.info_frame, text="Informacje o karcie").grid(row=0, column=0, columnspan=8, pady=(0,5))
+        start_row = 1
         for i in range(8):
             self.info_frame.columnconfigure(i, weight=1)
 
@@ -928,148 +895,138 @@ class CardEditorApp:
         grid_opts = {"padx": 5, "pady": 2}
 
         tk.Label(self.info_frame, text="Język").grid(
-            row=0, column=0, sticky="w", **grid_opts
+            row=start_row, column=0, sticky="w", **grid_opts
         )
         self.lang_var = tk.StringVar(value="ENG")
         self.entries["język"] = self.lang_var
-        lang_dropdown = ttk.Combobox(
-            self.info_frame, textvariable=self.lang_var, values=["ENG", "JP"], width=20
+        lang_dropdown = ctk.CTkComboBox(
+            self.info_frame, values=["ENG", "JP"], variable=self.lang_var, width=200
         )
-        lang_dropdown.grid(row=0, column=1, sticky="ew", **grid_opts)
+        lang_dropdown.grid(row=start_row, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
         tk.Label(self.info_frame, text="Nazwa").grid(
-            row=1, column=0, sticky="w", **grid_opts
+            row=start_row + 1, column=0, sticky="w", **grid_opts
         )
-        self.entries["nazwa"] = ttk.Entry(self.info_frame, width=20)
-        self.entries["nazwa"].grid(row=1, column=1, sticky="ew", **grid_opts)
+        self.entries["nazwa"] = ctk.CTkEntry(self.info_frame, width=200)
+        self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
         tk.Label(self.info_frame, text="Numer").grid(
-            row=2, column=0, sticky="w", **grid_opts
+            row=start_row + 2, column=0, sticky="w", **grid_opts
         )
-        self.entries["numer"] = ttk.Entry(self.info_frame, width=20)
-        self.entries["numer"].grid(row=2, column=1, sticky="ew", **grid_opts)
+        self.entries["numer"] = ctk.CTkEntry(self.info_frame, width=200)
+        self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
         tk.Label(self.info_frame, text="Set").grid(
-            row=3, column=0, sticky="w", **grid_opts
+            row=start_row + 3, column=0, sticky="w", **grid_opts
         )
         self.set_var = tk.StringVar()
-        self.set_dropdown = ttk.Combobox(
+        self.set_dropdown = ctk.CTkComboBox(
             self.info_frame, textvariable=self.set_var, width=20
         )
-        self.set_dropdown.grid(row=3, column=1, sticky="ew", **grid_opts)
+        self.set_dropdown.grid(row=start_row + 3, column=1, sticky="ew", **grid_opts)
         self.set_dropdown.bind("<KeyRelease>", self.filter_sets)
         self.set_dropdown.bind("<Tab>", self.autocomplete_set)
         self.entries["set"] = self.set_var
 
         tk.Label(self.info_frame, text="Typ").grid(
-            row=4, column=0, sticky="w", **grid_opts
+            row=start_row + 4, column=0, sticky="w", **grid_opts
         )
         self.type_vars = {}
-        self.type_frame = tk.Frame(self.info_frame)
-        self.type_frame.grid(row=4, column=1, columnspan=7, sticky="w", **grid_opts)
+        self.type_frame = ctk.CTkFrame(self.info_frame)
+        self.type_frame.grid(row=start_row + 4, column=1, columnspan=7, sticky="w", **grid_opts)
         types = ["Common", "Holo", "Reverse"]
         for t in types:
             var = tk.BooleanVar()
             self.type_vars[t] = var
-            tk.Checkbutton(
+            ctk.CTkCheckBox(
                 self.type_frame,
                 text=t,
                 variable=var,
-                width=8,
             ).pack(side="left", padx=2)
 
         tk.Label(self.info_frame, text="Rarity").grid(
-            row=5, column=0, sticky="w", **grid_opts
+            row=start_row + 5, column=0, sticky="w", **grid_opts
         )
         self.rarity_vars = {}
-        self.rarity_frame = tk.Frame(self.info_frame)
-        self.rarity_frame.grid(row=5, column=1, columnspan=7, sticky="w", **grid_opts)
+        self.rarity_frame = ctk.CTkFrame(self.info_frame)
+        self.rarity_frame.grid(row=start_row + 5, column=1, columnspan=7, sticky="w", **grid_opts)
         rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE", "PROMO"]
         for r in rarities:
             var = tk.BooleanVar()
             self.rarity_vars[r] = var
-            tk.Checkbutton(
+            ctk.CTkCheckBox(
                 self.rarity_frame,
                 text=r,
                 variable=var,
-                width=8,
             ).pack(side="left", padx=2)
 
         tk.Label(self.info_frame, text="Suffix").grid(
-            row=6, column=0, sticky="w", **grid_opts
+            row=start_row + 6, column=0, sticky="w", **grid_opts
         )
         self.suffix_var = tk.StringVar(value="")
         self.entries["suffix"] = self.suffix_var
-        suffix_dropdown = ttk.Combobox(
+        suffix_dropdown = ctk.CTkComboBox(
             self.info_frame,
             textvariable=self.suffix_var,
             values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"],
             width=20,
         )
-        suffix_dropdown.grid(row=6, column=1, sticky="ew", **grid_opts)
+        suffix_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
         tk.Label(self.info_frame, text="Stan").grid(
-            row=7, column=0, sticky="w", **grid_opts
+            row=start_row + 7, column=0, sticky="w", **grid_opts
         )
         self.stan_var = tk.StringVar(value="NM")
         self.entries["stan"] = self.stan_var
-        stan_dropdown = ttk.Combobox(
+        stan_dropdown = ctk.CTkComboBox(
             self.info_frame,
             textvariable=self.stan_var,
             values=["NM", "LP", "PL", "MP", "HP", "DMG"],
             width=20,
         )
-        stan_dropdown.grid(row=7, column=1, sticky="ew", **grid_opts)
+        stan_dropdown.grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
         tk.Label(self.info_frame, text="Cena").grid(
-            row=8, column=0, sticky="w", **grid_opts
+            row=start_row + 8, column=0, sticky="w", **grid_opts
         )
-        self.entries["cena"] = ttk.Entry(self.info_frame, width=20)
-        self.entries["cena"].grid(row=8, column=1, sticky="ew", **grid_opts)
+        self.entries["cena"] = ctk.CTkEntry(self.info_frame, width=200)
+        self.entries["cena"].grid(row=start_row + 8, column=1, sticky="ew", **grid_opts)
 
-        self.api_button = ttk.Button(
+        self.api_button = ctk.CTkButton(
             self.info_frame,
             text="Pobierz cenę z bazy",
-            image=self.icon_api,
-            compound="left",
             command=self.fetch_card_data,
-            bootstyle="info",
         )
-        self.api_button.grid(row=9, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.api_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
-        self.variants_button = ttk.Button(
+        self.variants_button = ctk.CTkButton(
             self.info_frame,
             text="Inne warianty",
             command=self.show_variants,
-            bootstyle="secondary",
         )
         self.variants_button.grid(
-            row=9, column=2, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 9, column=2, columnspan=2, sticky="ew", **grid_opts
         )
 
-        self.cardmarket_button = ttk.Button(
+        self.cardmarket_button = ctk.CTkButton(
             self.info_frame,
             text="Cardmarket",
             command=self.open_cardmarket_search,
-            bootstyle="secondary",
         )
         self.cardmarket_button.grid(
-            row=9, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 9, column=4, columnspan=2, sticky="ew", **grid_opts
         )
 
-        self.save_button = ttk.Button(
+        self.save_button = ctk.CTkButton(
             self.info_frame,
             text="Zapisz i dalej",
-            image=self.icon_save,
-            compound="left",
             command=self.save_and_next,
-            bootstyle="primary",
         )
-        self.save_button.grid(row=10, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.save_button.grid(row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         for entry in self.entries.values():
-            if isinstance(entry, (tk.Entry, ttk.Entry)):
+            if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
                 entry.bind("<Return>", lambda e: self.save_and_next())
 
         self.root.bind("<Return>", lambda e: self.save_and_next())
@@ -1151,7 +1108,7 @@ class CardEditorApp:
         self.image_label.configure(image=img)
 
         for key, entry in self.entries.items():
-            if isinstance(entry, (tk.Entry, ttk.Entry)):
+            if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
                 entry.delete(0, tk.END)
             elif isinstance(entry, tk.StringVar):
                 if key == "język":
@@ -1173,7 +1130,7 @@ class CardEditorApp:
             cached = self.card_cache[cache_key]
             for field, value in cached.get("entries", {}).items():
                 entry = self.entries.get(field)
-                if isinstance(entry, (tk.Entry, ttk.Entry)):
+                if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
                     entry.insert(0, value)
                 elif isinstance(entry, tk.StringVar):
                     entry.set(value)
@@ -1569,7 +1526,7 @@ class CardEditorApp:
             self.open_cardmarket_search()
             return
 
-        top = tk.Toplevel(self.root)
+        top = ctk.CTkToplevel(self.root)
         top.title("Inne warianty")
         top.geometry("600x400")
 
@@ -1578,7 +1535,7 @@ class CardEditorApp:
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((140, 140))
             top.logo_photo = ImageTk.PhotoImage(logo_img)
-            tk.Label(top, image=top.logo_photo, bg=top.cget("bg")).pack(pady=(10, 10))
+            ctk.CTkLabel(top, image=top.logo_photo, text="").pack(pady=(10, 10))
 
         columns = ("name", "number", "set", "price")
         tree = ttk.Treeview(top, columns=columns, show="headings")
@@ -1606,7 +1563,7 @@ class CardEditorApp:
             self.entries["cena"].insert(0, values[3])
             top.destroy()
 
-        ttk.Button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
+        ctk.CTkButton(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
         tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
@@ -1905,7 +1862,8 @@ class CardEditorApp:
 
 
 if __name__ == "__main__":
-    style = Style("darkly")
-    style.configure(".", font=("Helvetica", 12))
-    app = CardEditorApp(style.master)
-    style.master.mainloop()
+    root = ctk.CTk()
+    ctk.set_appearance_mode("System")
+    ctk.set_default_color_theme("blue")
+    app = CardEditorApp(root)
+    root.mainloop()
