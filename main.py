@@ -154,6 +154,35 @@ class CardEditorApp:
             bootstyle="warning",
         ).pack(side="left", padx=5)
 
+        # Display store statistics when Shoper credentials are available
+        stats_frame = tk.Frame(self.start_frame, bg=self.start_frame.cget("bg"))
+        stats_frame.pack(pady=10)
+        stats = self.load_store_stats()
+        stats_map = [
+            ("Nowe dzisiaj", stats.get("new_orders_today", 0)),
+            ("Oczekujące wysyłki", stats.get("pending_shipments", 0)),
+            ("Oczekujące płatności", stats.get("pending_payments", 0)),
+            ("Otwarte zwroty", stats.get("open_returns", 0)),
+            ("Sprzedaż dzisiaj", stats.get("sales_today", 0)),
+            ("Sprzedaż tydzień", stats.get("sales_week", 0)),
+            ("Sprzedaż miesiąc", stats.get("sales_month", 0)),
+            ("Średnia wartość", stats.get("avg_order_value", 0)),
+            ("Aktywne karty", stats.get("active_cards", 0)),
+        ]
+        for i, (label, value) in enumerate(stats_map):
+            tk.Label(
+                stats_frame,
+                text=f"{label}: {value}",
+                anchor="w",
+            ).grid(row=i, column=0, sticky="w")
+
+        ttk.Button(
+            stats_frame,
+            text="Pokaż szczegóły",
+            command=self.open_shoper_window,
+            bootstyle="secondary",
+        ).grid(row=len(stats_map), column=0, pady=5)
+
     def placeholder_btn(self, text: str, master=None):
         if master is None:
             master = self.start_frame
@@ -165,6 +194,40 @@ class CardEditorApp:
             ),
             bootstyle="secondary",
         )
+
+    def load_store_stats(self):
+        """Retrieve various store statistics from Shoper."""
+        if not self.shoper_client:
+            return {}
+        from datetime import date
+
+        stats = {}
+        try:
+            today = date.today().isoformat()
+            orders_today = self.shoper_client.get_orders(
+                status="new",
+                filters={"filters[add_date][from]": today},
+            )
+            stats["new_orders_today"] = len(orders_today.get("list", orders_today))
+
+            pending_ship = self.shoper_client.get_orders(status="pending_shipment")
+            stats["pending_shipments"] = len(pending_ship.get("list", pending_ship))
+
+            pending_pay = self.shoper_client.get_orders(status="pending_payment")
+            stats["pending_payments"] = len(pending_pay.get("list", pending_pay))
+
+            open_ret = self.shoper_client.get_orders(status="return")
+            stats["open_returns"] = len(open_ret.get("list", open_ret))
+
+            sales = self.shoper_client.get_sales_stats()
+            stats["sales_today"] = sales.get("today", 0)
+            stats["sales_week"] = sales.get("week", 0)
+            stats["sales_month"] = sales.get("month", 0)
+            stats["avg_order_value"] = sales.get("avg_order_value", 0)
+            stats["active_cards"] = sales.get("active_products", 0)
+        except Exception as exc:  # pragma: no cover - network failure
+            print(f"[WARNING] store stats failed: {exc}")
+        return stats
 
     def open_shoper_window(self):
         if not self.shoper_client:
