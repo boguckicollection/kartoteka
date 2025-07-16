@@ -1,4 +1,4 @@
-import tkinter as tk
+import customtkinter as ctk
 
 class Tooltip:
     """Display a tooltip for a given widget."""
@@ -15,16 +15,9 @@ class Tooltip:
             return
         x = self.widget.winfo_rootx() + 10
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 10
-        self.tipwindow = tw = tk.Toplevel(self.widget)
+        self.tipwindow = tw = ctk.CTkToplevel(self.widget)
         tw.wm_overrideredirect(True)
-        tk.Label(
-            tw,
-            text=self.text,
-            background="lightyellow",
-            relief="solid",
-            borderwidth=1,
-            font=("Helvetica", 10),
-        ).pack()
+        ctk.CTkLabel(tw, text=self.text).pack()
         tw.wm_geometry("+%d+%d" % (x, y))
 
     def hide(self, event=None):
