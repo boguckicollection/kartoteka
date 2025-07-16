@@ -1864,7 +1864,7 @@ class CardEditorApp:
 
 if __name__ == "__main__":
     root = ctk.CTk()
-    ctk.set_appearance_mode("System")
+    ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     app = CardEditorApp(root)
     root.mainloop()
