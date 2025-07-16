@@ -61,7 +61,8 @@ class CardEditorApp:
         self.progress_var = tk.StringVar(value="0/0")
         self.start_frame = None
         self.shoper_frame = None
-        self.magazyn_window = None
+        self.pricing_frame = None
+        self.magazyn_frame = None
         self.mag_canvases = []
         self.mag_box_photo = None
         self.log_widget = None
@@ -585,13 +586,27 @@ class CardEditorApp:
         return f"Karton {int(box)} | Kolumna {int(column)} | Poz {int(pos)}"
 
     def open_magazyn_window(self):
-        """Display storage occupancy per box and column."""
-        if self.magazyn_window and self.magazyn_window.winfo_exists():
-            self.magazyn_window.lift()
-            return
+        """Display storage occupancy inside the main window."""
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+        if getattr(self, "pricing_frame", None):
+            self.pricing_frame.destroy()
+            self.pricing_frame = None
+        if getattr(self, "shoper_frame", None):
+            self.shoper_frame.destroy()
+            self.shoper_frame = None
+        if getattr(self, "frame", None):
+            self.frame.destroy()
+            self.frame = None
+        if getattr(self, "magazyn_frame", None):
+            self.magazyn_frame.destroy()
 
-        self.magazyn_window = ctk.CTkToplevel(self.root)
-        self.magazyn_window.title("Magazyn")
+        self.root.minsize(1000, 700)
+        self.magazyn_frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
+        self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         img_path = os.path.join(os.path.dirname(__file__), "box.png")
         img = Image.open(img_path)
@@ -599,7 +614,7 @@ class CardEditorApp:
         self.mag_box_photo = ImageTk.PhotoImage(img)
 
         container = tk.Frame(
-            self.magazyn_window, bg=self.root.cget("background")
+            self.magazyn_frame, bg=self.root.cget("background")
         )
         container.pack(padx=10, pady=10)
 
@@ -607,9 +622,7 @@ class CardEditorApp:
         self.mag_labels = []
         for i in range(8):
             frame = tk.Frame(container, bg=self.root.cget("background"))
-            lbl = tk.Label(
-                frame, text=f"K{i+1}", bg=self.root.cget("background")
-            )
+            lbl = tk.Label(frame, text=f"K{i+1}", bg=self.root.cget("background"))
             lbl.pack()
             canvas = tk.Canvas(
                 frame,
@@ -622,9 +635,18 @@ class CardEditorApp:
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
+        btn_frame = tk.Frame(
+            self.magazyn_frame, bg=self.root.cget("background")
+        )
+        btn_frame.pack(pady=5)
+
         ctk.CTkButton(
-            self.magazyn_window, text="Odśwież", command=self.refresh_magazyn
-        ).pack(pady=5)
+            btn_frame, text="Odśwież", command=self.refresh_magazyn
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            btn_frame, text="Powrót", command=self.back_to_welcome
+        ).pack(side="left", padx=5)
 
         self.refresh_magazyn()
 
@@ -876,6 +898,9 @@ class CardEditorApp:
         if getattr(self, "frame", None):
             self.frame.destroy()
             self.frame = None
+        if getattr(self, "magazyn_frame", None):
+            self.magazyn_frame.destroy()
+            self.magazyn_frame = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
