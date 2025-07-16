@@ -73,6 +73,9 @@ class CardEditorApp:
         self.progress_var = tk.StringVar(value="0/0")
         self.start_frame = None
         self.shoper_frame = None
+        self.magazyn_window = None
+        self.mag_canvases = []
+        self.mag_box_photo = None
         self.log_widget = None
         try:
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
@@ -147,6 +150,12 @@ class CardEditorApp:
             button_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
+            bootstyle="secondary",
+        ).pack(side="left", padx=5)
+        ttk.Button(
+            button_frame,
+            text="\U0001f4e6 Magazyn",
+            command=self.open_magazyn_window,
             bootstyle="secondary",
         ).pack(side="left", padx=5)
         ttk.Button(
@@ -536,6 +545,92 @@ class CardEditorApp:
             return ""
         box, row, pos = match.groups()
         return f"Karton {int(box)} | Rząd {int(row)} | Poz {int(pos)}"
+
+    def open_magazyn_window(self):
+        """Display storage occupancy per box and row."""
+        if self.magazyn_window and self.magazyn_window.winfo_exists():
+            self.magazyn_window.lift()
+            return
+
+        self.magazyn_window = tk.Toplevel(self.root)
+        self.magazyn_window.title("Magazyn")
+
+        img_path = os.path.join(os.path.dirname(__file__), "box.png")
+        img = Image.open(img_path)
+        img.thumbnail((150, 150))
+        self.mag_box_photo = ImageTk.PhotoImage(img)
+
+        container = tk.Frame(self.magazyn_window)
+        container.pack(padx=10, pady=10)
+
+        self.mag_canvases = []
+        for i in range(8):
+            canvas = tk.Canvas(
+                container,
+                width=self.mag_box_photo.width(),
+                height=self.mag_box_photo.height(),
+            )
+            canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
+            canvas.grid(row=i // 4, column=i % 4, padx=5, pady=5)
+            self.mag_canvases.append(canvas)
+
+        ttk.Button(
+            self.magazyn_window, text="Odśwież", command=self.refresh_magazyn
+        ).pack(pady=5)
+
+        self.refresh_magazyn()
+
+    def compute_row_occupancy(self):
+        """Return dictionary of used slots per box row."""
+        occ = {b: {r: 0 for r in range(1, 5)} for b in range(1, 9)}
+        for row in self.output_data:
+            code = row.get("product_code") or ""
+            m = re.match(r"K(\d+)R(\d)P(\d+)", code)
+            if not m:
+                continue
+            box = int(m.group(1))
+            r = int(m.group(2))
+            if box in occ and r in occ[box]:
+                occ[box][r] += 1
+        return occ
+
+    def refresh_magazyn(self):
+        occ = self.compute_row_occupancy()
+        if not self.mag_canvases:
+            return
+        for idx, canvas in enumerate(self.mag_canvases):
+            box = idx + 1
+            canvas.delete("stats")
+            row_h = self.mag_box_photo.height() / 4
+            canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
+            canvas.create_text(
+                self.mag_box_photo.width() / 2,
+                10,
+                text=f"K{box:02d}",
+                font=("Helvetica", 10, "bold"),
+                tags="stats",
+            )
+            for r in range(1, 5):
+                filled = occ.get(box, {}).get(r, 0)
+                free_percent = (1000 - filled) / 10
+                y1 = (r - 1) * row_h
+                y_mid = y1 + row_h / 2
+                if free_percent >= 30:
+                    canvas.create_rectangle(
+                        0,
+                        y1,
+                        self.mag_box_photo.width(),
+                        y1 + row_h,
+                        fill="#c8f7c8",
+                        width=0,
+                        tags="stats",
+                    )
+                canvas.create_text(
+                    self.mag_box_photo.width() / 2,
+                    y_mid,
+                    text=f"R{r}: {free_percent:.0f}%",
+                    tags="stats",
+                )
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""
