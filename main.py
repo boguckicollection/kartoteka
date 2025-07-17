@@ -12,7 +12,6 @@ from collections import defaultdict
 from dotenv import load_dotenv
 
 from shoper_client import ShoperClient
-from tooltip import Tooltip
 import webbrowser
 from urllib.parse import urlencode
 import io
@@ -314,8 +313,8 @@ class CardEditorApp:
         )
 
     def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
-        """Create a small dashboard card with optional tooltip and progress bar."""
-        frame = tk.Frame(parent, width=160, height=80, bg=color, bd=1, relief="ridge")
+        """Create a dashboard card with optional progress bar."""
+        frame = tk.Frame(parent, width=200, height=100, bg=color, bd=1, relief="ridge")
         # Keep the card size constant regardless of its contents
         frame.pack_propagate(False)
         frame.grid_propagate(False)
@@ -326,8 +325,7 @@ class CardEditorApp:
             bar = ctk.CTkProgressBar(frame)
             bar.set(max(0, min(1, progress)))
             bar.pack(fill="x", padx=5, pady=(0, 5))
-        for w in (frame,) + tuple(frame.winfo_children()):
-            Tooltip(w, info)
+        # Tooltip removed for cleaner display
         return frame
 
     def load_store_stats(self):
@@ -654,6 +652,8 @@ class CardEditorApp:
                 frame,
                 width=self.mag_box_photo.width(),
                 height=self.mag_box_photo.height(),
+                bg="#111111",
+                highlightthickness=0,
             )
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
             canvas.pack()
@@ -821,21 +821,23 @@ class CardEditorApp:
         btn_frame = tk.Frame(
             self.input_frame, bg=self.root.cget("background")
         )
-        btn_frame.grid(row=4, column=0, columnspan=2, pady=5, sticky="w")
+        btn_frame.grid(row=4, column=0, columnspan=2, pady=5, sticky="ew")
+        btn_frame.columnconfigure(0, weight=1)
+        btn_frame.columnconfigure(1, weight=1)
 
         self.create_button(
             btn_frame,
             text="Wyszukaj",
             command=self.run_pricing_search,
             width=120,
-        ).pack(side="left", padx=5)
+        ).grid(row=0, column=0, padx=5)
 
         self.create_button(
             btn_frame,
             text="Powrót",
             command=self.back_to_welcome,
             width=120,
-        ).pack(side="left", padx=5)
+        ).grid(row=0, column=1, padx=5)
 
         self.result_frame = tk.Frame(
             self.image_frame, bg=self.root.cget("background")
