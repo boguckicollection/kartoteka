@@ -1761,53 +1761,11 @@ class CardEditorApp:
         }
         front_path = self.cards[self.index]
         front_file = os.path.basename(front_path)
-        back_file = None
         product_idx = self.index
 
-        def core(name: str) -> str:
-            name_no_ext, _ = os.path.splitext(name)
-            for suf in ["_front", "-front", " front", "_back", "-back", " back"]:
-                if name_no_ext.lower().endswith(suf):
-                    return name_no_ext[: -len(suf)]
-            return name_no_ext
-
-        def extract_number(name: str):
-            name_no_ext, _ = os.path.splitext(name)
-            m = re.search(r"(\d+)$", name_no_ext)
-            if m:
-                try:
-                    return int(m.group(1))
-                except ValueError:
-                    pass
-            return None
-
-        if self.index + 1 < len(self.cards):
-            next_file = os.path.basename(self.cards[self.index + 1])
-            if core(front_file).lower() == core(next_file).lower():
-                back_file = next_file
-                self.index += 1
-            else:
-                curr_num = extract_number(front_file)
-                next_num = extract_number(next_file)
-                if (
-                    curr_num is not None
-                    and next_num is not None
-                    and next_num == curr_num + 1
-                ):
-                    back_file = next_file
-                    self.index += 1
-
         self.file_to_key[front_file] = key
-        if back_file:
-            self.file_to_key[back_file] = key
 
-        images = [front_file]
-        if back_file:
-            images.append(back_file)
-        data["images1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
-        data["images2"] = (
-            f"{BASE_IMAGE_URL}/{self.folder_name}/{back_file}" if back_file else ""
-        )
+        data["images"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
         data["product_code"] = self.generate_location(product_idx)
         data["active"] = 1
         data["vat"] = 23
@@ -1940,28 +1898,15 @@ class CardEditorApp:
 
         fieldnames = [
             "product_code",
-            "active",
-            "name",
-            "price",
-            "vat",
-            "unit",
             "category",
             "producer",
-            "other_price",
-            "pkwiu",
-            "weight",
-            "priority",
+            "name",
             "short_description",
             "description",
-            "stock",
-            "stock_warnlevel",
+            "price",
             "availability",
-            "delivery",
-            "views",
-            "rank",
-            "rank_votes",
-            "images1",
-            "images2",
+            "images",
+            "stock",
         ]
 
         with open(file_path, mode="w", encoding="utf-8", newline="") as file:
@@ -1978,28 +1923,15 @@ class CardEditorApp:
                 writer.writerow(
                     {
                         "product_code": row["product_code"],
-                        "active": row["active"],
-                        "name": formatted_name,
-                        "price": row["cena"],
-                        "vat": row["vat"],
-                        "unit": row["unit"],
                         "category": row["category"],
                         "producer": row["producer"],
-                        "other_price": row["other_price"],
-                        "pkwiu": row["pkwiu"],
-                        "weight": row["weight"],
-                        "priority": row["priority"],
+                        "name": formatted_name,
                         "short_description": row["short_description"],
                         "description": row["description"],
-                        "stock": row["stock"],
-                        "stock_warnlevel": row["stock_warnlevel"],
+                        "price": row["cena"],
                         "availability": row["availability"],
-                        "delivery": row["delivery"],
-                        "views": row["views"],
-                        "rank": row["rank"],
-                        "rank_votes": row["rank_votes"],
-                        "images1": row.get("images1", ""),
-                        "images2": row.get("images2", ""),
+                        "images": row.get("images", ""),
+                        "stock": row["stock"],
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
