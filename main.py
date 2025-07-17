@@ -10,6 +10,7 @@ import requests
 import re
 from collections import defaultdict
 from dotenv import load_dotenv
+import unicodedata
 
 from shoper_client import ShoperClient
 import webbrowser
@@ -36,6 +37,29 @@ ACCENT_COLOR = "#6C63FF"
 HOVER_COLOR = "#4D47C3"
 TEXT_COLOR = "#FFFFFF"
 BORDER_COLOR = "#3A3A4A"
+
+
+
+def normalize(text: str, keep_spaces: bool = False) -> str:
+    """Normalize text for comparisons and API queries."""
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKD", text)
+    text = text.lower()
+    for suffix in [
+        " ex",
+        " gx",
+        " v",
+        " vmax",
+        " vstar",
+        " shiny",
+        " promo",
+    ]:
+        text = text.replace(suffix, "")
+    text = text.replace("-", "")
+    if not keep_spaces:
+        text = text.replace(" ", "")
+    return text.strip()
 
 
 
@@ -1342,25 +1366,6 @@ class CardEditorApp:
         print(message)
 
     def get_price_from_db(self, name, number, set_name):
-        import unicodedata
-
-        def normalize(text: str) -> str:
-            if not text:
-                return ""
-            text = unicodedata.normalize("NFKD", text)
-            text = text.lower()
-            for suffix in [
-                " ex",
-                " gx",
-                " v",
-                " vmax",
-                " vstar",
-                " shiny",
-                " promo",
-            ]:
-                text = text.replace(suffix, "")
-            return text.replace("-", "").replace(" ", "").strip()
-
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
@@ -1378,17 +1383,7 @@ class CardEditorApp:
         return None
 
     def fetch_card_price(self, name, number, set_name, is_reverse=False, is_holo=False):
-        import unicodedata
-
-        def normalize(text):
-            if not text:
-                return ""
-            text = unicodedata.normalize("NFKD", text)
-            text = text.lower()
-            for suffix in [" ex", " gx", " v", " vmax", " vstar", " shiny", " promo"]:
-                text = text.replace(suffix, "")
-            return text.replace("-", "").replace(" ", "").strip()
-
+        name_api = normalize(name, keep_spaces=True)
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
@@ -1397,7 +1392,7 @@ class CardEditorApp:
             headers = {}
             if RAPIDAPI_KEY and RAPIDAPI_HOST:
                 url = f"https://{RAPIDAPI_HOST}/cards/search"
-                params = {"search": name_input}
+                params = {"search": name_api}
                 headers = {
                     "X-RapidAPI-Key": RAPIDAPI_KEY,
                     "X-RapidAPI-Host": RAPIDAPI_HOST,
@@ -1405,7 +1400,7 @@ class CardEditorApp:
             else:
                 url = "https://www.tcggo.com/api/cards/"
                 params = {
-                    "name": name_input,
+                    "name": name_api,
                     "number": number_input,
                     "set": set_input,
                 }
@@ -1466,17 +1461,7 @@ class CardEditorApp:
 
     def fetch_card_variants(self, name, number, set_name):
         """Return all matching cards from the API with prices."""
-        import unicodedata
-
-        def normalize(text):
-            if not text:
-                return ""
-            text = unicodedata.normalize("NFKD", text)
-            text = text.lower()
-            for suffix in [" ex", " gx", " v", " vmax", " vstar", " shiny", " promo"]:
-                text = text.replace(suffix, "")
-            return text.replace("-", "").replace(" ", "").strip()
-
+        name_api = normalize(name, keep_spaces=True)
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
@@ -1485,7 +1470,7 @@ class CardEditorApp:
             headers = {}
             if RAPIDAPI_KEY and RAPIDAPI_HOST:
                 url = f"https://{RAPIDAPI_HOST}/cards/search"
-                params = {"search": name_input}
+                params = {"search": name_api}
                 headers = {
                     "X-RapidAPI-Key": RAPIDAPI_KEY,
                     "X-RapidAPI-Host": RAPIDAPI_HOST,
@@ -1493,7 +1478,7 @@ class CardEditorApp:
             else:
                 url = "https://www.tcggo.com/api/cards/"
                 params = {
-                    "name": name_input,
+                    "name": name_api,
                     "number": number_input,
                     "set": set_input,
                 }
@@ -1551,17 +1536,7 @@ class CardEditorApp:
 
     def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
         """Return image URL and pricing information for the first matching card."""
-        import unicodedata
-
-        def normalize(text):
-            if not text:
-                return ""
-            text = unicodedata.normalize("NFKD", text)
-            text = text.lower()
-            for suffix in [" ex", " gx", " v", " vmax", " vstar", " shiny", " promo"]:
-                text = text.replace(suffix, "")
-            return text.replace("-", "").replace(" ", "").strip()
-
+        name_api = normalize(name, keep_spaces=True)
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
@@ -1570,14 +1545,14 @@ class CardEditorApp:
             headers = {}
             if RAPIDAPI_KEY and RAPIDAPI_HOST:
                 url = f"https://{RAPIDAPI_HOST}/cards/search"
-                params = {"search": name_input}
+                params = {"search": name_api}
                 headers = {
                     "X-RapidAPI-Key": RAPIDAPI_KEY,
                     "X-RapidAPI-Host": RAPIDAPI_HOST,
                 }
             else:
                 url = "https://www.tcggo.com/api/cards/"
-                params = {"name": name_input, "number": number_input, "set": set_input}
+                params = {"name": name_api, "number": number_input, "set": set_input}
 
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
