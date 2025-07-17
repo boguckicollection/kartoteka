@@ -1778,7 +1778,21 @@ class CardEditorApp:
         data["priority"] = 0
         data["short_description"] = f"Stan: {data['stan']}, Język: {data['język']}"
         data["description"] = (
-            f"{data['nazwa']} karta Pokémon z setu {data['set']}, nr {data['numer']}, stan {data['stan']}."
+            f"🃏 {data['nazwa']} – Pokémon TCG\n"
+            f"🔹 Set: {data['set']}\n"
+            f"🔹 Numer karty: {data['numer']}\n"
+            f"🔹 Typ karty: {data['typ']}\n"
+            f"🔹 Stan: {data['stan']}\n"
+            "\n"
+            "Opis produktu:\n"
+            f"Karta {data['nazwa']} pochodzi z zestawu {data['set']}, idealna dla kolekcjonerów oraz graczy Pokémon TCG. To doskonały wybór, jeśli uzupełniasz swój master set albo szukasz konkretnej karty do talii.\n"
+            "\n"
+            "Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.\n"
+            "\n"
+            "📦 Szybka wysyłka i bezpieczne pakowanie!\n"
+            "🛡️ Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik.\n"
+            "\n"
+            "🧾 Wskazówka: Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty!"
         )
         data["stock_warnlevel"] = 0
         data["availability"] = 1
