@@ -253,17 +253,20 @@ class CardEditorApp:
             ),
         ]
 
-        colors = [
-            "#FCE4EC",
-            "#E3F2FD",
-            "#E8F5E9",
-            "#FFF3E0",
-            "#F3E5F5",
-            "#E0F7FA",
-            "#F1F8E9",
-            "#FFFDE7",
-            "#EDE7F6",
-        ]
+        # Generate subtle variations of the background color so that the
+        # white text on the dashboard cards remains readable while the
+        # overall theme stays consistent.
+        def lighten(color: str, factor: float) -> str:
+            color = color.lstrip("#")
+            r = int(color[0:2], 16)
+            g = int(color[2:4], 16)
+            b = int(color[4:6], 16)
+            r = min(255, int(r + (255 - r) * factor))
+            g = min(255, int(g + (255 - g) * factor))
+            b = min(255, int(b + (255 - b) * factor))
+            return f"#{r:02x}{g:02x}{b:02x}"
+
+        colors = [lighten(BG_COLOR, 0.08 + 0.02 * i) for i in range(9)]
 
         # Ensure rows expand evenly when the window is resized
         rows = (len(stats_map) + 2) // 3
@@ -989,6 +992,21 @@ class CardEditorApp:
         )
         self.back_button.pack(side="left", padx=5)
 
+        # Navigation buttons to move between loaded scans
+        self.prev_button = self.create_button(
+            self.button_frame,
+            text="\u23ee Poprzednia",
+            command=self.previous_card,
+        )
+        self.prev_button.pack(side="left", padx=5)
+
+        self.next_button = self.create_button(
+            self.button_frame,
+            text="Nast\u0119pna \u23ed",
+            command=self.next_card,
+        )
+        self.next_button.pack(side="left", padx=5)
+
         self.image_label = ctk.CTkLabel(self.frame)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         # Display only a textual progress indicator below the card image
@@ -1227,7 +1245,7 @@ class CardEditorApp:
         ]
         self.cards.sort()
         self.index = 0
-        self.output_data = []
+        self.output_data = [None] * len(self.cards)
         self.card_counts = defaultdict(int)
         self.progress_var.set(f"0/{len(self.cards)}")
         self.log(f"Loaded {len(self.cards)} cards")
@@ -1745,20 +1763,22 @@ class CardEditorApp:
                 return price
         return price
 
-    def save_and_next(self):
+    def save_current_data(self):
+        """Store the data for the currently displayed card without changing
+        the index."""
         data = {k: v.get() for k, v in self.entries.items()}
         data["typ"] = ",".join(
             [name for name, var in self.type_vars.items() if var.get()]
         )
         data["rarity"] = ",".join([k for k, v in self.rarity_vars.items() if v.get()])
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
-        self.card_counts[key] += 1
-        data["ilość"] = self.card_counts[key]
+        data["ilość"] = 1
         self.card_cache[key] = {
             "entries": {k: v for k, v in data.items()},
             "types": {name: var.get() for name, var in self.type_vars.items()},
             "rarities": {name: var.get() for name, var in self.rarity_vars.items()},
         }
+
         front_path = self.cards[self.index]
         front_file = os.path.basename(front_path)
         product_idx = self.index
@@ -1801,7 +1821,6 @@ class CardEditorApp:
         data["rank"] = ""
         data["rank_votes"] = ""
 
-        # Automatyczne pobranie ceny z bazy
         cena_local = self.get_price_from_db(data["nazwa"], data["numer"], data["set"])
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
@@ -1824,7 +1843,27 @@ class CardEditorApp:
             else:
                 data["cena"] = ""
 
-        self.output_data.append(data)
+        self.output_data[self.index] = data
+
+    def save_and_next(self):
+        """Save the current card data and display the next scan."""
+        self.save_current_data()
+        self.index += 1
+        self.show_card()
+
+    def previous_card(self):
+        """Save current data and display the previous scan."""
+        if self.index <= 0:
+            return
+        self.save_current_data()
+        self.index -= 1
+        self.show_card()
+
+    def next_card(self):
+        """Save current data and move forward without increasing stock."""
+        if self.index >= len(self.cards) - 1:
+            return
+        self.save_current_data()
         self.index += 1
         self.show_card()
 
@@ -1903,6 +1942,8 @@ class CardEditorApp:
 
         combined = {}
         for row in self.output_data:
+            if row is None:
+                continue
             key = f"{row['nazwa']}|{row['numer']}|{row['set']}"
             if key in combined:
                 combined[key]["stock"] += 1
