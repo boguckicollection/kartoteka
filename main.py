@@ -1183,9 +1183,9 @@ class CardEditorApp:
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         if lang == "JP":
-            self.set_dropdown["values"] = sorted(tcg_sets_jp)
+            self.set_dropdown.configure(values=sorted(tcg_sets_jp))
         else:
-            self.set_dropdown["values"] = sorted(tcg_sets_eng)
+            self.set_dropdown.configure(values=sorted(tcg_sets_eng))
 
     def filter_sets(self, event=None):
         typed = self.set_var.get().lower()
@@ -1195,7 +1195,7 @@ class CardEditorApp:
             filtered = [s for s in all_sets if typed in s.lower()]
         else:
             filtered = all_sets
-        self.set_dropdown["values"] = sorted(filtered)
+        self.set_dropdown.configure(values=sorted(filtered))
 
     def autocomplete_set(self, event=None):
         typed = self.set_var.get().lower()
