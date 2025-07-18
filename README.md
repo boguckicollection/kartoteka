@@ -71,8 +71,10 @@ the cheatsheet can load the images.
 ### Importing CSV files
 Use the **Import CSV** button on the welcome screen to merge an existing CSV
 file. Rows that share the `nazwa`, `numer` and `set` columns are combined and
-their quantity summed. If the file lacks a `stock` column, the merged output adds
-an `ilość` column with the calculated totals.
+their quantity summed. The importer recognises quantity columns named
+`stock`, `ilość`, `ilosc`, `quantity` or `qty` (case and spacing are ignored).
+If no such column is found, the merged output adds an `ilość` column with the
+calculated totals.
 
 ### Cache
 Every time you press **Zapisz i dalej**, the entered values are stored in a
