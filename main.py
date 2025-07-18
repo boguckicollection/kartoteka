@@ -31,6 +31,7 @@ SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN")
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
+SET_LOGO_DIR = "set_logos"
 
 # custom theme colors
 BG_COLOR = "#1E1E2E"
@@ -113,6 +114,9 @@ class CardEditorApp:
         self.mag_canvases = []
         self.mag_box_photo = None
         self.log_widget = None
+        self.cheat_frame = None
+        self.set_logos = {}
+        self.load_set_logos()
         try:
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
         except Exception as e:
@@ -988,7 +992,7 @@ class CardEditorApp:
         )
         self.frame.pack(expand=True, fill="both", padx=10, pady=10)
         # Allow widgets inside the frame to expand properly
-        for i in range(5):
+        for i in range(6):
             self.frame.columnconfigure(i, weight=1)
         self.frame.rowconfigure(2, weight=1)
 
@@ -1002,7 +1006,7 @@ class CardEditorApp:
                 image=self.logo_photo,
                 bg=self.root.cget("background"),
             )
-            self.logo_label.grid(row=0, column=0, columnspan=5, pady=(0, 10))
+            self.logo_label.grid(row=0, column=0, columnspan=6, pady=(0, 10))
 
 
         # Bottom frame for action buttons
@@ -1010,7 +1014,7 @@ class CardEditorApp:
             self.frame, bg=self.root.cget("background")
         )
         # Do not stretch the button frame so that buttons remain centered
-        self.button_frame.grid(row=15, column=0, columnspan=5, pady=10)
+        self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
         self.load_button = self.create_button(
             self.button_frame,
@@ -1047,6 +1051,13 @@ class CardEditorApp:
             command=self.next_card,
         )
         self.next_button.pack(side="left", padx=5)
+
+        self.cheat_button = self.create_button(
+            self.button_frame,
+            text="\U0001F9FE \u015aci\u0105ga",
+            command=self.toggle_cheatsheet,
+        )
+        self.cheat_button.pack(side="left", padx=5)
 
         # Keep a constant label size so the window does not resize when
         # scans of different dimensions are displayed
@@ -1240,7 +1251,7 @@ class CardEditorApp:
             bg=self.root.cget("background"),
             fg="white",
         )
-        self.log_widget.grid(row=16, column=0, columnspan=5, sticky="ew")
+        self.log_widget.grid(row=16, column=0, columnspan=6, sticky="ew")
 
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
@@ -1248,6 +1259,8 @@ class CardEditorApp:
             self.set_dropdown.configure(values=sorted(tcg_sets_jp))
         else:
             self.set_dropdown.configure(values=sorted(tcg_sets_eng))
+        if getattr(self, "cheat_frame", None) is not None:
+            self.create_cheat_frame()
 
     def filter_sets(self, event=None):
         typed = self.set_var.get().lower()
@@ -1271,6 +1284,49 @@ class CardEditorApp:
             self.set_var.set(filtered[0])
         event.widget.tk_focusNext().focus()
         return "break"
+
+    def create_cheat_frame(self):
+        """Create or refresh the cheatsheet frame with set logos."""
+        if self.cheat_frame is not None:
+            self.cheat_frame.destroy()
+        self.cheat_frame = ctk.CTkScrollableFrame(
+            self.frame,
+            fg_color=self.root.cget("background"),
+            width=240,
+        )
+        self.cheat_frame.grid(row=2, column=5, rowspan=12, sticky="nsew")
+
+        lang = self.lang_var.get().strip().upper()
+        sets_map = tcg_sets_jp_map if lang == "JP" else tcg_sets_eng_map
+        for i, (name, code) in enumerate(sorted(sets_map.items())):
+            img = self.set_logos.get(code)
+            if img:
+                tk.Label(
+                    self.cheat_frame,
+                    image=img,
+                    bg=self.root.cget("background"),
+                ).grid(row=i, column=0, sticky="w", padx=5, pady=2)
+            else:
+                tk.Label(
+                    self.cheat_frame,
+                    text="",
+                    width=2,
+                    bg=self.root.cget("background"),
+                ).grid(row=i, column=0, sticky="w", padx=5, pady=2)
+            ctk.CTkLabel(
+                self.cheat_frame,
+                text=f"{name} ({code})",
+            ).grid(row=i, column=1, sticky="w", padx=5, pady=2)
+
+    def toggle_cheatsheet(self):
+        """Show or hide the cheatsheet with set logos."""
+        if self.cheat_frame is None:
+            self.create_cheat_frame()
+            return
+        if self.cheat_frame.winfo_ismapped():
+            self.cheat_frame.grid_remove()
+        else:
+            self.cheat_frame.grid()
 
     def load_images(self):
         folder = filedialog.askdirectory()
@@ -1374,6 +1430,25 @@ class CardEditorApp:
         with open(PRICE_DB_PATH, encoding="utf-8") as f:
             reader = csv.DictReader(f)
             return list(reader)
+
+    def load_set_logos(self):
+        """Load set logos from SET_LOGO_DIR into self.set_logos."""
+        self.set_logos.clear()
+        if not os.path.isdir(SET_LOGO_DIR):
+            return
+        for file in os.listdir(SET_LOGO_DIR):
+            path = os.path.join(SET_LOGO_DIR, file)
+            if not os.path.isfile(path):
+                continue
+            if not file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+                continue
+            code = os.path.splitext(file)[0]
+            try:
+                img = Image.open(path)
+                img.thumbnail((40, 40))
+                self.set_logos[code] = ImageTk.PhotoImage(img)
+            except Exception:
+                continue
 
     def log(self, message: str):
         if self.log_widget:
