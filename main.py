@@ -1047,8 +1047,11 @@ class CardEditorApp:
         )
         self.next_button.pack(side="left", padx=5)
 
-        self.image_label = ctk.CTkLabel(self.frame)
+        # Keep a constant label size so the window does not resize when
+        # scans of different dimensions are displayed
+        self.image_label = ctk.CTkLabel(self.frame, width=400, height=560)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
+        self.image_label.grid_propagate(False)
         # Display only a textual progress indicator below the card image
         self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
