@@ -1858,7 +1858,7 @@ class CardEditorApp:
 
         self.file_to_key[front_file] = key
 
-        data["images"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
+        data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
         data["product_code"] = self.generate_location(product_idx)
         data["active"] = 1
         data["vat"] = 23
@@ -1963,6 +1963,10 @@ class CardEditorApp:
         qty_field = None
 
         for row in rows:
+            img_val = row.get("image1") or row.get("images", "")
+            row["image1"] = img_val
+            row["images"] = img_val
+
             key = f"{row.get('nazwa', '').strip()}|{row.get('numer', '').strip()}|{row.get('set', '').strip()}"
             if qty_field is None:
                 if "stock" in row:
@@ -2036,8 +2040,9 @@ class CardEditorApp:
             "description",
             "price",
             "availability",
-            "images",
+            "image1",
             "stock",
+            "currency",
         ]
 
         with open(file_path, mode="w", encoding="utf-8", newline="") as file:
@@ -2061,8 +2066,9 @@ class CardEditorApp:
                         "description": row["description"],
                         "price": row["cena"],
                         "availability": row["availability"],
-                        "images": row.get("images", ""),
+                        "image1": row.get("image1", row.get("images", "")),
                         "stock": row["stock"],
+                        "currency": "zł",
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
