@@ -66,10 +66,24 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
 
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
-    tcg_sets_eng = list(json.load(f).keys())
+    tcg_sets_eng_map = json.load(f)
+    tcg_sets_eng = list(tcg_sets_eng_map.keys())
 
 with open("tcg_sets_jp.json", encoding="utf-8") as f:
-    tcg_sets_jp = list(json.load(f).keys())
+    tcg_sets_jp_map = json.load(f)
+    tcg_sets_jp = list(tcg_sets_jp_map.keys())
+
+
+def get_set_code(name: str) -> str:
+    """Return the API code for a set name if available."""
+    if not name:
+        return ""
+    search = name.strip().lower()
+    for mapping in (tcg_sets_eng_map, tcg_sets_jp_map):
+        for key, code in mapping.items():
+            if key.lower() == search:
+                return code
+    return name
 
 
 class CardEditorApp:
@@ -1387,6 +1401,7 @@ class CardEditorApp:
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
+        set_code = get_set_code(set_name)
 
         try:
             headers = {}
@@ -1402,7 +1417,7 @@ class CardEditorApp:
                 params = {
                     "name": name_api,
                     "number": number_input,
-                    "set": set_input,
+                    "set": set_code,
                 }
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
@@ -1465,6 +1480,7 @@ class CardEditorApp:
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
+        set_code = get_set_code(set_name)
 
         try:
             headers = {}
@@ -1480,7 +1496,7 @@ class CardEditorApp:
                 params = {
                     "name": name_api,
                     "number": number_input,
-                    "set": set_input,
+                    "set": set_code,
                 }
 
             response = requests.get(url, params=params, headers=headers, timeout=10)
@@ -1540,6 +1556,7 @@ class CardEditorApp:
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
+        set_code = get_set_code(set_name)
 
         try:
             headers = {}
@@ -1552,7 +1569,7 @@ class CardEditorApp:
                 }
             else:
                 url = "https://www.tcggo.com/api/cards/"
-                params = {"name": name_api, "number": number_input, "set": set_input}
+                params = {"name": name_api, "number": number_input, "set": set_code}
 
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
