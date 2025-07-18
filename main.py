@@ -1957,22 +1957,31 @@ class CardEditorApp:
             except csv.Error:
                 dialect = csv.excel
             reader = csv.DictReader(f, dialect=dialect)
-            rows = list(reader)
+
+            # Normalize header names for easier handling later on
+            fieldnames = [fn.strip().lower() for fn in reader.fieldnames or []]
+            rows = []
+            for raw_row in reader:
+                row = { (k.strip().lower() if k else k): v for k, v in raw_row.items() }
+                rows.append(row)
 
         combined = {}
         qty_field = None
+        qty_variants = {"stock", "ilość", "ilosc", "quantity", "qty"}
 
         for row in rows:
             img_val = row.get("image1") or row.get("images", "")
             row["image1"] = img_val
             row["images"] = img_val
 
-            key = f"{row.get('nazwa', '').strip()}|{row.get('numer', '').strip()}|{row.get('set', '').strip()}"
+            key = (
+                f"{row.get('nazwa', '').strip()}|{row.get('numer', '').strip()}|{row.get('set', '').strip()}"
+            )
             if qty_field is None:
-                if "stock" in row:
-                    qty_field = "stock"
-                elif "ilość" in row:
-                    qty_field = "ilość"
+                for variant in qty_variants:
+                    if variant in row:
+                        qty_field = variant
+                        break
             qty = 1
             if qty_field:
                 try:
@@ -1987,7 +1996,6 @@ class CardEditorApp:
                 new_row["qty"] = qty
                 combined[key] = new_row
 
-        fieldnames = reader.fieldnames or []
         if qty_field is None:
             qty_field = "ilość"
             if qty_field not in fieldnames:
