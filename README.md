@@ -54,6 +54,20 @@ python main.py
 The interface will allow you to load scans, fetch prices from the local database
 or the API, and export results to CSV.
 
+### Cheatsheet
+Press the **Ściąga** button on the editor window to open a scrollable cheat sheet
+with the names and codes of all card sets. When set logos are available they are
+displayed alongside the entries.
+
+To fetch the logos run:
+
+```bash
+python download_set_logos.py
+```
+
+This will create a `set_logos/` directory. Keep the folder next to `main.py` so
+the cheatsheet can load the images.
+
 ### Importing CSV files
 Use the **Import CSV** button on the welcome screen to merge an existing CSV
 file. Rows that share the `nazwa`, `numer` and `set` columns are combined and
