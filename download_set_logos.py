@@ -24,20 +24,24 @@ for file in SET_FILES:
                 continue
             data = res.json().get("data", res.json())
             images = data.get("images") or {}
-            logo_url = images.get("logo") or images.get("logoUrl") or images.get("logo_url")
-            if not logo_url:
-                print(f"[WARN] No logo for {name}")
+            symbol_url = (
+                images.get("symbol")
+                or images.get("symbolUrl")
+                or images.get("symbol_url")
+            )
+            if not symbol_url:
+                print(f"[WARN] No symbol for {name}")
                 continue
-            img_res = requests.get(logo_url, timeout=10)
+            img_res = requests.get(symbol_url, timeout=10)
             if img_res.status_code == 200:
-                ext = os.path.splitext(logo_url)[1] or ".png"
+                ext = os.path.splitext(symbol_url)[1] or ".png"
                 safe_name = code.replace("/", "_")
                 path = os.path.join(LOGO_DIR, f"{safe_name}{ext}")
                 with open(path, "wb") as out:
                     out.write(img_res.content)
                 print(f"Saved {path}")
             else:
-                print(f"[ERROR] Failed to download logo for {name}")
+                print(f"[ERROR] Failed to download symbol for {name}")
         except requests.RequestException as e:
             print(f"[ERROR] {name}: {e}")
 
