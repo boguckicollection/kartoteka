@@ -56,10 +56,10 @@ or the API, and export results to CSV.
 
 ### Cheatsheet
 Press the **Ściąga** button on the editor window to open a scrollable cheat sheet
-with the names and codes of all card sets. When set logos are available they are
-displayed alongside the entries.
+with the names and codes of all card sets. When set symbols are available they
+are displayed alongside the entries.
 
-To fetch the logos run:
+To fetch the symbols run:
 
 ```bash
 python download_set_logos.py
