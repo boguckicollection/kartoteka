@@ -11,6 +11,7 @@ import re
 from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
+import html
 
 from shoper_client import ShoperClient
 import webbrowser
@@ -1794,7 +1795,7 @@ class CardEditorApp:
         data["weight"] = 0.01
         data["priority"] = 0
         data["short_description"] = f"Stan: {data['stan']}, Język: {data['język']}"
-        data["description"] = (
+        desc = (
             f"🃏 {data['nazwa']} – Pokémon TCG\n"
             f"🔹 Set: {data['set']}\n"
             f"🔹 Numer karty: {data['numer']}\n"
@@ -1811,6 +1812,9 @@ class CardEditorApp:
             "\n"
             "🧾 Wskazówka: Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty!"
         )
+        desc_html = html.escape(desc)
+        desc_html = desc_html.replace("\n\n", "</p><p>").replace("\n", "<br/>")
+        data["description"] = f"<p>{desc_html}</p>"
         data["stock_warnlevel"] = 0
         data["availability"] = 1
         data["delivery"] = 1
