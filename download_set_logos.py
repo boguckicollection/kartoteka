@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import requests
 from urllib.parse import urlparse
 
@@ -17,38 +18,30 @@ for file in SET_FILES:
         continue
 
     for name, code in sets.items():
-        url = f"https://api.pokemontcg.io/v2/sets/{code}"
+        symbol_url = f"https://images.pokemontcg.io/{code}/symbol.png"
         try:
-            res = requests.get(url, timeout=10)
-            if res.status_code != 200:
-                print(f"[ERROR] Failed to fetch {name}: {res.status_code}")
-                continue
-            json_data = res.json()
-            data = json_data.get("data", json_data)
-            images = data.get("images") or {}
-            symbol_url = (
-                images.get("symbol")
-                or images.get("symbolUrl")
-                or images.get("symbol_url")
-            )
-            if not symbol_url:
-                print(f"[WARN] No symbol for {name}")
-                continue
-            img_res = requests.get(symbol_url, timeout=10)
-            if img_res.status_code == 200:
+            res = requests.get(symbol_url, timeout=10)
+            if res.status_code == 404:
+                alt = re.sub(r"(^sv)0(\d$)", r"\1\2", code)
+                if alt != code:
+                    alt_url = f"https://images.pokemontcg.io/{alt}/symbol.png"
+                    res = requests.get(alt_url, timeout=10)
+                    if res.status_code == 200:
+                        symbol_url = alt_url
+            if res.status_code == 200:
                 parsed_path = urlparse(symbol_url).path
                 ext = os.path.splitext(parsed_path)[1] or ".png"
                 safe_name = code.replace("/", "_")
                 path = os.path.join(LOGO_DIR, f"{safe_name}{ext}")
                 with open(path, "wb") as out:
-                    out.write(img_res.content)
+                    out.write(res.content)
                 print(f"Saved {path}")
             else:
-                if img_res.status_code == 404:
+                if res.status_code == 404:
                     print(f"[WARN] Symbol not found for {name}: {symbol_url}")
                 else:
                     print(
-                        f"[ERROR] Failed to download symbol for {name} from {symbol_url}: {img_res.status_code}"
+                        f"[ERROR] Failed to download symbol for {name} from {symbol_url}: {res.status_code}"
                     )
         except requests.RequestException as e:
             print(f"[ERROR] {name}: {e}")
