@@ -41,7 +41,12 @@ for file in SET_FILES:
                     out.write(img_res.content)
                 print(f"Saved {path}")
             else:
-                print(f"[ERROR] Failed to download symbol for {name}")
+                if img_res.status_code == 404:
+                    print(f"[WARN] Symbol not found for {name}: {symbol_url}")
+                else:
+                    print(
+                        f"[ERROR] Failed to download symbol for {name} from {symbol_url}: {img_res.status_code}"
+                    )
         except requests.RequestException as e:
             print(f"[ERROR] {name}: {e}")
 
