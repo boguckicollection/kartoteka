@@ -22,7 +22,8 @@ for file in SET_FILES:
             if res.status_code != 200:
                 print(f"[ERROR] Failed to fetch {name}: {res.status_code}")
                 continue
-            data = res.json().get("data", res.json())
+            json_data = res.json()
+            data = json_data.get("data", json_data)
             images = data.get("images") or {}
             symbol_url = (
                 images.get("symbol")
