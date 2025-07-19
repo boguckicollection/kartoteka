@@ -18,7 +18,7 @@
     },
     {
       "name": "151",
-      "code": "sv03pt5"
+      "code": "sv3pt5"
     },
     {
       "name": "Paradox Rift",
@@ -26,7 +26,7 @@
     },
     {
       "name": "Paldean Fates",
-      "code": "sv04pt5"
+      "code": "sv4pt5"
     },
     {
       "name": "Temporal Forces",
@@ -38,71 +38,11 @@
     },
     {
       "name": "Shrouded Fable",
-      "code": "sv06pt5"
+      "code": "sv6pt5"
     },
     {
       "name": "Stellar Crown",
       "code": "sv07"
-    },
-    {
-      "name": "Genetic Apex",
-      "code": "A1"
-    },
-    {
-      "name": "Promos-A",
-      "code": "P-A"
-    },
-    {
-      "name": "Surging Sparks",
-      "code": "sv08"
-    },
-    {
-      "name": "Mythical Island",
-      "code": "A1a"
-    },
-    {
-      "name": "Prismatic Evolutions",
-      "code": "sv08pt5"
-    },
-    {
-      "name": "Prismatic Evolution",
-      "code": "sv08pt5"
-    },
-    {
-      "name": "Prismatic Evolutions: Additionals",
-      "code": "sv08pt5"
-    },
-    {
-      "name": "Space-Time Smackdown",
-      "code": "A2"
-    },
-    {
-      "name": "Triumphant Light",
-      "code": "A2a"
-    },
-    {
-      "name": "Shining Revelry",
-      "code": "A2b"
-    },
-    {
-      "name": "Journey Together",
-      "code": "sv09"
-    },
-    {
-      "name": "Celestial Guardians",
-      "code": "A3"
-    },
-    {
-      "name": "Extradimensional Crisis",
-      "code": "A3a"
-    },
-    {
-      "name": "Destined Rivals",
-      "code": "sv10"
-    },
-    {
-      "name": "Eevee Grove",
-      "code": "A3b"
     }
   ],
   "Sword & Shield": [
