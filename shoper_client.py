@@ -89,3 +89,9 @@ class ShoperClient:
     def get_sales_stats(self, params=None):
         """Return sales statistics using the built-in Shoper endpoint."""
         return self.get("orders/stats", params=params or {})
+
+    def import_csv(self, file_path):
+        """Upload a CSV file using the Shoper API."""
+        with open(file_path, "rb") as fh:
+            files = {"file": (os.path.basename(file_path), fh, "text/csv")}
+            return self.post("import/csv", files=files)
