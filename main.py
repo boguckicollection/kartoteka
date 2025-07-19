@@ -72,12 +72,26 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
 
 # Wczytanie danych setów
 with open("tcg_sets.json", encoding="utf-8") as f:
-    tcg_sets_eng_map = json.load(f)
-    tcg_sets_eng = list(tcg_sets_eng_map.keys())
+    tcg_sets_eng_by_era = json.load(f)
+tcg_sets_eng_map = {
+    item["name"]: item["code"]
+    for sets in tcg_sets_eng_by_era.values()
+    for item in sets
+}
+tcg_sets_eng = [
+    item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
+]
 
 with open("tcg_sets_jp.json", encoding="utf-8") as f:
-    tcg_sets_jp_map = json.load(f)
-    tcg_sets_jp = list(tcg_sets_jp_map.keys())
+    tcg_sets_jp_by_era = json.load(f)
+tcg_sets_jp_map = {
+    item["name"]: item["code"]
+    for sets in tcg_sets_jp_by_era.values()
+    for item in sets
+}
+tcg_sets_jp = [
+    item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
+]
 
 
 def get_set_code(name: str) -> str:
@@ -1265,9 +1279,9 @@ class CardEditorApp:
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         if lang == "JP":
-            self.set_dropdown.configure(values=sorted(tcg_sets_jp))
+            self.set_dropdown.configure(values=tcg_sets_jp)
         else:
-            self.set_dropdown.configure(values=sorted(tcg_sets_eng))
+            self.set_dropdown.configure(values=tcg_sets_eng)
         if getattr(self, "cheat_frame", None) is not None:
             self.create_cheat_frame()
 
@@ -1279,7 +1293,7 @@ class CardEditorApp:
             filtered = [s for s in all_sets if typed in s.lower()]
         else:
             filtered = all_sets
-        self.set_dropdown.configure(values=sorted(filtered))
+        self.set_dropdown.configure(values=filtered)
 
     def autocomplete_set(self, event=None):
         typed = self.set_var.get().lower()
@@ -1294,7 +1308,7 @@ class CardEditorApp:
         event.widget.tk_focusNext().focus()
         return "break"
 
-    def create_cheat_frame(self):
+    def create_cheat_frame(self, show_headers: bool = True):
         """Create or refresh the cheatsheet frame with set logos."""
         if self.cheat_frame is not None:
             self.cheat_frame.destroy()
@@ -1306,26 +1320,41 @@ class CardEditorApp:
         self.cheat_frame.grid(row=2, column=5, rowspan=12, sticky="nsew")
 
         lang = self.lang_var.get().strip().upper()
-        sets_map = tcg_sets_jp_map if lang == "JP" else tcg_sets_eng_map
-        for i, (name, code) in enumerate(sorted(sets_map.items())):
-            img = self.set_logos.get(code)
-            if img:
-                tk.Label(
+        sets_by_era = (
+            tcg_sets_jp_by_era if lang == "JP" else tcg_sets_eng_by_era
+        )
+
+        row = 0
+        for era, sets in sets_by_era.items():
+            if show_headers:
+                ctk.CTkLabel(
                     self.cheat_frame,
-                    image=img,
-                    bg=self.root.cget("background"),
-                ).grid(row=i, column=0, sticky="w", padx=5, pady=2)
-            else:
-                tk.Label(
+                    text=era,
+                    font=("Segoe UI", 12, "bold"),
+                ).grid(row=row, column=0, columnspan=2, sticky="w", padx=5, pady=4)
+                row += 1
+            for item in sets:
+                name = item["name"]
+                code = item["code"]
+                img = self.set_logos.get(code)
+                if img:
+                    tk.Label(
+                        self.cheat_frame,
+                        image=img,
+                        bg=self.root.cget("background"),
+                    ).grid(row=row, column=0, sticky="w", padx=5, pady=2)
+                else:
+                    tk.Label(
+                        self.cheat_frame,
+                        text="",
+                        width=2,
+                        bg=self.root.cget("background"),
+                    ).grid(row=row, column=0, sticky="w", padx=5, pady=2)
+                ctk.CTkLabel(
                     self.cheat_frame,
-                    text="",
-                    width=2,
-                    bg=self.root.cget("background"),
-                ).grid(row=i, column=0, sticky="w", padx=5, pady=2)
-            ctk.CTkLabel(
-                self.cheat_frame,
-                text=f"{name} ({code})",
-            ).grid(row=i, column=1, sticky="w", padx=5, pady=2)
+                    text=f"{name} ({code})",
+                ).grid(row=row, column=1, sticky="w", padx=5, pady=2)
+                row += 1
 
     def toggle_cheatsheet(self):
         """Show or hide the cheatsheet with set logos."""
