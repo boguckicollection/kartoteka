@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+from urllib.parse import urlparse
 
 SET_FILES = ["tcg_sets.json", "tcg_sets_jp.json"]
 LOGO_DIR = "set_logos"
@@ -35,7 +36,8 @@ for file in SET_FILES:
                 continue
             img_res = requests.get(symbol_url, timeout=10)
             if img_res.status_code == 200:
-                ext = os.path.splitext(symbol_url)[1] or ".png"
+                parsed_path = urlparse(symbol_url).path
+                ext = os.path.splitext(parsed_path)[1] or ".png"
                 safe_name = code.replace("/", "_")
                 path = os.path.join(LOGO_DIR, f"{safe_name}{ext}")
                 with open(path, "wb") as out:
