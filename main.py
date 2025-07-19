@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk
@@ -14,6 +14,7 @@ import unicodedata
 import html
 
 from shoper_client import ShoperClient
+from ftp_client import FTPClient
 import webbrowser
 from urllib.parse import urlencode
 import io
@@ -27,6 +28,9 @@ RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 SHOPER_API_URL = os.getenv("SHOPER_API_URL")
 SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN")
+FTP_HOST = os.getenv("FTP_HOST")
+FTP_USER = os.getenv("FTP_USER")
+FTP_PASSWORD = os.getenv("FTP_PASSWORD")
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
@@ -206,6 +210,11 @@ class CardEditorApp:
             button_frame,
             text="\U0001f4c2 Import CSV",
             command=self.load_csv_data,
+        ).pack(side="left", padx=5)
+        self.create_button(
+            button_frame,
+            text="\U0001f4f7 FTP Obrazy",
+            command=self.upload_images_dialog,
         ).pack(side="left", padx=5)
 
         # Display store statistics when Shoper credentials are available
@@ -2080,7 +2089,39 @@ class CardEditorApp:
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
+        if messagebox.askyesno("Wysyłka", "Czy wysłać plik do Shoper?"):
+            self.send_csv_to_shoper(file_path)
         self.back_to_welcome()
+
+    def upload_images_dialog(self):
+        """Upload images from a selected directory via FTP."""
+        directory = filedialog.askdirectory()
+        if not directory:
+            return
+        host = simpledialog.askstring("FTP", "Serwer", initialvalue=FTP_HOST or "")
+        user = simpledialog.askstring("FTP", "Użytkownik", initialvalue=FTP_USER or "")
+        password = simpledialog.askstring("FTP", "Hasło", show="*", initialvalue=FTP_PASSWORD or "")
+        if not host or not user or not password:
+            messagebox.showerror("Błąd", "Nie podano pełnych danych logowania")
+            return
+        try:
+            with FTPClient(host, user, password) as ftp:
+                ftp.upload_directory(directory)
+            messagebox.showinfo("Sukces", "Obrazy zostały wysłane na serwer FTP")
+        except Exception as exc:
+            messagebox.showerror("Błąd", f"Nie udało się wysłać obrazów: {exc}")
+
+    def send_csv_to_shoper(self, file_path: str):
+        """Send a CSV file using the Shoper API or FTP fallback."""
+        try:
+            if self.shoper_client:
+                self.shoper_client.import_csv(file_path)
+            else:
+                with FTPClient(FTP_HOST, FTP_USER, FTP_PASSWORD) as ftp:
+                    ftp.upload_file(file_path)
+            messagebox.showinfo("Sukces", "Plik CSV został wysłany.")
+        except Exception as exc:
+            messagebox.showerror("Błąd", f"Nie udało się wysłać pliku: {exc}")
 
 
 if __name__ == "__main__":

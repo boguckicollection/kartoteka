@@ -42,6 +42,7 @@ The `RAPIDAPI_*` variables are used when a card price is not found in the local
 database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper
 store for the **Porządkuj** window. The application expects the `/webapi/rest`
 endpoint and will append it automatically if it is missing.
+`FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads.
 
 
 ## Running
@@ -95,6 +96,13 @@ your Shoper account: counts of new orders, pending shipments or payments and
 recent sales totals. To populate these fields the token must have permissions to
 read orders and statistics. Use the **Pokaż szczegóły** button to open the Shoper
 window with full functionality.
+
+### CSV and image upload
+After exporting a CSV file the application prompts to send it directly to Shoper.
+When Shoper API credentials are configured the file is uploaded via the REST API.
+If not, the exporter falls back to FTP using the credentials from `.env`.
+Use the **FTP Obrazy** button on the welcome screen to upload a folder of images
+to the configured FTP server.
 
 ## License
 This project is licensed under the terms of the [MIT License](LICENSE).
