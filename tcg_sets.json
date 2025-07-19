@@ -18,7 +18,7 @@
     },
     {
       "name": "151",
-      "code": "sv03.5"
+      "code": "sv03pt5"
     },
     {
       "name": "Paradox Rift",
@@ -26,7 +26,7 @@
     },
     {
       "name": "Paldean Fates",
-      "code": "sv04.5"
+      "code": "sv04pt5"
     },
     {
       "name": "Temporal Forces",
@@ -38,7 +38,7 @@
     },
     {
       "name": "Shrouded Fable",
-      "code": "sv06.5"
+      "code": "sv06pt5"
     },
     {
       "name": "Stellar Crown",
@@ -62,15 +62,15 @@
     },
     {
       "name": "Prismatic Evolutions",
-      "code": "sv08.5"
+      "code": "sv08pt5"
     },
     {
       "name": "Prismatic Evolution",
-      "code": "sv08.5"
+      "code": "sv08pt5"
     },
     {
       "name": "Prismatic Evolutions: Additionals",
-      "code": "sv08.5"
+      "code": "sv08pt5"
     },
     {
       "name": "Space-Time Smackdown",
@@ -128,7 +128,7 @@
     },
     {
       "name": "Champion's Path",
-      "code": "swsh3.5"
+      "code": "swsh3pt5"
     },
     {
       "name": "Vivid Voltage",
@@ -140,7 +140,7 @@
     },
     {
       "name": "Shining Fates",
-      "code": "swsh4.5"
+      "code": "swsh4pt5"
     },
     {
       "name": "Battle Styles",
@@ -172,7 +172,7 @@
     },
     {
       "name": "Pokémon GO",
-      "code": "swsh10.5"
+      "code": "swsh10pt5"
     },
     {
       "name": "Lost Origin",
@@ -184,7 +184,7 @@
     },
     {
       "name": "Crown Zenith",
-      "code": "swsh12.5"
+      "code": "swsh12pt5"
     }
   ],
   "Sun & Moon": [
@@ -218,7 +218,7 @@
     },
     {
       "name": "Shining Legends",
-      "code": "sm3.5"
+      "code": "sm3pt5"
     },
     {
       "name": "Crimson Invasion",
@@ -238,7 +238,7 @@
     },
     {
       "name": "Dragon Majesty",
-      "code": "sm7.5"
+      "code": "sm7pt5"
     },
     {
       "name": "Macdonald's Collection 2018",
@@ -610,7 +610,7 @@
     },
     {
       "name": "Poké Card Creator Pack",
-      "code": "ex5.5"
+      "code": "ex5pt5"
     },
     {
       "name": "EX trainer Kit (Latios)",
