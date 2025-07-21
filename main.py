@@ -2098,27 +2098,31 @@ class CardEditorApp:
         data["pkwiu"] = ""
         data["weight"] = 0.01
         data["priority"] = 0
-        data["short_description"] = f"Stan: {data['stan']}, Język: {data['język']}"
-        desc = (
-            f"🃏 {data['nazwa']} – Pokémon TCG\n"
-            f"🔹 Set: {data['set']}\n"
-            f"🔹 Numer karty: {data['numer']}\n"
-            f"🔹 Typ karty: {data['typ']}\n"
-            f"🔹 Stan: {data['stan']}\n"
-            "\n"
-            "Opis produktu:\n"
-            f"Karta {data['nazwa']} pochodzi z zestawu {data['set']}, idealna dla kolekcjonerów oraz graczy Pokémon TCG. To doskonały wybór, jeśli uzupełniasz swój master set albo szukasz konkretnej karty do talii.\n"
-            "\n"
-            "Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.\n"
-            "\n"
-            "📦 Szybka wysyłka i bezpieczne pakowanie!\n"
-            "🛡️ Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik.\n"
-            "\n"
-            "🧾 Wskazówka: Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty!"
+
+        name = html.escape(data["nazwa"])
+        number = html.escape(data["numer"])
+        set_name = html.escape(data["set"])
+        card_type = html.escape(data["typ"])
+        condition = html.escape(data["stan"])
+
+        data["short_description"] = (
+            f"<p><strong>{name}</strong></p>"
+            "<ul>"
+            f"<li>Zestaw: {set_name}</li>"
+            f"<li>Numer karty: {number}</li>"
+            f"<li>Typ: {card_type}</li>"
+            f"<li>Stan: {condition}</li>"
+            "</ul>"
         )
-        desc_html = html.escape(desc)
-        desc_html = desc_html.replace("\n\n", "</p><p>").replace("\n", "<br/>")
-        data["description"] = f"<p>{desc_html}</p>"
+
+        desc_paragraphs = [
+            f"{name} – Pokémon TCG",
+            f"Karta pochodzi z zestawu {set_name} i ma numer {number}. Typ karty: {card_type}. Stan: {condition}.",
+            "Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.",
+            "Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty.",
+        ]
+        data["description"] = "".join(f"<p>{p}</p>" for p in desc_paragraphs)
+
         data["stock_warnlevel"] = 0
         data["availability"] = 1
         data["delivery"] = SHOPER_DELIVERY_ID
