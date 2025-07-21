@@ -17,6 +17,7 @@ import sys
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
+import threading
 import webbrowser
 from urllib.parse import urlencode, urlparse
 import io
@@ -153,17 +154,7 @@ class CardEditorApp:
         self.loading_frame = None
         self.loading_label = None
         self.show_loading_screen()
-        self.update_sets()
-        self.load_set_logos()
-        if self.loading_frame is not None:
-            self.loading_frame.destroy()
-        try:
-            self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
-        except Exception as e:
-            print(f"[WARNING] ShoperClient init failed: {e}")
-            self.shoper_client = None
-
-        self.setup_welcome_screen()
+        threading.Thread(target=self.startup_tasks, daemon=True).start()
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
@@ -1556,6 +1547,23 @@ class CardEditorApp:
         self.gif_label.configure(image=frame)
         next_index = (index + 1) % len(self.gif_frames)
         self.gif_label.after(100, self.animate_loading_gif, next_index)
+
+    def startup_tasks(self):
+        """Run initial setup tasks in the background."""
+        self.update_sets()
+        self.load_set_logos()
+        self.root.after(0, self.finish_startup)
+
+    def finish_startup(self):
+        """Finalize initialization after background tasks complete."""
+        if self.loading_frame is not None:
+            self.loading_frame.destroy()
+        try:
+            self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
+        except Exception as e:
+            print(f"[WARNING] ShoperClient init failed: {e}")
+            self.shoper_client = None
+        self.setup_welcome_screen()
 
     def download_set_symbols(self, sets):
         """Download logos for the provided set definitions."""
