@@ -2191,6 +2191,7 @@ class CardEditorApp:
                 # Backwards compatibility: old files stored location in product_code
                 if "warehouse_code" not in row and re.match(r"k\d+r\d+p\d+", str(row.get("product_code", "")).lower()):
                     row["warehouse_code"] = row["product_code"]
+                    row["product_code"] = ""
                     if "warehouse_code" not in fieldnames:
                         fieldnames.append("warehouse_code")
                 rows.append(row)
@@ -2232,6 +2233,22 @@ class CardEditorApp:
                 if warehouse:
                     new_row["warehouses"].add(warehouse)
                 combined[key] = new_row
+
+        for row in combined.values():
+            map_key = (
+                f"{row.get('nazwa', '').strip()}|{row.get('numer', '').strip()}|{row.get('set', '').strip()}"
+            )
+            code_str = str(row.get("product_code", "")).strip()
+            if map_key not in self.product_code_map:
+                if code_str.isdigit():
+                    code_int = int(code_str)
+                    self.product_code_map[map_key] = code_int
+                    if code_int >= self.next_product_code:
+                        self.next_product_code = code_int + 1
+                else:
+                    self.product_code_map[map_key] = self.next_product_code
+                    self.next_product_code += 1
+            row["product_code"] = self.product_code_map[map_key]
 
         if qty_field is None:
             qty_field = "ilość"
