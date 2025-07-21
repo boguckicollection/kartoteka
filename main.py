@@ -18,7 +18,7 @@ import sys
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
 import webbrowser
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 import io
 
 load_dotenv()
