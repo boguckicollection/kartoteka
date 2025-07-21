@@ -1589,17 +1589,26 @@ class CardEditorApp:
 
         added = 0
         new_items = []
+        existing_codes = {
+            s.get("code", "").strip().lower()
+            for sets in current_sets.values()
+            for s in sets
+        }
+
         for item in remote:
             series = item.get("series") or "Other"
             code = item.get("id")
             name = item.get("name")
             if not code or not name:
                 continue
+            code_key = code.strip().lower()
+            if code_key in existing_codes:
+                continue
             group = current_sets.setdefault(series, [])
-            if not any(s.get("code") == code for s in group):
-                group.append({"name": name, "code": code})
-                added += 1
-                new_items.append({"name": name, "code": code})
+            group.append({"name": name, "code": code})
+            existing_codes.add(code_key)
+            added += 1
+            new_items.append({"name": name, "code": code})
 
         if added:
             with open("tcg_sets.json", "w", encoding="utf-8") as f:
