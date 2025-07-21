@@ -780,6 +780,28 @@ class CardEditorApp:
                     occ[box][c] += 1
         return occ
 
+    def repack_column(self, box: int, column: int):
+        """Renumber codes in the given column so there are no gaps."""
+        pattern = re.compile(r"K(\d+)R(\d)P(\d+)")
+        entries = []
+        for row in self.output_data:
+            if not row:
+                continue
+            codes = [c.strip() for c in str(row.get("warehouse_code") or "").split(";") if c.strip()]
+            for idx, code in enumerate(codes):
+                m = pattern.fullmatch(code)
+                if m and int(m.group(1)) == box and int(m.group(2)) == column:
+                    pos = int(m.group(3))
+                    entries.append((pos, row, idx, codes))
+
+        entries.sort(key=lambda x: x[0])
+        for new_pos, (_, row, idx, codes) in enumerate(entries, start=1):
+            codes[idx] = f"K{box:02d}R{column}P{new_pos:04d}"
+            row["warehouse_code"] = ";".join(codes)
+
+        if entries:
+            self.refresh_magazyn()
+
     def refresh_magazyn(self):
         """Refresh storage view and color code capacity usage.
 
@@ -2205,6 +2227,26 @@ class CardEditorApp:
         self.save_current_data()
         self.index += 1
         self.show_card()
+
+    def remove_warehouse_code(self, code: str):
+        """Remove a code and repack the affected column."""
+        match = re.match(r"K(\d+)R(\d)P(\d+)", code or "")
+        if not match:
+            return
+        box = int(match.group(1))
+        column = int(match.group(2))
+        for row in list(self.output_data):
+            if not row:
+                continue
+            codes = [c.strip() for c in str(row.get("warehouse_code") or "").split(";") if c.strip()]
+            if code in codes:
+                codes.remove(code)
+                if codes:
+                    row["warehouse_code"] = ";".join(codes)
+                else:
+                    self.output_data.remove(row)
+                break
+        self.repack_column(box, column)
 
     def load_csv_data(self):
         """Load a CSV file and merge duplicate rows."""
