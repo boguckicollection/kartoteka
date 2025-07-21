@@ -39,6 +39,9 @@ def test_export_includes_warehouse(tmp_path):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert "warehouse_code" in reader.fieldnames
-        assert rows[0]["warehouse_code"] == "K1R1P1"
+        row = rows[0]
+        assert row["warehouse_code"] == "K1R1P1"
+        assert row["vat"] == "23%"
+        assert row["unit"] == "szt."
 
 

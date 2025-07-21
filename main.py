@@ -2090,8 +2090,8 @@ class CardEditorApp:
         data["product_code"] = self.product_code_map[key]
         data["warehouse_code"] = self.generate_location(product_idx)
         data["active"] = 1
-        data["vat"] = 23
-        data["unit"] = "szt"
+        data["vat"] = "23%"
+        data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['set']}"
         data["producer"] = "Pokémon"
         data["other_price"] = ""
@@ -2354,8 +2354,8 @@ class CardEditorApp:
                         "active": row.get("active", 1),
                         "name": formatted_name,
                         "price": row["cena"],
-                        "vat": row.get("vat", 23),
-                        "unit": row.get("unit", "szt"),
+                        "vat": row.get("vat", "23%"),
+                        "unit": row.get("unit", "szt."),
                         "category": row["category"],
                         "producer": row["producer"],
                         "other_price": row.get("other_price", ""),
