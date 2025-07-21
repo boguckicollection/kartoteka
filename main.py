@@ -39,12 +39,12 @@ PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 
-# custom theme colors
-BG_COLOR = "#1E1E2E"
-ACCENT_COLOR = "#6C63FF"
-HOVER_COLOR = "#4D47C3"
+# custom theme colors in grayscale
+BG_COLOR = "#2E2E2E"
+ACCENT_COLOR = "#666666"
+HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
-BORDER_COLOR = "#3A3A4A"
+BORDER_COLOR = "#444444"
 
 
 
@@ -1515,16 +1515,30 @@ class CardEditorApp:
         self.root.minsize(1000, 700)
         self.loading_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.loading_frame.pack(expand=True, fill="both")
-        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
             img = Image.open(logo_path)
-            img.thumbnail((160, 160))
+            img.thumbnail((300, 150))
             self.loading_logo = ImageTk.PhotoImage(img)
             tk.Label(
                 self.loading_frame,
                 image=self.loading_logo,
                 bg=self.loading_frame.cget("fg_color"),
             ).pack(pady=10)
+
+        gif_path = os.path.join(os.path.dirname(__file__), "simple_pokeball.gif")
+        if os.path.exists(gif_path):
+            from PIL import ImageSequence
+
+            self.gif_frames = [
+                ImageTk.PhotoImage(frame)
+                for frame in ImageSequence.Iterator(Image.open(gif_path))
+            ]
+            self.gif_label = tk.Label(
+                self.loading_frame, bg=self.loading_frame.cget("fg_color")
+            )
+            self.gif_label.pack()
+            self.animate_loading_gif(0)
         self.loading_label = ctk.CTkLabel(
             self.loading_frame,
             text="Ładowanie...",
@@ -1534,12 +1548,27 @@ class CardEditorApp:
         self.loading_label.pack(pady=10)
         self.root.update()
 
+    def animate_loading_gif(self, index=0):
+        """Cycle through frames of the loading GIF."""
+        if not hasattr(self, "gif_frames"):
+            return
+        frame = self.gif_frames[index]
+        self.gif_label.configure(image=frame)
+        next_index = (index + 1) % len(self.gif_frames)
+        self.gif_label.after(100, self.animate_loading_gif, next_index)
+
     def download_set_symbols(self, sets):
         """Download logos for the provided set definitions."""
         os.makedirs(SET_LOGO_DIR, exist_ok=True)
-        for item in sets:
+        total = len(sets)
+        for idx, item in enumerate(sets, start=1):
             name = item.get("name")
             code = item.get("code")
+            if self.loading_label is not None:
+                self.loading_label.configure(
+                    text=f"Pobieram {idx}/{total}: {name}"
+                )
+                self.root.update()
             if not code:
                 continue
             symbol_url = f"https://images.pokemontcg.io/{code}/symbol.png"
@@ -1616,7 +1645,7 @@ class CardEditorApp:
             reload_sets()
             names = ", ".join(item["name"] for item in new_items)
             self.loading_label.configure(
-                text=f"Pobieram symbole setów ({added})..."
+                text=f"Pobieram symbole setów 0/{added}..."
             )
             self.root.update()
             self.download_set_symbols(new_items)
@@ -2288,8 +2317,8 @@ class CardEditorApp:
 
 
 if __name__ == "__main__":
-    root = ctk.CTk()
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
+    root = ctk.CTk()
     app = CardEditorApp(root)
     root.mainloop()
