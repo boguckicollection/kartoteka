@@ -2271,8 +2271,6 @@ class CardEditorApp:
 
         if "image1" in fieldnames:
             fieldnames[fieldnames.index("image1")] = "images 1"
-        elif "images 1" not in fieldnames:
-            fieldnames.append("images 1")
 
         save_path = filedialog.asksaveasfilename(
             defaultextension=".csv", filetypes=[("CSV files", "*.csv")]
