@@ -111,7 +111,7 @@ window with full functionality.
 After exporting a CSV file the application prompts to send it directly to Shoper.
 When Shoper API credentials are configured the file is uploaded via the REST API.
 If not, the exporter falls back to FTP using the credentials from `.env`.
-The exported CSV includes an `images 1` column containing the path to the remote image.
+The exported CSV includes `images 1` and `warehouse_code` columns with the remote image path and storage location.
 Use the **FTP Obrazy** button on the welcome screen to upload a folder of images
 to the configured FTP server.
 
