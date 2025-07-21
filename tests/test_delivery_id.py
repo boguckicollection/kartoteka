@@ -39,6 +39,7 @@ def test_delivery_id_used(monkeypatch):
         file_to_key={},
         product_code_map={},
         next_product_code=1,
+        next_free_location=lambda: "K1R1P1",
         generate_location=lambda idx: "K1R1P1",
         output_data=[None],
         get_price_from_db=lambda *a: None,

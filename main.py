@@ -1486,6 +1486,28 @@ class CardEditorApp:
         box = (idx // 4000) + 1
         return f"K{box:02d}R{column}P{pos:04d}"
 
+    def next_free_location(self):
+        """Return the next unused warehouse_code."""
+        used = set()
+        pattern = re.compile(r"K(\d+)R(\d)P(\d+)")
+        for row in self.output_data:
+            if not row:
+                continue
+            for code in str(row.get("warehouse_code") or "").split(";"):
+                match = pattern.match(code.strip())
+                if not match:
+                    continue
+                box = int(match.group(1))
+                column = int(match.group(2))
+                pos = int(match.group(3))
+                idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
+                used.add(idx)
+
+        idx = 0
+        while idx in used:
+            idx += 1
+        return self.generate_location(idx)
+
     def load_price_db(self):
         if not os.path.exists(PRICE_DB_PATH):
             return []
@@ -2083,8 +2105,6 @@ class CardEditorApp:
 
         front_path = self.cards[self.index]
         front_file = os.path.basename(front_path)
-        product_idx = self.index
-
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
@@ -2092,7 +2112,7 @@ class CardEditorApp:
             self.product_code_map[key] = self.next_product_code
             self.next_product_code += 1
         data["product_code"] = self.product_code_map[key]
-        data["warehouse_code"] = self.generate_location(product_idx)
+        data["warehouse_code"] = self.next_free_location()
         data["active"] = 1
         data["vat"] = "23%"
         data["unit"] = "szt."
