@@ -2265,6 +2265,11 @@ class CardEditorApp:
             if qty_field not in fieldnames:
                 fieldnames.append(qty_field)
 
+        if "image1" in fieldnames:
+            fieldnames[fieldnames.index("image1")] = "images 1"
+        elif "images 1" not in fieldnames:
+            fieldnames.append("images 1")
+
         save_path = filedialog.asksaveasfilename(
             defaultextension=".csv", filetypes=[("CSV files", "*.csv")]
         )
@@ -2278,6 +2283,7 @@ class CardEditorApp:
                 row_out = row.copy()
                 row_out[qty_field] = row_out.pop("qty")
                 row_out["warehouse_code"] = ";".join(sorted(row_out.pop("warehouses", [])))
+                row_out["images 1"] = row_out.get("image1", row_out.get("images", ""))
                 if qty_field != "stock":
                     row_out.pop("stock", None)
                 if qty_field != "ilość":
@@ -2325,6 +2331,7 @@ class CardEditorApp:
             "views",
             "rank",
             "rank_votes",
+            "images 1",
         ]
 
         with open(file_path, mode="w", encoding="utf-8", newline="") as file:
@@ -2360,6 +2367,7 @@ class CardEditorApp:
                         "views": row.get("views", ""),
                         "rank": row.get("rank", ""),
                         "rank_votes": row.get("rank_votes", ""),
+                        "images 1": row.get("image1", row.get("images", "")),
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
