@@ -766,14 +766,18 @@ class CardEditorApp:
         """Return dictionary of used slots per box column."""
         occ = {b: {c: 0 for c in range(1, 5)} for b in range(1, 9)}
         for row in self.output_data:
-            code = row.get("warehouse_code") or ""
-            m = re.match(r"K(\d+)R(\d)P(\d+)", code)
-            if not m:
-                continue
-            box = int(m.group(1))
-            c = int(m.group(2))
-            if box in occ and c in occ[box]:
-                occ[box][c] += 1
+            codes = str(row.get("warehouse_code") or "").split(";")
+            for code in codes:
+                code = code.strip()
+                if not code:
+                    continue
+                m = re.match(r"K(\d+)R(\d)P(\d+)", code)
+                if not m:
+                    continue
+                box = int(m.group(1))
+                c = int(m.group(2))
+                if box in occ and c in occ[box]:
+                    occ[box][c] += 1
         return occ
 
     def refresh_magazyn(self):
