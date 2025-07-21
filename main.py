@@ -138,6 +138,8 @@ class CardEditorApp:
         self.card_counts = defaultdict(int)
         self.card_cache = {}
         self.file_to_key = {}
+        self.product_code_map = {}
+        self.next_product_code = 1
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
@@ -667,7 +669,11 @@ class CardEditorApp:
                 oid = order.get("order_id") or order.get("id")
                 lines.append(f"Zamówienie #{oid}")
                 for item in order.get("products", []):
-                    code = item.get("product_code") or item.get("code", "")
+                    code = (
+                        item.get("warehouse_code")
+                        or item.get("product_code")
+                        or item.get("code", "")
+                    )
                     location = self.location_from_code(code)
                     lines.append(
                         f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
@@ -759,7 +765,7 @@ class CardEditorApp:
         """Return dictionary of used slots per box column."""
         occ = {b: {c: 0 for c in range(1, 5)} for b in range(1, 9)}
         for row in self.output_data:
-            code = row.get("product_code") or ""
+            code = row.get("warehouse_code") or ""
             m = re.match(r"K(\d+)R(\d)P(\d+)", code)
             if not m:
                 continue
@@ -2068,7 +2074,11 @@ class CardEditorApp:
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
-        data["product_code"] = self.generate_location(product_idx)
+        if key not in self.product_code_map:
+            self.product_code_map[key] = self.next_product_code
+            self.next_product_code += 1
+        data["product_code"] = self.product_code_map[key]
+        data["warehouse_code"] = self.generate_location(product_idx)
         data["active"] = 1
         data["vat"] = 23
         data["unit"] = "szt"
@@ -2172,6 +2182,11 @@ class CardEditorApp:
             rows = []
             for raw_row in reader:
                 row = { (k.strip().lower() if k else k): v for k, v in raw_row.items() }
+                # Backwards compatibility: old files stored location in product_code
+                if "warehouse_code" not in row and re.match(r"k\d+r\d+p\d+", str(row.get("product_code", "")).lower()):
+                    row["warehouse_code"] = row["product_code"]
+                    if "warehouse_code" not in fieldnames:
+                        fieldnames.append("warehouse_code")
                 rows.append(row)
 
         combined = {}
@@ -2250,6 +2265,7 @@ class CardEditorApp:
 
         fieldnames = [
             "product_code",
+            "warehouse_code",
             "category",
             "producer",
             "name",
@@ -2276,6 +2292,7 @@ class CardEditorApp:
                 writer.writerow(
                     {
                         "product_code": row["product_code"],
+                        "warehouse_code": row.get("warehouse_code", ""),
                         "category": row["category"],
                         "producer": row["producer"],
                         "name": formatted_name,
