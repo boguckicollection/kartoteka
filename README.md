@@ -79,8 +79,8 @@ file. Rows that share the `nazwa`, `numer` and `set` columns are combined and
 their quantity summed. The importer recognises quantity columns named
 `stock`, `ilość`, `ilosc`, `quantity` or `qty` (case and spacing are ignored).
 If no such column is found, the merged output adds an `ilość` column with the
-calculated totals. The exporter names the first image column `images 1` and the
-importer accepts both `image1` and `images 1` when loading existing files.
+calculated totals. The importer accepts both `image1` and the legacy `images 1`
+column when loading existing files.
 All unique `warehouse_code` values from the merged rows are preserved and
 joined with semicolons so you can still locate every individual card after
 deduplication.

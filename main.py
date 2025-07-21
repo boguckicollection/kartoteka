@@ -2297,17 +2297,25 @@ class CardEditorApp:
 
         fieldnames = [
             "product_code",
-            "warehouse_code",
+            "active",
+            "name",
+            "price",
+            "vat",
+            "unit",
             "category",
             "producer",
-            "name",
+            "other_price",
+            "pkwiu",
+            "weight",
+            "priority",
             "short_description",
             "description",
-            "price",
-            "availability",
-            "images 1",
             "stock",
-            "currency",
+            "stock_warnlevel",
+            "availability",
+            "views",
+            "rank",
+            "rank_votes",
         ]
 
         with open(file_path, mode="w", encoding="utf-8", newline="") as file:
@@ -2324,17 +2332,25 @@ class CardEditorApp:
                 writer.writerow(
                     {
                         "product_code": row["product_code"],
-                        "warehouse_code": row.get("warehouse_code", ""),
+                        "active": row.get("active", 1),
+                        "name": formatted_name,
+                        "price": row["cena"],
+                        "vat": row.get("vat", 23),
+                        "unit": row.get("unit", "szt"),
                         "category": row["category"],
                         "producer": row["producer"],
-                        "name": formatted_name,
+                        "other_price": row.get("other_price", ""),
+                        "pkwiu": row.get("pkwiu", ""),
+                        "weight": row.get("weight", 0.01),
+                        "priority": row.get("priority", 0),
                         "short_description": row["short_description"],
                         "description": row["description"],
-                        "price": row["cena"],
-                        "availability": row["availability"],
-                        "images 1": row.get("image1", row.get("images", "")),
                         "stock": row["stock"],
-                        "currency": "zł",
+                        "stock_warnlevel": row.get("stock_warnlevel", 0),
+                        "availability": row.get("availability", 1),
+                        "views": row.get("views", ""),
+                        "rank": row.get("rank", ""),
+                        "rank_votes": row.get("rank_votes", ""),
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
