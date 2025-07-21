@@ -168,7 +168,7 @@ class CardEditorApp:
         )
         self.start_frame.pack(expand=True, fill="both")
 
-        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((140, 140))
@@ -519,7 +519,7 @@ class CardEditorApp:
         self.shoper_frame.rowconfigure(2, weight=1)
         self.shoper_frame.rowconfigure(4, weight=1)
 
-        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
@@ -846,7 +846,7 @@ class CardEditorApp:
         self.pricing_frame.columnconfigure(1, weight=1)
         self.pricing_frame.rowconfigure(1, weight=1)
 
-        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
@@ -1039,7 +1039,7 @@ class CardEditorApp:
             self.frame.columnconfigure(i, weight=1)
         self.frame.rowconfigure(2, weight=1)
 
-        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
@@ -1528,10 +1528,13 @@ class CardEditorApp:
         if os.path.exists(gif_path):
             from PIL import ImageSequence
 
-            self.gif_frames = [
-                ImageTk.PhotoImage(frame)
-                for frame in ImageSequence.Iterator(Image.open(gif_path))
-            ]
+            img = Image.open(gif_path)
+            self.gif_frames = []
+            self.gif_durations = []
+            for frame in ImageSequence.Iterator(img):
+                self.gif_frames.append(ImageTk.PhotoImage(frame.copy()))
+                self.gif_durations.append(frame.info.get("duration", 100))
+
             self.gif_label = tk.Label(
                 self.loading_frame, bg=self.loading_frame.cget("fg_color")
             )
@@ -1553,7 +1556,13 @@ class CardEditorApp:
         frame = self.gif_frames[index]
         self.gif_label.configure(image=frame)
         next_index = (index + 1) % len(self.gif_frames)
-        self.gif_label.after(100, self.animate_loading_gif, next_index)
+        delay = 100
+        if hasattr(self, "gif_durations"):
+            try:
+                delay = self.gif_durations[index]
+            except IndexError:
+                pass
+        self.gif_label.after(delay, self.animate_loading_gif, next_index)
 
     def startup_tasks(self):
         """Run initial setup tasks in the background."""
@@ -1982,7 +1991,7 @@ class CardEditorApp:
         top.title("Inne warianty")
         top.geometry("600x400")
 
-        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((140, 140))
@@ -2393,5 +2402,8 @@ if __name__ == "__main__":
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()
+    icon_path = os.path.join(os.path.dirname(__file__), "logo.png")
+    if os.path.exists(icon_path):
+        root.iconphoto(True, tk.PhotoImage(file=icon_path))
     app = CardEditorApp(root)
     root.mainloop()
