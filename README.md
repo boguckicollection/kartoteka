@@ -77,7 +77,8 @@ file. Rows that share the `nazwa`, `numer` and `set` columns are combined and
 their quantity summed. The importer recognises quantity columns named
 `stock`, `ilość`, `ilosc`, `quantity` or `qty` (case and spacing are ignored).
 If no such column is found, the merged output adds an `ilość` column with the
-calculated totals.
+calculated totals. The exporter names the first image column `images 1` and the
+importer accepts both `image1` and `images 1` when loading existing files.
 
 ### Cache
 Every time you press **Zapisz i dalej**, the entered values are stored in a

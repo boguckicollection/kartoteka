@@ -2178,10 +2178,16 @@ class CardEditorApp:
             reader = csv.DictReader(f, dialect=dialect)
 
             # Normalize header names for easier handling later on
-            fieldnames = [fn.strip().lower() for fn in reader.fieldnames or []]
+            def norm_header(name: str) -> str:
+                normalized = name.strip().lower()
+                if normalized == "images 1":
+                    return "image1"
+                return normalized
+
+            fieldnames = [norm_header(fn) for fn in reader.fieldnames or []]
             rows = []
             for raw_row in reader:
-                row = { (k.strip().lower() if k else k): v for k, v in raw_row.items() }
+                row = { (norm_header(k) if k else k): v for k, v in raw_row.items() }
                 # Backwards compatibility: old files stored location in product_code
                 if "warehouse_code" not in row and re.match(r"k\d+r\d+p\d+", str(row.get("product_code", "")).lower()):
                     row["warehouse_code"] = row["product_code"]
@@ -2273,7 +2279,7 @@ class CardEditorApp:
             "description",
             "price",
             "availability",
-            "image1",
+            "images 1",
             "stock",
             "currency",
         ]
@@ -2300,7 +2306,7 @@ class CardEditorApp:
                         "description": row["description"],
                         "price": row["cena"],
                         "availability": row["availability"],
-                        "image1": row.get("image1", row.get("images", "")),
+                        "images 1": row.get("image1", row.get("images", "")),
                         "stock": row["stock"],
                         "currency": "zł",
                     }
