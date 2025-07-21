@@ -23,11 +23,13 @@ def run_load_csv(tmp_path, csv_content):
         main.CardEditorApp.load_csv_data(dummy)
 
     with open(out_path, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f, delimiter=";")), dummy
+        reader = csv.DictReader(f, delimiter=";")
+        rows = list(reader)
+        return rows, dummy, reader.fieldnames
 
 
 def test_old_csv_location_pattern(tmp_path):
-    rows, dummy = run_load_csv(
+    rows, dummy, _ = run_load_csv(
         tmp_path,
         "product_code;nazwa;numer;set;stock\n"
         "K1R1P1;Pikachu;1;Base;1\n"
@@ -39,3 +41,14 @@ def test_old_csv_location_pattern(tmp_path):
     assert row["product_code"] == "1"
     assert dummy.product_code_map == {"Pikachu|1|Base": 1}
     assert dummy.next_product_code == 2
+
+
+def test_image_header_replaced(tmp_path):
+    rows, _, fieldnames = run_load_csv(
+        tmp_path,
+        "product_code;nazwa;numer;set;stock;image1\n"
+        "1;Bulbasaur;1;Base;1;img.png\n",
+    )
+    assert "images 1" in fieldnames
+    row = rows[0]
+    assert row["images 1"] == "img.png"
