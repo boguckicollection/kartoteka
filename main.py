@@ -12,6 +12,8 @@ from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
 import html
+import subprocess
+import sys
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
@@ -71,27 +73,41 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
 
 
 # Wczytanie danych setów
-with open("tcg_sets.json", encoding="utf-8") as f:
-    tcg_sets_eng_by_era = json.load(f)
-tcg_sets_eng_map = {
-    item["name"]: item["code"]
-    for sets in tcg_sets_eng_by_era.values()
-    for item in sets
-}
-tcg_sets_eng = [
-    item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
-]
+def reload_sets():
+    """Load set definitions from the JSON files."""
+    global tcg_sets_eng_by_era, tcg_sets_eng_map, tcg_sets_eng
+    global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp
 
-with open("tcg_sets_jp.json", encoding="utf-8") as f:
-    tcg_sets_jp_by_era = json.load(f)
-tcg_sets_jp_map = {
-    item["name"]: item["code"]
-    for sets in tcg_sets_jp_by_era.values()
-    for item in sets
-}
-tcg_sets_jp = [
-    item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
-]
+    try:
+        with open("tcg_sets.json", encoding="utf-8") as f:
+            tcg_sets_eng_by_era = json.load(f)
+    except FileNotFoundError:
+        tcg_sets_eng_by_era = {}
+    tcg_sets_eng_map = {
+        item["name"]: item["code"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+    }
+    tcg_sets_eng = [
+        item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
+    ]
+
+    try:
+        with open("tcg_sets_jp.json", encoding="utf-8") as f:
+            tcg_sets_jp_by_era = json.load(f)
+    except FileNotFoundError:
+        tcg_sets_jp_by_era = {}
+    tcg_sets_jp_map = {
+        item["name"]: item["code"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+    }
+    tcg_sets_jp = [
+        item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
+    ]
+
+
+reload_sets()
 
 
 def get_set_code(name: str) -> str:
@@ -134,7 +150,13 @@ class CardEditorApp:
         self.log_widget = None
         self.cheat_frame = None
         self.set_logos = {}
+        self.loading_frame = None
+        self.loading_label = None
+        self.show_loading_screen()
+        self.update_sets()
         self.load_set_logos()
+        if self.loading_frame is not None:
+            self.loading_frame.destroy()
         try:
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
         except Exception as e:
@@ -1487,6 +1509,70 @@ class CardEditorApp:
                 self.set_logos[code] = ImageTk.PhotoImage(img)
             except Exception:
                 continue
+
+    def show_loading_screen(self):
+        """Display a temporary loading screen during startup."""
+        self.loading_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
+        self.loading_frame.pack(expand=True, fill="both")
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+        if os.path.exists(logo_path):
+            img = Image.open(logo_path)
+            img.thumbnail((160, 160))
+            self.loading_logo = ImageTk.PhotoImage(img)
+            tk.Label(
+                self.loading_frame,
+                image=self.loading_logo,
+                bg=self.loading_frame.cget("fg_color"),
+            ).pack(pady=10)
+        self.loading_label = ctk.CTkLabel(
+            self.loading_frame,
+            text="Ładowanie...",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 16),
+        )
+        self.loading_label.pack(pady=10)
+        self.root.update()
+
+    def update_sets(self):
+        """Check remote API for new sets and update local files."""
+        try:
+            self.loading_label.configure(text="Sprawdzanie nowych setów...")
+            self.root.update()
+            with open("tcg_sets.json", encoding="utf-8") as f:
+                current_sets = json.load(f)
+        except Exception:
+            current_sets = {}
+
+        try:
+            resp = requests.get("https://api.pokemontcg.io/v2/sets", timeout=10)
+            resp.raise_for_status()
+            remote = resp.json().get("data", [])
+        except Exception as exc:
+            print(f"[WARN] Unable to fetch sets: {exc}")
+            return
+
+        added = 0
+        for item in remote:
+            series = item.get("series") or "Other"
+            code = item.get("id")
+            name = item.get("name")
+            if not code or not name:
+                continue
+            group = current_sets.setdefault(series, [])
+            if not any(s.get("code") == code for s in group):
+                group.append({"name": name, "code": code})
+                added += 1
+
+        if added:
+            with open("tcg_sets.json", "w", encoding="utf-8") as f:
+                json.dump(current_sets, f, indent=2, ensure_ascii=False)
+            reload_sets()
+            self.loading_label.configure(text="Pobieram symbole setów...")
+            self.root.update()
+            try:
+                subprocess.run([sys.executable, "download_set_logos.py"], check=False)
+            except Exception:
+                pass
 
     def log(self, message: str):
         if self.log_widget:
