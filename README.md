@@ -16,6 +16,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Autocomplete set selection (press <kbd>Tab</kbd> to accept a suggestion) and additional rarity checkboxes
 - Toggle the **Reverse** switch on the pricing screen when pricing a reverse card
 - Import CSV files and merge duplicates automatically
+- Automatically updates the list of card sets and downloads new logos on startup
 
 ## Requirements
 Install dependencies from `requirements.txt`:
@@ -60,14 +61,15 @@ Press the **Ściąga** button on the editor window to open a scrollable cheat sh
 with the names and codes of all card sets. When set symbols are available they
 are displayed alongside the entries.
 
-To fetch the symbols run:
+The application now fetches missing set symbols automatically on startup. If you
+need to refresh them manually run:
 
 ```bash
 python download_set_logos.py
 ```
 
-This will create a `set_logos/` directory. Keep the folder next to `main.py` so
-the cheatsheet can load the images.
+This creates a `set_logos/` directory that should stay next to `main.py` so the
+cheatsheet can load the images.
 
 ### Importing CSV files
 Use the **Import CSV** button on the welcome screen to merge an existing CSV
