@@ -781,6 +781,12 @@ class CardEditorApp:
         return occ
 
     def refresh_magazyn(self):
+        """Refresh storage view and color code capacity usage.
+
+        A column's background turns orange when 30% or more of its
+        capacity is still free.  Individual 100-card segments become
+        green as soon as they are occupied.
+        """
         occ = self.compute_column_occupancy()
         if not self.mag_canvases:
             return
@@ -804,7 +810,7 @@ class CardEditorApp:
                         0,
                         x1 + col_w,
                         self.mag_box_photo.height(),
-                        fill="#c8f7c8",
+                        fill="#ffcc80",
                         width=0,
                         tags="stats",
                     )
@@ -814,7 +820,7 @@ class CardEditorApp:
                 for i in range(10):
                     y1 = self.mag_box_photo.height() - seg_h * (i + 1)
                     y2 = self.mag_box_photo.height() - seg_h * i
-                    color = "#e0e0e0" if i < filled_sections else ""
+                    color = "#c8f7c8" if i < filled_sections else ""
                     canvas.create_rectangle(
                         x1,
                         y1,
