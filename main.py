@@ -2335,6 +2335,7 @@ class CardEditorApp:
             "rank_votes",
             "images 1",
         ]
+        fieldnames.append("warehouse_code")
 
         with open(file_path, mode="w", encoding="utf-8", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
@@ -2370,6 +2371,7 @@ class CardEditorApp:
                         "rank": row.get("rank", ""),
                         "rank_votes": row.get("rank_votes", ""),
                         "images 1": row.get("image1", row.get("images", "")),
+                        "warehouse_code": row.get("warehouse_code", ""),
                     }
                 )
         messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
