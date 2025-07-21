@@ -2219,11 +2219,18 @@ class CardEditorApp:
                 except ValueError:
                     qty = 1
 
+            warehouse = str(row.get("warehouse_code", "")).strip()
+
             if key in combined:
                 combined[key]["qty"] += qty
+                if warehouse:
+                    combined[key]["warehouses"].add(warehouse)
             else:
                 new_row = row.copy()
                 new_row["qty"] = qty
+                new_row["warehouses"] = set()
+                if warehouse:
+                    new_row["warehouses"].add(warehouse)
                 combined[key] = new_row
 
         if qty_field is None:
@@ -2243,6 +2250,7 @@ class CardEditorApp:
             for row in combined.values():
                 row_out = row.copy()
                 row_out[qty_field] = row_out.pop("qty")
+                row_out["warehouse_code"] = ";".join(sorted(row_out.pop("warehouses", [])))
                 if qty_field != "stock":
                     row_out.pop("stock", None)
                 if qty_field != "ilość":
