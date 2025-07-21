@@ -34,6 +34,7 @@ SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN")
 FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
+SHOPER_DELIVERY_ID = int(os.getenv("SHOPER_DELIVERY_ID", "1"))
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
@@ -2111,7 +2112,7 @@ class CardEditorApp:
         data["description"] = f"<p>{desc_html}</p>"
         data["stock_warnlevel"] = 0
         data["availability"] = 1
-        data["delivery"] = 1
+        data["delivery"] = SHOPER_DELIVERY_ID
         data["views"] = ""
         data["rank"] = ""
         data["rank_votes"] = ""
