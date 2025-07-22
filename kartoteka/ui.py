@@ -41,6 +41,8 @@ SHOPER_DELIVERY_ID = int(os.getenv("SHOPER_DELIVERY_ID", "1"))
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
+POKEBALL_MULTIPLIER = 5
+MASTERBALL_MULTIPLIER = 10
 SET_LOGO_DIR = "set_logos"
 
 # custom theme colors in grayscale
@@ -1302,7 +1304,7 @@ class CardEditorApp:
         self.type_vars = {}
         self.type_frame = ctk.CTkFrame(self.info_frame)
         self.type_frame.grid(row=start_row + 4, column=1, columnspan=7, sticky="w", **grid_opts)
-        types = ["Common", "Holo", "Reverse"]
+        types = ["Common", "Holo", "Reverse", "Pokeball", "Masterball", "Stamp"]
         for t in types:
             var = tk.BooleanVar()
             self.type_vars[t] = var
@@ -1828,7 +1830,10 @@ class CardEditorApp:
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
-        set_code = get_set_code(set_name)
+        if set_input == "prismatic evolutions: additionals":
+            set_code = "xpre"
+        else:
+            set_code = get_set_code(set_name)
 
         try:
             headers = {}
@@ -1905,7 +1910,10 @@ class CardEditorApp:
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
-        set_code = get_set_code(set_name)
+        if set_input == "prismatic evolutions: additionals":
+            set_code = "xpre"
+        else:
+            set_code = get_set_code(set_name)
 
         try:
             headers = {}
@@ -1977,7 +1985,10 @@ class CardEditorApp:
         name_input = normalize(name)
         number_input = number.strip().lower()
         set_input = set_name.strip().lower()
-        set_code = get_set_code(set_name)
+        if set_input == "prismatic evolutions: additionals":
+            set_code = "xpre"
+        else:
+            set_code = get_set_code(set_name)
 
         try:
             headers = {}
@@ -2163,15 +2174,23 @@ class CardEditorApp:
         return 4.265
 
     def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
-        """Apply holo/reverse multiplier when needed."""
+        """Apply holo/reverse or special variant multiplier when needed."""
         if price is None:
             return None
+        multiplier = 1
         if is_reverse or is_holo:
-            try:
-                return round(float(price) * HOLO_REVERSE_MULTIPLIER, 2)
-            except (TypeError, ValueError):
-                return price
-        return price
+            multiplier *= HOLO_REVERSE_MULTIPLIER
+
+        types = getattr(self, "type_vars", {})
+        try:
+            if types.get("Masterball") and types["Masterball"].get():
+                multiplier *= MASTERBALL_MULTIPLIER
+            elif types.get("Pokeball") and types["Pokeball"].get():
+                multiplier *= POKEBALL_MULTIPLIER
+
+            return round(float(price) * multiplier, 2)
+        except (TypeError, ValueError):
+            return price
 
     def save_current_data(self):
         """Store the data for the currently displayed card without changing
