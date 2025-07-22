@@ -239,8 +239,8 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
         self.create_button(
             button_frame,
-            text="\U0001f4c2 Import CSV",
-            command=self.load_csv_data,
+            text="\U0001f528 Licytacje",
+            command=self.open_auctions_window,
         ).pack(side="left", padx=5)
         self.create_button(
             button_frame,
@@ -681,6 +681,42 @@ class CardEditorApp:
                         f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
                     )
             widget.insert(tk.END, "\n".join(lines))
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
+    def open_auctions_window(self):
+        """Display items from the 'Licytacja' category in a new window."""
+        if not self.shoper_client:
+            messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
+            return
+        win = tk.Toplevel(self.root)
+        win.title("Licytacje")
+        win.configure(bg=self.root.cget("background"))
+        output = tk.Text(win, bg=self.root.cget("background"), fg="white")
+        output.pack(expand=True, fill="both", padx=10, pady=10)
+        self.create_button(win, text="Zamknij", command=win.destroy).pack(pady=5)
+        self.fetch_auction_items(output)
+
+    def fetch_auction_items(self, widget):
+        """Fetch items in the 'Licytacja' category from Shoper."""
+        try:
+            data = self.shoper_client.search_products(
+                filters={"filters[category]": "Licytacja"}
+            )
+            widget.delete("1.0", tk.END)
+            products = data.get("list", data)
+            lines = []
+            for prod in products:
+                translations = prod.get("translations") or {}
+                name = ""
+                if isinstance(translations, dict):
+                    first = next(iter(translations.values()), {})
+                    name = first.get("name", "")
+                lines.append(f"{prod.get('product_id')}: {name}")
+            if lines:
+                widget.insert(tk.END, "\n".join(lines))
+            else:
+                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
