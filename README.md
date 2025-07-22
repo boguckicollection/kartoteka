@@ -54,9 +54,13 @@ python main.py
 The interface will allow you to load scans, fetch prices from the local database or the API, and export results to CSV.
 
 ## Running Tests
-Run the test suite using `pytest`:
+The automated tests are written with `pytest` and mock out all GUI components,
+so they can run headlessly.
+
+Install the dependencies and execute the suite with:
 
 ```bash
+pip install -r requirements.txt
 pytest
 ```
 
