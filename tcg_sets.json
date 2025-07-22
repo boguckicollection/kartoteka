@@ -43,6 +43,30 @@
     {
       "name": "Stellar Crown",
       "code": "sv07"
+    },
+    {
+      "name": "Surging Sparks",
+      "code": "sv8"
+    },
+    {
+      "name": "Prismatic Evolutions",
+      "code": "sv8pt5"
+    },
+    {
+      "name": "Journey Together",
+      "code": "sv9"
+    },
+    {
+      "name": "Destined Rivals",
+      "code": "sv10"
+    },
+    {
+      "name": "Black Bolt",
+      "code": "zsv10pt5"
+    },
+    {
+      "name": "White Flare",
+      "code": "rsv10pt5"
     }
   ],
   "Sword & Shield": [
