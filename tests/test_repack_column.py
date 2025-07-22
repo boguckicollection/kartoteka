@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-import main
-importlib.reload(main)
+import kartoteka.ui as ui
+importlib.reload(ui)
 
 
 def test_repack_after_removal():
@@ -20,7 +20,7 @@ def test_repack_after_removal():
         mag_box_photo=SimpleNamespace(width=lambda: 0, height=lambda: 0),
         refresh_magazyn=lambda: None,
     )
-    main.CardEditorApp.repack_column(dummy, 1, 1)
+    ui.CardEditorApp.repack_column(dummy, 1, 1)
     assert dummy.output_data[1]["warehouse_code"] == "K01R1P0002"
 
 
@@ -31,5 +31,5 @@ def test_repack_within_row():
         mag_box_photo=SimpleNamespace(width=lambda: 0, height=lambda: 0),
         refresh_magazyn=lambda: None,
     )
-    main.CardEditorApp.repack_column(dummy, 1, 1)
+    ui.CardEditorApp.repack_column(dummy, 1, 1)
     assert dummy.output_data[0]["warehouse_code"] == "K01R1P0001;K01R1P0002"
