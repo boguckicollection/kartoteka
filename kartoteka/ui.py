@@ -11,6 +11,7 @@ import re
 from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
+from itertools import combinations
 import html
 import subprocess
 import sys
@@ -123,6 +124,70 @@ def get_set_code(name: str) -> str:
             if key.lower() == search:
                 return code
     return name
+
+
+def choose_nearest_locations(order_list, output_data):
+    """Assign the nearest warehouse codes to order items.
+
+    The function modifies the provided ``order_list`` in place, attaching a
+    ``warehouse_code`` to each product when possible.  When multiple codes are
+    available for the same ``product_code`` the combination with the smallest
+    total Manhattan distance is chosen.
+    """
+
+    pattern = re.compile(r"K(\d+)R(\d)P(\d+)")
+    available = defaultdict(list)
+
+    # Collect available locations grouped by product_code
+    for row in output_data:
+        if not row:
+            continue
+        prod = str(row.get("product_code", ""))
+        codes = str(row.get("warehouse_code") or "").split(";")
+        for code in codes:
+            code = code.strip()
+            m = pattern.match(code)
+            if not m:
+                continue
+            box, col, pos = map(int, m.groups())
+            available[prod].append(((box, col, pos), code))
+
+    def manhattan(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
+
+    def best_codes(options, qty):
+        if qty <= 1:
+            return [options[0][1]]
+
+        best = None
+        best_cost = None
+        for combo in combinations(options, min(qty, len(options))):
+            coords = [c[0] for c in combo]
+            cost = 0
+            for i in range(len(coords)):
+                for j in range(i + 1, len(coords)):
+                    cost += manhattan(coords[i], coords[j])
+            if best_cost is None or cost < best_cost:
+                best_cost = cost
+                best = [c[1] for c in combo]
+        return best or []
+
+    for order in order_list:
+        for item in order.get("products", []):
+            prod = str(item.get("product_code") or item.get("code") or "")
+            qty = int(item.get("quantity", 1))
+            options = available.get(prod)
+            if not options:
+                continue
+            options.sort(key=lambda x: x[1])
+            chosen = best_codes(options, qty)
+            # remove used ones
+            remaining = [o for o in options if o[1] not in chosen]
+            available[prod] = remaining
+            if chosen:
+                item["warehouse_code"] = ";".join(chosen)
+
+    return order_list
 
 
 class CardEditorApp:
@@ -665,9 +730,11 @@ class CardEditorApp:
         """Display new orders with storage location hints."""
         try:
             orders = self.shoper_client.list_orders({"filters[status]": "new"})
+            orders_list = orders.get("list", orders)
+            choose_nearest_locations(orders_list, self.output_data)
             widget.delete("1.0", tk.END)
             lines = []
-            for order in orders.get("list", orders):
+            for order in orders_list:
                 oid = order.get("order_id") or order.get("id")
                 lines.append(f"Zamówienie #{oid}")
                 for item in order.get("products", []):
@@ -676,7 +743,8 @@ class CardEditorApp:
                         or item.get("product_code")
                         or item.get("code", "")
                     )
-                    location = self.location_from_code(code)
+                    locations = [self.location_from_code(c.strip()) for c in str(code).split(";") if c.strip()]
+                    location = "; ".join(l for l in locations if l)
                     lines.append(
                         f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
                     )
