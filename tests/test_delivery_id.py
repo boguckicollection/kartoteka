@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str((Path(__file__).resolve().parents[1])))
+import kartoteka.ui as ui
 
 class DummyVar:
     def __init__(self, value):
@@ -17,8 +18,7 @@ class DummyVar:
 
 def test_delivery_id_used(monkeypatch):
     monkeypatch.setenv("SHOPER_DELIVERY_ID", "7")
-    import main
-    importlib.reload(main)
+    importlib.reload(ui)
 
     dummy = SimpleNamespace(
         entries={
@@ -46,6 +46,6 @@ def test_delivery_id_used(monkeypatch):
         fetch_card_price=lambda *a: None,
     )
 
-    main.CardEditorApp.save_current_data(dummy)
+    ui.CardEditorApp.save_current_data(dummy)
     assert dummy.output_data[0]["delivery"] == 7
 

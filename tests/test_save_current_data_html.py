@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+import kartoteka.ui as ui
 
 class DummyVar:
     def __init__(self, value):
@@ -43,10 +44,9 @@ def make_dummy():
 
 
 def test_html_generated():
-    import main
-    importlib.reload(main)
+    importlib.reload(ui)
     dummy = make_dummy()
-    main.CardEditorApp.save_current_data(dummy)
+    ui.CardEditorApp.save_current_data(dummy)
     data = dummy.output_data[0]
     assert "<ul>" in data["short_description"]
     assert data["short_description"].startswith("<p><strong>")

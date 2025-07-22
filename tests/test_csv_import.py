@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-import main
+from kartoteka.ui import CardEditorApp
 
 
 def run_load_csv(tmp_path, csv_content):
@@ -20,7 +20,7 @@ def run_load_csv(tmp_path, csv_content):
          patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
          patch("tkinter.messagebox.showinfo"), \
          patch("tkinter.messagebox.askyesno", return_value=False):
-        main.CardEditorApp.load_csv_data(dummy)
+        CardEditorApp.load_csv_data(dummy)
 
     with open(out_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")

@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 import sys
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-import main
+import kartoteka.ui as ui
 
 
 def test_export_includes_warehouse(tmp_path):
@@ -33,7 +33,7 @@ def test_export_includes_warehouse(tmp_path):
     with patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
          patch("tkinter.messagebox.showinfo"), \
          patch("tkinter.messagebox.askyesno", return_value=False):
-        main.CardEditorApp.export_csv(dummy)
+        ui.CardEditorApp.export_csv(dummy)
 
     with open(out_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
