@@ -190,6 +190,27 @@ def choose_nearest_locations(order_list, output_data):
     return order_list
 
 
+def extract_cardmarket_price(card):
+    """Return the best available Cardmarket price for a card.
+
+    The function checks multiple possible fields in the ``cardmarket`` price
+    section and returns the first non-zero value.  If none of the fields are
+    present or they evaluate to zero, ``None`` is returned.
+    """
+
+    cardmarket = card.get("prices", {}).get("cardmarket", {}) or {}
+    for field in ["30d_average", "trendPrice", "trend_price", "lowest_near_mint"]:
+        price = cardmarket.get(field)
+        try:
+            value = float(price)
+        except (TypeError, ValueError):
+            continue
+        if value:
+            print(f"[DEBUG] Using Cardmarket field '{field}' with value {value}")
+            return value
+    return None
+
+
 class CardEditorApp:
     def __init__(self, root):
         self.root = root
@@ -1854,10 +1875,8 @@ class CardEditorApp:
 
             if candidates:
                 best = candidates[0]
-                price_eur = (
-                    best.get("prices", {}).get("cardmarket", {}).get("30d_average", 0)
-                )
-                if price_eur:
+                price_eur = extract_cardmarket_price(best)
+                if price_eur is not None:
                     eur_pln = self.get_exchange_rate()
                     price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
                     print(
@@ -1931,13 +1950,9 @@ class CardEditorApp:
                 set_match = set_input in card_set or card_set.startswith(set_input)
 
                 if name_match and number_match and set_match:
-                    price_eur = (
-                        card.get("prices", {})
-                        .get("cardmarket", {})
-                        .get("30d_average", 0)
-                    )
+                    price_eur = extract_cardmarket_price(card)
                     price_pln = 0
-                    if price_eur:
+                    if price_eur is not None:
                         price_pln = round(
                             float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2
                         )
@@ -2001,12 +2016,7 @@ class CardEditorApp:
                 set_match = set_input in card_set or card_set.startswith(set_input)
 
                 if name_match and number_match and set_match:
-                    price_eur = (
-                        card.get("prices", {})
-                        .get("cardmarket", {})
-                        .get("30d_average", 0)
-                        or 0
-                    )
+                    price_eur = extract_cardmarket_price(card) or 0
                     base_rate = self.get_exchange_rate()
                     eur_pln = base_rate * PRICE_MULTIPLIER
                     price_pln = round(float(price_eur) * eur_pln, 2)
