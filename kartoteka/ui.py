@@ -324,6 +324,7 @@ class CardEditorApp:
         self.shoper_frame = None
         self.pricing_frame = None
         self.magazyn_frame = None
+        self.location_window = None
         self.mag_canvases = []
         self.mag_box_photo = None
         self.log_widget = None
@@ -422,37 +423,8 @@ class CardEditorApp:
             command=self.upload_images_dialog,
         ).pack(side="left", padx=5)
 
-        # Frame with starting location inputs
-        self.location_frame = ctk.CTkFrame(self.start_frame)
-        for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
-            ctk.CTkLabel(self.location_frame, text=label).grid(row=0, column=idx, padx=5, pady=2)
-        ctk.CTkEntry(self.location_frame, textvariable=self.start_box_var, width=60).grid(row=1, column=0)
-        ctk.CTkEntry(self.location_frame, textvariable=self.start_col_var, width=60).grid(row=1, column=1)
-        ctk.CTkEntry(self.location_frame, textvariable=self.start_pos_var, width=60).grid(row=1, column=2)
-        ctk.CTkLabel(self.location_frame, text="Folder").grid(row=2, column=0, padx=5, pady=2)
-        ctk.CTkEntry(self.location_frame, textvariable=self.scan_folder_var, width=200).grid(row=2, column=1, columnspan=2, sticky="ew")
-        self.create_button(
-            self.location_frame,
-            text="Wybierz",
-            command=self.select_scan_folder,
-        ).grid(row=2, column=3, padx=5)
-        img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "box.png")
-        if os.path.exists(img_path):
-            img = Image.open(img_path)
-            img.thumbnail((120, 120))
-            self.location_photo = ImageTk.PhotoImage(img)
-            tk.Label(
-                self.location_frame,
-                image=self.location_photo,
-                bg=self.root.cget("background"),
-            ).grid(row=0, column=3, rowspan=2, padx=10)
-        self.create_button(
-            self.location_frame,
-            text="Dalej",
-            command=self.browse_scans,
-        ).grid(row=3, column=0, columnspan=4, pady=5)
-        # Hide until the user clicks 'Skanuj'
-        self.location_frame.pack_forget()
+        # Window with starting location inputs will be created on demand
+        self.location_frame = None
 
         # Display store statistics when Shoper credentials are available
         stats_frame = tk.Frame(
@@ -591,9 +563,41 @@ class CardEditorApp:
         )
 
     def show_location_frame(self):
-        """Display the start location selection frame."""
-        if self.location_frame is not None:
-            self.location_frame.pack(pady=10)
+        """Open a window with starting location inputs."""
+        if self.location_window and self.location_window.winfo_exists():
+            self.location_window.lift()
+            return
+
+        self.location_window = ctk.CTkToplevel(self.root)
+        self.location_window.title("Skan")
+        self.location_window.configure(bg=self.root.cget("background"))
+        frame = ctk.CTkFrame(self.location_window)
+        frame.pack(padx=10, pady=10)
+        self.location_frame = frame
+
+        for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
+            ctk.CTkLabel(frame, text=label).grid(row=0, column=idx, padx=5, pady=2)
+        ctk.CTkEntry(frame, textvariable=self.start_box_var, width=60).grid(row=1, column=0)
+        ctk.CTkEntry(frame, textvariable=self.start_col_var, width=60).grid(row=1, column=1)
+        ctk.CTkEntry(frame, textvariable=self.start_pos_var, width=60).grid(row=1, column=2)
+
+        ctk.CTkLabel(frame, text="Folder").grid(row=2, column=0, padx=5, pady=2)
+        ctk.CTkEntry(frame, textvariable=self.scan_folder_var, width=200).grid(row=2, column=1, columnspan=2, sticky="ew")
+        self.create_button(frame, text="Wybierz", command=self.select_scan_folder).grid(row=2, column=3, padx=5)
+
+        img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "box.png")
+        if os.path.exists(img_path):
+            img = Image.open(img_path)
+            img.thumbnail((120, 120))
+            self.location_photo = ImageTk.PhotoImage(img)
+            tk.Label(frame, image=self.location_photo, bg=self.root.cget("background")).grid(row=0, column=3, rowspan=2, padx=10)
+
+        self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=3, column=0, columnspan=4, pady=5)
+
+        def on_close():
+            self.location_window.destroy()
+            self.location_window = None
+        self.location_window.protocol("WM_DELETE_WINDOW", on_close)
 
     def select_scan_folder(self):
         """Open a dialog to choose the folder with scans."""
@@ -1646,6 +1650,13 @@ class CardEditorApp:
         else:
             self.cheat_frame.grid()
 
+    def start_browse_scans(self):
+        """Wrapper for 'Dalej' button that closes the location window."""
+        if self.location_window and self.location_window.winfo_exists():
+            self.location_window.destroy()
+            self.location_window = None
+        self.browse_scans()
+
     def browse_scans(self):
         """Ask for a folder and load scans starting from the entered location."""
         try:
@@ -1774,14 +1785,23 @@ class CardEditorApp:
 
     def start_scan_animation(self, index=0):
         """Show the scanning GIF on top of the image label."""
-        if not hasattr(self, "scan_gif_frames"):
-            path = os.path.join(os.path.dirname(__file__), "scan.gif")
+        path = os.path.join(os.path.dirname(__file__), "scan.gif")
+        w = self.image_label.winfo_width() or 400
+        h = self.image_label.winfo_height() or 560
+        if not hasattr(self, "scan_gif_frames") or getattr(self, "scan_gif_size", (None, None)) != (w, h):
             if os.path.exists(path):
                 from PIL import ImageSequence
 
                 img = Image.open(path)
-                self.scan_gif_frames = [ImageTk.PhotoImage(frame.copy()) for frame in ImageSequence.Iterator(img)]
-                self.scan_gif_durations = [frame.info.get("duration", 100) for frame in ImageSequence.Iterator(img)]
+                frames = []
+                durations = []
+                for frame in ImageSequence.Iterator(img):
+                    f = frame.convert("RGBA").resize((w, h))
+                    frames.append(ImageTk.PhotoImage(f))
+                    durations.append(frame.info.get("duration", 100))
+                self.scan_gif_frames = frames
+                self.scan_gif_durations = durations
+                self.scan_gif_size = (w, h)
             else:
                 self.scan_gif_frames = []
         if not self.scan_gif_frames:
