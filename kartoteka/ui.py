@@ -1368,9 +1368,6 @@ class CardEditorApp:
         self.image_label = ctk.CTkLabel(self.frame, width=400, height=560)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         self.image_label.grid_propagate(False)
-        self.scan_gif_label = tk.Label(self.image_label, bg=self.root.cget("background"))
-        self.scan_gif_label.place(relx=0.5, rely=0.5, anchor="center")
-        self.scan_gif_label.place_forget()
         # Display only a textual progress indicator below the card image
         self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
@@ -1716,12 +1713,14 @@ class CardEditorApp:
             cache_key = self._guess_key_from_filename(image_path)
         image = Image.open(image_path)
         image.thumbnail((400, 560))
+        self.current_card_image = image.copy()
         if hasattr(ctk, "CTkImage"):
             img = ctk.CTkImage(light_image=image, size=image.size)
         else:
             img = ImageTk.PhotoImage(image)
         self.image_objects.append(img)
         self.image_objects = self.image_objects[-2:]
+        self.current_card_photo = img
         self.image_label.configure(image=img)
         if hasattr(self, "location_label"):
             self.location_label.configure(text=self.next_free_location())
@@ -1789,15 +1788,20 @@ class CardEditorApp:
         w = self.image_label.winfo_width() or 400
         h = self.image_label.winfo_height() or 560
         if not hasattr(self, "scan_gif_frames") or getattr(self, "scan_gif_size", (None, None)) != (w, h):
-            if os.path.exists(path):
+            if os.path.exists(path) and hasattr(self, "current_card_image"):
                 from PIL import ImageSequence
 
                 img = Image.open(path)
                 frames = []
                 durations = []
+                base = self.current_card_image.convert("RGBA").resize((w, h))
                 for frame in ImageSequence.Iterator(img):
-                    f = frame.convert("RGBA").resize((w, h))
-                    frames.append(ImageTk.PhotoImage(f))
+                    overlay = frame.convert("RGBA").resize((w, h))
+                    composed = Image.alpha_composite(base, overlay)
+                    if hasattr(ctk, "CTkImage"):
+                        frames.append(ctk.CTkImage(light_image=composed, size=(w, h)))
+                    else:
+                        frames.append(ImageTk.PhotoImage(composed))
                     durations.append(frame.info.get("duration", 100))
                 self.scan_gif_frames = frames
                 self.scan_gif_durations = durations
@@ -1807,27 +1811,27 @@ class CardEditorApp:
         if not self.scan_gif_frames:
             return
         self.scan_animation_running = True
-        self.scan_gif_label.place(relx=0.5, rely=0.5, anchor="center")
         self._animate_scan_gif(index)
 
     def _animate_scan_gif(self, index=0):
         if not getattr(self, "scan_animation_running", False):
             return
         frame = self.scan_gif_frames[index]
-        self.scan_gif_label.configure(image=frame)
+        self.image_label.configure(image=frame)
         next_index = (index + 1) % len(self.scan_gif_frames)
         delay = self.scan_gif_durations[index] if hasattr(self, "scan_gif_durations") else 100
-        self.scan_after_id = self.scan_gif_label.after(delay, self._animate_scan_gif, next_index)
+        self.scan_after_id = self.image_label.after(delay, self._animate_scan_gif, next_index)
 
     def stop_scan_animation(self):
         """Hide the scanning GIF."""
         self.scan_animation_running = False
         if hasattr(self, "scan_after_id"):
             try:
-                self.scan_gif_label.after_cancel(self.scan_after_id)
+                self.image_label.after_cancel(self.scan_after_id)
             except Exception:
                 pass
-        self.scan_gif_label.place_forget()
+        if hasattr(self, "current_card_photo"):
+            self.image_label.configure(image=self.current_card_photo)
 
     def _analyze_and_fill(self, url, idx):
         result = analyze_card_image(url)
