@@ -1606,7 +1606,7 @@ class CardEditorApp:
             cache_key = self._guess_key_from_filename(image_path)
         image = Image.open(image_path)
         image.thumbnail((400, 560))
-        img = ImageTk.PhotoImage(image)
+        img = ctk.CTkImage(light_image=image, size=image.size)
         self.image_objects.append(img)
         self.image_objects = self.image_objects[-2:]
         self.image_label.configure(image=img)
@@ -2179,8 +2179,8 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((140, 140))
-            top.logo_photo = ImageTk.PhotoImage(logo_img)
-            ctk.CTkLabel(top, image=top.logo_photo, text="").pack(pady=(10, 10))
+            top.logo_image = ctk.CTkImage(light_image=logo_img, size=logo_img.size)
+            ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
 
         columns = ("name", "number", "set", "price")
         tree = ttk.Treeview(top, columns=columns, show="headings")
