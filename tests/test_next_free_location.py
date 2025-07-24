@@ -51,6 +51,7 @@ def test_load_images_sets_start(monkeypatch, tmp_path):
         start_box_var=SimpleNamespace(get=lambda: 2),
         start_col_var=SimpleNamespace(get=lambda: 1),
         start_pos_var=SimpleNamespace(get=lambda: 5),
+        scan_folder_var=SimpleNamespace(get=lambda: "", set=lambda v: None),
     )
 
     ui.CardEditorApp.browse_scans(dummy)

@@ -42,6 +42,10 @@ def test_show_card_uses_analyzer(tmp_path):
         update_set_options=lambda *a, **k: None,
     )
 
+    dummy.start_scan_animation = lambda *a, **k: None
+    dummy.stop_scan_animation = lambda *a, **k: None
+    dummy._analyze_and_fill = lambda url, idx: ui.CardEditorApp._apply_analysis_result(dummy, ui.analyze_card_image(url), idx)
+
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
          patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base", "suffix": "V"}) as mock_analyze:

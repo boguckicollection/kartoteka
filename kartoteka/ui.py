@@ -318,6 +318,7 @@ class CardEditorApp:
         self.start_box_var = tk.StringVar(value="1")
         self.start_col_var = tk.StringVar(value="1")
         self.start_pos_var = tk.StringVar(value="1")
+        self.scan_folder_var = tk.StringVar()
         self.starting_idx = 0
         self.start_frame = None
         self.shoper_frame = None
@@ -428,6 +429,13 @@ class CardEditorApp:
         ctk.CTkEntry(self.location_frame, textvariable=self.start_box_var, width=60).grid(row=1, column=0)
         ctk.CTkEntry(self.location_frame, textvariable=self.start_col_var, width=60).grid(row=1, column=1)
         ctk.CTkEntry(self.location_frame, textvariable=self.start_pos_var, width=60).grid(row=1, column=2)
+        ctk.CTkLabel(self.location_frame, text="Folder").grid(row=2, column=0, padx=5, pady=2)
+        ctk.CTkEntry(self.location_frame, textvariable=self.scan_folder_var, width=200).grid(row=2, column=1, columnspan=2, sticky="ew")
+        self.create_button(
+            self.location_frame,
+            text="Wybierz",
+            command=self.select_scan_folder,
+        ).grid(row=2, column=3, padx=5)
         img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "box.png")
         if os.path.exists(img_path):
             img = Image.open(img_path)
@@ -442,7 +450,7 @@ class CardEditorApp:
             self.location_frame,
             text="Dalej",
             command=self.browse_scans,
-        ).grid(row=2, column=0, columnspan=4, pady=5)
+        ).grid(row=3, column=0, columnspan=4, pady=5)
         # Hide until the user clicks 'Skanuj'
         self.location_frame.pack_forget()
 
@@ -586,6 +594,12 @@ class CardEditorApp:
         """Display the start location selection frame."""
         if self.location_frame is not None:
             self.location_frame.pack(pady=10)
+
+    def select_scan_folder(self):
+        """Open a dialog to choose the folder with scans."""
+        folder = filedialog.askdirectory()
+        if folder:
+            self.scan_folder_var.set(folder)
 
     def create_button(self, master=None, **kwargs):
         if master is None:
@@ -1350,6 +1364,9 @@ class CardEditorApp:
         self.image_label = ctk.CTkLabel(self.frame, width=400, height=560)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         self.image_label.grid_propagate(False)
+        self.scan_gif_label = tk.Label(self.image_label, bg=self.root.cget("background"))
+        self.scan_gif_label.place(relx=0.5, rely=0.5, anchor="center")
+        self.scan_gif_label.place_forget()
         # Display only a textual progress indicator below the card image
         self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
@@ -1645,9 +1662,12 @@ class CardEditorApp:
                 "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
             )
             return
-        folder = filedialog.askdirectory()
+        folder = self.scan_folder_var.get().strip()
         if not folder:
-            return
+            folder = filedialog.askdirectory()
+            if not folder:
+                return
+            self.scan_folder_var.set(folder)
         self.starting_idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
         CardEditorApp.load_images(self, folder)
 
@@ -1732,19 +1752,12 @@ class CardEditorApp:
 
         folder = os.path.basename(os.path.dirname(image_path))
         remote_url = f"{BASE_IMAGE_URL}/{folder}/{os.path.basename(image_path)}"
-        result = analyze_card_image(remote_url)
-        if result:
-            name = result.get("name", "")
-            number = result.get("number", "")
-            set_name = result.get("set", "")
-            suffix_val = result.get("suffix", "")
-            self.entries["nazwa"].delete(0, tk.END)
-            self.entries["nazwa"].insert(0, name)
-            self.entries["numer"].delete(0, tk.END)
-            self.entries["numer"].insert(0, number)
-            self.entries["set"].set(set_name)
-            self.entries.get("suffix").set(suffix_val)
-            self.update_set_options()
+        self.start_scan_animation()
+        threading.Thread(
+            target=self._analyze_and_fill,
+            args=(remote_url, self.index),
+            daemon=True,
+        ).start()
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
@@ -1758,6 +1771,64 @@ class CardEditorApp:
             set_name = "_".join(parts[2:])
             return f"{name}|{number}|{set_name}"
         return None
+
+    def start_scan_animation(self, index=0):
+        """Show the scanning GIF on top of the image label."""
+        if not hasattr(self, "scan_gif_frames"):
+            path = os.path.join(os.path.dirname(__file__), "scan.gif")
+            if os.path.exists(path):
+                from PIL import ImageSequence
+
+                img = Image.open(path)
+                self.scan_gif_frames = [ImageTk.PhotoImage(frame.copy()) for frame in ImageSequence.Iterator(img)]
+                self.scan_gif_durations = [frame.info.get("duration", 100) for frame in ImageSequence.Iterator(img)]
+            else:
+                self.scan_gif_frames = []
+        if not self.scan_gif_frames:
+            return
+        self.scan_animation_running = True
+        self.scan_gif_label.place(relx=0.5, rely=0.5, anchor="center")
+        self._animate_scan_gif(index)
+
+    def _animate_scan_gif(self, index=0):
+        if not getattr(self, "scan_animation_running", False):
+            return
+        frame = self.scan_gif_frames[index]
+        self.scan_gif_label.configure(image=frame)
+        next_index = (index + 1) % len(self.scan_gif_frames)
+        delay = self.scan_gif_durations[index] if hasattr(self, "scan_gif_durations") else 100
+        self.scan_after_id = self.scan_gif_label.after(delay, self._animate_scan_gif, next_index)
+
+    def stop_scan_animation(self):
+        """Hide the scanning GIF."""
+        self.scan_animation_running = False
+        if hasattr(self, "scan_after_id"):
+            try:
+                self.scan_gif_label.after_cancel(self.scan_after_id)
+            except Exception:
+                pass
+        self.scan_gif_label.place_forget()
+
+    def _analyze_and_fill(self, url, idx):
+        result = analyze_card_image(url)
+        self.root.after(0, lambda: self._apply_analysis_result(result, idx))
+
+    def _apply_analysis_result(self, result, idx):
+        if idx != self.index:
+            return
+        self.stop_scan_animation()
+        if result:
+            name = result.get("name", "")
+            number = result.get("number", "")
+            set_name = result.get("set", "")
+            suffix_val = result.get("suffix", "")
+            self.entries["nazwa"].delete(0, tk.END)
+            self.entries["nazwa"].insert(0, name)
+            self.entries["numer"].delete(0, tk.END)
+            self.entries["numer"].insert(0, number)
+            self.entries["set"].set(set_name)
+            self.entries.get("suffix").set(suffix_val)
+            self.update_set_options()
 
     def generate_location(self, idx):
         return storage.generate_location(idx)
