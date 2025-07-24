@@ -53,3 +53,20 @@ def test_show_card_uses_analyzer(tmp_path):
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")
 
+
+def test_analyze_card_image_bad_json(monkeypatch, capsys):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="not json"))]
+    )
+
+    with patch("openai.chat.completions.create", return_value=resp):
+        result = ui.analyze_card_image("/tmp/img.jpg")
+    output = capsys.readouterr().out
+
+    assert result == {"name": "", "number": "", "set": ""}
+    assert "analyze_card_image failed to decode JSON" in output
+    assert "not json" in output
+
