@@ -19,6 +19,7 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry = MagicMock()
     num_entry = MagicMock()
     set_var = MagicMock()
+    suffix_var = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     name_entry.focus_set = MagicMock()
@@ -32,7 +33,7 @@ def test_show_card_uses_analyzer(tmp_path):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
         rarity_vars={},
         type_vars={},
         card_cache={},
@@ -43,7 +44,7 @@ def test_show_card_uses_analyzer(tmp_path):
 
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-         patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base"}) as mock_analyze:
+         patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base", "suffix": "V"}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
     folder = os.path.basename(img.parent)
@@ -52,6 +53,7 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")
+    suffix_var.set.assert_called_with("V")
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
@@ -66,7 +68,7 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
         result = ui.analyze_card_image("/tmp/img.jpg")
     output = capsys.readouterr().out
 
-    assert result == {"name": "", "number": "", "set": ""}
+    assert result == {"name": "", "number": "", "set": "", "suffix": ""}
     assert "analyze_card_image failed to decode JSON" in output
     assert "not json" in output
 
@@ -83,5 +85,5 @@ def test_analyze_card_image_code_block(monkeypatch):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "37", "set": "Base"}
+    assert result == {"name": "Pikachu", "number": "37", "set": "Base", "suffix": ""}
 
