@@ -734,7 +734,9 @@ class CardEditorApp:
         # Quick connection test to provide clearer error messages
         try:
             # use a known endpoint to verify the connection
-            self.shoper_client.get_inventory()
+            resp = self.shoper_client.get_inventory()
+            if not resp:
+                raise RuntimeError("404")
         except Exception as exc:
             msg = str(exc)
             if "404" in msg:
