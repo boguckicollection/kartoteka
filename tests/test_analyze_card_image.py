@@ -1,6 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
+import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import tkinter as tk
@@ -45,7 +46,9 @@ def test_show_card_uses_analyzer(tmp_path):
          patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base"}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
-    mock_analyze.assert_called_once_with(str(img))
+    folder = os.path.basename(img.parent)
+    expected_url = f"{ui.BASE_IMAGE_URL}/{folder}/{img.name}"
+    mock_analyze.assert_called_once_with(expected_url)
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")

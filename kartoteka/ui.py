@@ -223,6 +223,15 @@ def analyze_card_image(path: str):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
         return {"name": "", "number": "", "set": ""}
+
+    parsed = urlparse(path)
+    if parsed.scheme in ("http", "https"):
+        url = path
+    else:
+        folder = os.path.basename(os.path.dirname(path))
+        filename = os.path.basename(path)
+        url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
+
     try:
         resp = openai.ChatCompletion.create(
             model="gpt-4-vision-preview",
@@ -238,7 +247,7 @@ def analyze_card_image(path: str):
                         },
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"file://{path}"},
+                            "image_url": {"url": url},
                         },
                     ],
                 }
@@ -1688,7 +1697,9 @@ class CardEditorApp:
                     self.rarity_vars[name].set(val)
             self.update_set_options()
 
-        result = analyze_card_image(image_path)
+        folder = os.path.basename(os.path.dirname(image_path))
+        remote_url = f"{BASE_IMAGE_URL}/{folder}/{os.path.basename(image_path)}"
+        result = analyze_card_image(remote_url)
         if result:
             name = result.get("name", "")
             number = result.get("number", "")
