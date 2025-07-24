@@ -1715,6 +1715,7 @@ class CardEditorApp:
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None
+        if getattr(self, "frame", None) is None:
             self.setup_editor_ui()
         self.folder_path = folder
         self.folder_name = os.path.basename(folder)
