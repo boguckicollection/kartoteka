@@ -116,6 +116,45 @@ def reload_sets():
 reload_sets()
 
 
+class LocationDialog(simpledialog.Dialog):
+    """Collect starting box, column and position in a single dialog."""
+
+    def body(self, master):
+        tk.Label(master, text="Karton").grid(row=0, column=0, padx=5, pady=2)
+        tk.Label(master, text="Kolumna").grid(row=0, column=1, padx=5, pady=2)
+        tk.Label(master, text="Pozycja").grid(row=0, column=2, padx=5, pady=2)
+
+        self.box_var = tk.IntVar(value=1)
+        self.col_var = tk.IntVar(value=1)
+        self.pos_var = tk.IntVar(value=1)
+
+        tk.Entry(master, textvariable=self.box_var, width=5).grid(row=1, column=0)
+        tk.Entry(master, textvariable=self.col_var, width=5).grid(row=1, column=1)
+        tk.Entry(master, textvariable=self.pos_var, width=5).grid(row=1, column=2)
+        return master
+
+    def validate(self):
+        try:
+            box = self.box_var.get()
+            col = self.col_var.get()
+            pos = self.pos_var.get()
+        except tk.TclError:
+            return False
+        if box < 1 or col < 1 or col > 4 or pos < 1 or pos > 1000:
+            messagebox.showerror(
+                "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
+            )
+            return False
+        self.result = (box, col, pos)
+        return True
+
+
+def prompt_start_location(parent):
+    """Return (box, column, pos) from a LocationDialog."""
+    dlg = LocationDialog(parent)
+    return getattr(dlg, "result", None)
+
+
 def get_set_code(name: str) -> str:
     """Return the API code for a set name if available."""
     if not name:
@@ -1168,13 +1207,17 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
-            self.logo_photo = ImageTk.PhotoImage(logo_img)
-            self.logo_label = tk.Label(
-                self.frame,
-                image=self.logo_photo,
-                bg=self.root.cget("background"),
-            )
-            self.logo_label.grid(row=0, column=0, columnspan=6, pady=(0, 10))
+        self.logo_photo = ImageTk.PhotoImage(logo_img)
+        self.logo_label = tk.Label(
+            self.frame,
+            image=self.logo_photo,
+            bg=self.root.cget("background"),
+        )
+        self.logo_label.grid(row=0, column=0, columnspan=6, pady=(0, 10))
+
+        # label for the upcoming warehouse code
+        self.location_label = ctk.CTkLabel(self.frame, text="", text_color=TEXT_COLOR)
+        self.location_label.grid(row=1, column=0, columnspan=6, pady=(0, 10))
 
 
         # Bottom frame for action buttons
@@ -1516,19 +1559,11 @@ class CardEditorApp:
         if not folder:
             return
 
-        box = simpledialog.askinteger("Początkowa lokalizacja", "Karton", minvalue=1, initialvalue=1)
-        if box is None:
+        parent = getattr(self, "root", None)
+        location = prompt_start_location(parent)
+        if not location:
             return
-        column = simpledialog.askinteger(
-            "Początkowa lokalizacja", "Kolumna", minvalue=1, maxvalue=4, initialvalue=1
-        )
-        if column is None:
-            return
-        pos = simpledialog.askinteger(
-            "Początkowa lokalizacja", "Pozycja", minvalue=1, initialvalue=1
-        )
-        if pos is None:
-            return
+        box, column, pos = location
 
         self.starting_idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
         if self.start_frame is not None:
@@ -1568,6 +1603,8 @@ class CardEditorApp:
         self.image_objects.append(img)
         self.image_objects = self.image_objects[-2:]
         self.image_label.configure(image=img)
+        if hasattr(self, "location_label"):
+            self.location_label.configure(text=self.next_free_location())
 
         for key, entry in self.entries.items():
             if isinstance(entry, (tk.Entry, ctk.CTkEntry)):

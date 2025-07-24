@@ -41,8 +41,7 @@ def test_load_images_sets_start(monkeypatch, tmp_path):
     img.write_bytes(b"data")
 
     monkeypatch.setattr(ui.filedialog, "askdirectory", lambda: str(tmp_path))
-    seq = iter([2, 1, 5])
-    monkeypatch.setattr(ui.simpledialog, "askinteger", lambda *a, **k: next(seq))
+    monkeypatch.setattr(ui, "prompt_start_location", lambda *a, **k: (2, 1, 5))
 
     dummy = SimpleNamespace(
         start_frame=None,
