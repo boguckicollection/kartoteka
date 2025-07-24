@@ -703,25 +703,26 @@ class CardEditorApp:
             stats["open_returns"] = len(open_ret.get("list", open_ret))
 
             sales = self.shoper_client.get_sales_stats()
-            for key, default in {
-                "today": 0,
-                "week": 0,
-                "month": 0,
-                "avg_order_value": 0,
-                "active_products": 0,
-            }.items():
-                try:
-                    value = int(float(sales.get(key, default)))
-                except (TypeError, ValueError):
-                    value = default
-                stats_key = {
-                    "today": "sales_today",
-                    "week": "sales_week",
-                    "month": "sales_month",
-                    "avg_order_value": "avg_order_value",
-                    "active_products": "active_cards",
-                }[key]
-                stats[stats_key] = value
+            if sales:
+                for key, default in {
+                    "today": 0,
+                    "week": 0,
+                    "month": 0,
+                    "avg_order_value": 0,
+                    "active_products": 0,
+                }.items():
+                    try:
+                        value = int(float(sales.get(key, default)))
+                    except (TypeError, ValueError):
+                        value = default
+                    stats_key = {
+                        "today": "sales_today",
+                        "week": "sales_week",
+                        "month": "sales_month",
+                        "avg_order_value": "avg_order_value",
+                        "active_products": "active_cards",
+                    }[key]
+                    stats[stats_key] = value
         except Exception as exc:  # pragma: no cover - network failure
             print(f"[WARNING] store stats failed: {exc}")
         return stats
