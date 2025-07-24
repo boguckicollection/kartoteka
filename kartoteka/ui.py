@@ -332,6 +332,8 @@ class CardEditorApp:
         self.set_logos = {}
         self.loading_frame = None
         self.loading_label = None
+        self.price_pool_total = 0.0
+        self.pool_total_label = None
         self.show_loading_screen()
         threading.Thread(target=self.startup_tasks, daemon=True).start()
 
@@ -1216,6 +1218,24 @@ class CardEditorApp:
         )
         self.result_frame.pack(expand=True, fill="both", pady=10)
 
+        self.pool_frame = tk.Frame(
+            self.pricing_frame, bg=self.root.cget("background")
+        )
+        self.pool_frame.grid(row=2, column=0, columnspan=2, pady=5)
+        self.pool_total_label = tk.Label(
+            self.pool_frame,
+            text="Suma puli: 0.00",
+            bg=self.root.cget("background"),
+            fg=TEXT_COLOR,
+        )
+        self.pool_total_label.pack(side="left")
+        self.create_button(
+            self.pool_frame,
+            text="Wyczyść",
+            command=self.clear_price_pool,
+            width=120,
+        ).pack(side="left", padx=5)
+
     def run_pricing_search(self):
         """Fetch and display pricing information."""
         name = self.price_name_entry.get()
@@ -1229,6 +1249,7 @@ class CardEditorApp:
         self.price_labels = []
         self.result_image_label = None
         self.set_logo_label = None
+        self.add_pool_button = None
         if not info:
             messagebox.showinfo("Brak wyników", "Nie znaleziono karty.")
             return
@@ -1242,7 +1263,9 @@ class CardEditorApp:
                     img.thumbnail((240, 340))
                     self.pricing_photo = ImageTk.PhotoImage(img)
                     self.result_image_label = tk.Label(
-                        self.result_frame, image=self.pricing_photo
+                        self.result_frame,
+                        image=self.pricing_photo,
+                        bg=self.root.cget("background"),
                     )
                     self.result_image_label.pack(pady=5)
             except Exception as e:
@@ -1256,7 +1279,9 @@ class CardEditorApp:
                     img.thumbnail((180, 60))
                     self.set_logo_photo = ImageTk.PhotoImage(img)
                     self.set_logo_label = tk.Label(
-                        self.result_frame, image=self.set_logo_photo
+                        self.result_frame,
+                        image=self.set_logo_photo,
+                        bg=self.root.cget("background"),
                     )
                     self.set_logo_label.pack(pady=5)
             except Exception as e:
@@ -1271,19 +1296,37 @@ class CardEditorApp:
         price_80 = round(price_pln * 0.8, 2)
         if not getattr(self, "price_labels", None):
             eur = tk.Label(
-                self.result_frame, text=f"Cena EUR: {info['price_eur']}", fg="blue"
+                self.result_frame,
+                text=f"Cena EUR: {info['price_eur']}",
+                fg="blue",
+                bg=self.root.cget("background"),
             )
             rate = tk.Label(
                 self.result_frame,
                 text=f"Kurs EUR→PLN: {info['eur_pln_rate']}",
                 fg="gray",
+                bg=self.root.cget("background"),
             )
-            pln = tk.Label(self.result_frame, text=f"Cena PLN: {price_pln}", fg="green")
+            pln = tk.Label(
+                self.result_frame,
+                text=f"Cena PLN: {price_pln}",
+                fg="green",
+                bg=self.root.cget("background"),
+            )
             pln80 = tk.Label(
-                self.result_frame, text=f"80% ceny PLN: {price_80}", fg="red"
+                self.result_frame,
+                text=f"80% ceny PLN: {price_80}",
+                fg="red",
+                bg=self.root.cget("background"),
             )
             for lbl in (eur, rate, pln, pln80):
                 lbl.pack()
+            self.add_pool_button = self.create_button(
+                self.result_frame,
+                text="Dodaj do puli",
+                command=self.add_to_price_pool,
+            )
+            self.add_pool_button.pack(pady=5)
             self.price_labels = [eur, rate, pln, pln80]
         else:
             eur, rate, pln, pln80 = self.price_labels
@@ -1297,6 +1340,27 @@ class CardEditorApp:
             self.display_price_info(
                 self.current_price_info, self.price_reverse_var.get()
             )
+
+    def add_to_price_pool(self):
+        if not getattr(self, "current_price_info", None):
+            return
+        price = self.apply_variant_multiplier(
+            self.current_price_info["price_pln"],
+            is_reverse=self.price_reverse_var.get(),
+        )
+        try:
+            self.price_pool_total += float(price)
+        except (TypeError, ValueError):
+            return
+        if self.pool_total_label:
+            self.pool_total_label.config(
+                text=f"Suma puli: {self.price_pool_total:.2f}"
+            )
+
+    def clear_price_pool(self):
+        self.price_pool_total = 0.0
+        if self.pool_total_label:
+            self.pool_total_label.config(text="Suma puli: 0.00")
 
     def back_to_welcome(self):
         if getattr(self, "pricing_frame", None):
