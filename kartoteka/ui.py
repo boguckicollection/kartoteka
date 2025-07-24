@@ -233,8 +233,8 @@ def analyze_card_image(path: str):
         url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
 
     try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-4-vision-preview",
+        resp = openai.chat.completions.create(
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
