@@ -222,7 +222,7 @@ def extract_cardmarket_price(card):
 def analyze_card_image(path: str):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
-        return {"name": "", "number": "", "set": ""}
+        return {"name": "", "number": "", "set": "", "suffix": ""}
 
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
@@ -242,7 +242,7 @@ def analyze_card_image(path: str):
                         {
                             "type": "text",
                             "text": (
-                                "Extract Pokemon card name, number and set as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\"}."
+                                "Extract Pokemon card name, number, set and suffix (EX, GX, V, VMAX, VSTAR, Shiny, Promo) as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
                             ),
                         },
                         {
@@ -256,31 +256,42 @@ def analyze_card_image(path: str):
         )
         content = resp.choices[0].message.content
         try:
-            return json.loads(content)
+            data = json.loads(content)
         except json.JSONDecodeError:
-            pass
+            data = None
 
-        # Remove Markdown code fences if present
-        text = content.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].startswith("```"):
-                text = "\n".join(lines[1:-1]).strip()
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as e:
-            print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
-            return {"name": "", "number": "", "set": ""}
+        if data is None:
+            # Remove Markdown code fences if present
+            text = content.strip()
+            if text.startswith("```"):
+                lines = text.splitlines()
+                if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].startswith("```"):
+                    text = "\n".join(lines[1:-1]).strip()
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
+                return {"name": "", "number": "", "set": "", "suffix": ""}
 
         number = data.get("number", "")
         if isinstance(number, str):
             m = re.match(r"\D*(\d+)", number)
             if m:
                 data["number"] = str(int(m.group(1)))
+
+        name = data.get("name", "")
+        suffix = data.get("suffix", "").upper() if isinstance(data.get("suffix"), str) else ""
+        if isinstance(name, str) and not suffix:
+            parts = name.split()
+            if parts and parts[-1].upper() in {"EX", "GX", "V", "VMAX", "VSTAR", "SHINY", "PROMO"}:
+                suffix = parts[-1].upper()
+                name = " ".join(parts[:-1])
+        data["name"] = name
+        data["suffix"] = suffix
         return data
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {"name": "", "number": "", "set": ""}
+        return {"name": "", "number": "", "set": "", "suffix": ""}
 
 
 class CardEditorApp:
@@ -1726,11 +1737,13 @@ class CardEditorApp:
             name = result.get("name", "")
             number = result.get("number", "")
             set_name = result.get("set", "")
+            suffix_val = result.get("suffix", "")
             self.entries["nazwa"].delete(0, tk.END)
             self.entries["nazwa"].insert(0, name)
             self.entries["numer"].delete(0, tk.END)
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
+            self.entries.get("suffix").set(suffix_val)
             self.update_set_options()
 
         # focus the name entry so the user can start typing immediately
