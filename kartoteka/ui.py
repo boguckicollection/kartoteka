@@ -255,7 +255,11 @@ def analyze_card_image(path: str):
             max_tokens=100,
         )
         content = resp.choices[0].message.content
-        return json.loads(content)
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
+            return {"name": "", "number": "", "set": ""}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
         return {"name": "", "number": "", "set": ""}
