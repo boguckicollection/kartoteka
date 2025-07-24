@@ -589,10 +589,9 @@ class CardEditorApp:
         frame = ctk.CTkFrame(self.root)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
         frame.grid_anchor("center")
-        # keep the input fields close together while the folder entry expands
-        for i in range(3):
-            frame.columnconfigure(i, weight=0)
-        frame.columnconfigure(3, weight=1)
+        # evenly distribute columns so the form stays centered
+        for i in range(4):
+            frame.columnconfigure(i, weight=1)
         self.location_frame = frame
 
         start_row = 0
@@ -617,17 +616,6 @@ class CardEditorApp:
         ctk.CTkLabel(frame, text="Folder").grid(row=start_row + 2, column=0, padx=5, pady=2)
         ctk.CTkEntry(frame, textvariable=self.scan_folder_var, width=200).grid(row=start_row + 2, column=1, columnspan=2, sticky="ew")
         self.create_button(frame, text="Wybierz", command=self.select_scan_folder).grid(row=start_row + 2, column=3, padx=5)
-
-        img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "box.png")
-        if os.path.exists(img_path):
-            img = Image.open(img_path)
-            img.thumbnail((120, 120))
-            self.location_photo = ImageTk.PhotoImage(img)
-            tk.Label(
-                frame,
-                image=self.location_photo,
-                bg=self.root.cget("background"),
-            ).grid(row=start_row, column=3, rowspan=3, padx=10, sticky="e")
 
         self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=start_row + 3, column=0, columnspan=4, pady=5)
 
@@ -1010,8 +998,11 @@ class CardEditorApp:
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         img_path = os.path.join(os.path.dirname(__file__), "box.png")
-        img = Image.open(img_path)
-        img.thumbnail((150, 150))
+        if os.path.exists(img_path):
+            img = Image.open(img_path)
+            img.thumbnail((150, 150))
+        else:
+            img = Image.new("RGB", (150, 150), "#111111")
         self.mag_box_photo = ImageTk.PhotoImage(img)
 
         container = tk.Frame(
