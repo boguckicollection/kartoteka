@@ -257,9 +257,27 @@ def analyze_card_image(path: str):
         content = resp.choices[0].message.content
         try:
             return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        # Remove Markdown code fences if present
+        text = content.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].startswith("```"):
+                text = "\n".join(lines[1:-1]).strip()
+        try:
+            data = json.loads(text)
         except json.JSONDecodeError as e:
             print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
             return {"name": "", "number": "", "set": ""}
+
+        number = data.get("number", "")
+        if isinstance(number, str):
+            m = re.match(r"\D*(\d+)", number)
+            if m:
+                data["number"] = str(int(m.group(1)))
+        return data
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
         return {"name": "", "number": "", "set": ""}
