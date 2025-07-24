@@ -236,9 +236,9 @@ class CardEditorApp:
         self.folder_name = ""
         self.folder_path = ""
         self.progress_var = tk.StringVar(value="0/0")
-        self.start_box_var = tk.IntVar(value=1)
-        self.start_col_var = tk.IntVar(value=1)
-        self.start_pos_var = tk.IntVar(value=1)
+        self.start_box_var = tk.StringVar(value="1")
+        self.start_col_var = tk.StringVar(value="1")
+        self.start_pos_var = tk.StringVar(value="1")
         self.starting_idx = 0
         self.start_frame = None
         self.shoper_frame = None
@@ -1553,10 +1553,10 @@ class CardEditorApp:
     def browse_scans(self):
         """Ask for a folder and load scans starting from the entered location."""
         try:
-            box = self.start_box_var.get()
-            column = self.start_col_var.get()
-            pos = self.start_pos_var.get()
-        except tk.TclError:
+            box = int(self.start_box_var.get())
+            column = int(self.start_col_var.get())
+            pos = int(self.start_pos_var.get())
+        except (tk.TclError, ValueError):
             messagebox.showerror(
                 "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
             )
