@@ -3,6 +3,7 @@ from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk
+import base64
 import os
 import csv
 import json
@@ -226,6 +227,7 @@ def analyze_card_image(path: str):
     try:
         with open(path, "rb") as f:
             image_data = f.read()
+        encoded = base64.b64encode(image_data).decode("ascii")
         resp = openai.ChatCompletion.create(
             model="gpt-4-vision-preview",
             messages=[
@@ -235,11 +237,13 @@ def analyze_card_image(path: str):
                         {
                             "type": "text",
                             "text": (
-                                "Extract Pokemon card name, number and set as JSON "
-                                '{"name":"","number":"","set":""}.'
+                                "Extract Pokemon card name, number and set as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\"}."
                             ),
                         },
-                        {"type": "image", "image": image_data},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{encoded}"},
+                        },
                     ],
                 }
             ],
@@ -1643,7 +1647,10 @@ class CardEditorApp:
             cache_key = self._guess_key_from_filename(image_path)
         image = Image.open(image_path)
         image.thumbnail((400, 560))
-        img = ctk.CTkImage(light_image=image, size=image.size)
+        if hasattr(ctk, "CTkImage"):
+            img = ctk.CTkImage(light_image=image, size=image.size)
+        else:
+            img = ImageTk.PhotoImage(image)
         self.image_objects.append(img)
         self.image_objects = self.image_objects[-2:]
         self.image_label.configure(image=img)
