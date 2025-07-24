@@ -872,12 +872,22 @@ class CardEditorApp:
 
     def fetch_inventory(self, widget):
         try:
-            data = self.shoper_client.get_inventory()
+            all_products = []
+            page = 1
+            per_page = 50
+            while True:
+                data = self.shoper_client.get_inventory(page=page, per_page=per_page)
+                products = data.get("list", data)
+                if not products:
+                    break
+                all_products.extend(products)
+                if len(products) < per_page:
+                    break
+                page += 1
+
             widget.delete("1.0", tk.END)
-            # Display a friendly list of product names if possible
-            products = data.get("list", data)
             lines = []
-            for prod in products:
+            for prod in all_products:
                 translations = prod.get("translations") or {}
                 name = ""
                 if isinstance(translations, dict):
@@ -887,7 +897,10 @@ class CardEditorApp:
             if lines:
                 widget.insert(tk.END, "\n".join(lines))
             else:
-                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+                widget.insert(
+                    tk.END,
+                    json.dumps(all_products, indent=2, ensure_ascii=False),
+                )
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 

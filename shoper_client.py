@@ -53,8 +53,10 @@ class ShoperClient:
     def add_product(self, data):
         return self.post("products", json=data)
 
-    def get_inventory(self):
-        return self.get("products")
+    def get_inventory(self, page=1, per_page=50):
+        """Return products with optional pagination."""
+        params = {"page": page, "per-page": per_page}
+        return self.get("products", params=params)
 
     def search_products(self, filters=None, sort=None, page=1, per_page=50):
         """Search products with optional filters and sorting."""
