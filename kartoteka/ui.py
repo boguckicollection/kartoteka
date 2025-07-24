@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageFilter
 import os
 import csv
 import json
@@ -589,9 +589,6 @@ class CardEditorApp:
         frame = ctk.CTkFrame(self.root)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
         frame.grid_anchor("center")
-        # evenly distribute columns so the form stays centered
-        for i in range(4):
-            frame.columnconfigure(i, weight=1)
         self.location_frame = frame
 
         start_row = 0
@@ -604,20 +601,23 @@ class CardEditorApp:
                 frame,
                 image=self.location_logo_photo,
                 bg=self.root.cget("background"),
-            ).grid(row=start_row, column=0, columnspan=4, pady=(0, 10))
-            start_row += 1
+            ).pack(pady=(0, 10))
 
+        form = tk.Frame(frame, bg=self.root.cget("background"))
+        form.pack(pady=5)
         for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
-            ctk.CTkLabel(frame, text=label).grid(row=start_row, column=idx, padx=5, pady=2)
-        ctk.CTkEntry(frame, textvariable=self.start_box_var, width=60).grid(row=start_row + 1, column=0)
-        ctk.CTkEntry(frame, textvariable=self.start_col_var, width=60).grid(row=start_row + 1, column=1)
-        ctk.CTkEntry(frame, textvariable=self.start_pos_var, width=60).grid(row=start_row + 1, column=2)
+            ctk.CTkLabel(form, text=label).grid(row=0, column=idx, padx=5, pady=2)
+        ctk.CTkEntry(form, textvariable=self.start_box_var, width=60).grid(row=1, column=0, padx=5)
+        ctk.CTkEntry(form, textvariable=self.start_col_var, width=60).grid(row=1, column=1, padx=5)
+        ctk.CTkEntry(form, textvariable=self.start_pos_var, width=60).grid(row=1, column=2, padx=5)
 
-        ctk.CTkLabel(frame, text="Folder").grid(row=start_row + 2, column=0, padx=5, pady=2)
-        ctk.CTkEntry(frame, textvariable=self.scan_folder_var, width=200).grid(row=start_row + 2, column=1, columnspan=2, sticky="ew")
-        self.create_button(frame, text="Wybierz", command=self.select_scan_folder).grid(row=start_row + 2, column=3, padx=5)
+        folder_frame = tk.Frame(frame, bg=self.root.cget("background"))
+        folder_frame.pack(pady=5)
+        ctk.CTkLabel(folder_frame, text="Folder").grid(row=0, column=0, padx=5, pady=2)
+        ctk.CTkEntry(folder_frame, textvariable=self.scan_folder_var, width=200).grid(row=0, column=1, padx=5)
+        self.create_button(folder_frame, text="Wybierz", command=self.select_scan_folder).grid(row=0, column=2, padx=5)
 
-        self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=start_row + 3, column=0, columnspan=4, pady=5)
+        self.create_button(frame, text="Dalej", command=self.start_browse_scans).pack(pady=5)
 
     def select_scan_folder(self):
         """Open a dialog to choose the folder with scans."""
@@ -1820,27 +1820,30 @@ class CardEditorApp:
         path = os.path.join(os.path.dirname(__file__), "scan.gif")
         w = self.image_label.winfo_width() or 400
         h = self.image_label.winfo_height() or 560
-        if not hasattr(self, "scan_gif_frames") or getattr(self, "scan_gif_size", (None, None)) != (w, h):
-            if os.path.exists(path) and hasattr(self, "current_card_image"):
-                from PIL import ImageSequence
+        if os.path.exists(path) and hasattr(self, "current_card_image"):
+            from PIL import ImageSequence
 
-                img = Image.open(path)
-                frames = []
-                durations = []
-                base = self.current_card_image.convert("RGBA").resize((w, h))
-                for frame in ImageSequence.Iterator(img):
-                    overlay = frame.convert("RGBA").resize((w, h))
-                    composed = Image.alpha_composite(base, overlay)
-                    if hasattr(ctk, "CTkImage"):
-                        frames.append(ctk.CTkImage(light_image=composed, size=(w, h)))
-                    else:
-                        frames.append(ImageTk.PhotoImage(composed))
-                    durations.append(frame.info.get("duration", 100))
-                self.scan_gif_frames = frames
-                self.scan_gif_durations = durations
-                self.scan_gif_size = (w, h)
-            else:
-                self.scan_gif_frames = []
+            img = Image.open(path)
+            frames = []
+            durations = []
+            base = (
+                self.current_card_image.convert("RGBA")
+                .resize((w, h))
+                .filter(ImageFilter.GaussianBlur(radius=2))
+            )
+            for frame in ImageSequence.Iterator(img):
+                overlay = frame.convert("RGBA").resize((w, h))
+                composed = Image.alpha_composite(base, overlay)
+                if hasattr(ctk, "CTkImage"):
+                    frames.append(ctk.CTkImage(light_image=composed, size=(w, h)))
+                else:
+                    frames.append(ImageTk.PhotoImage(composed))
+                durations.append(frame.info.get("duration", 100))
+            self.scan_gif_frames = frames
+            self.scan_gif_durations = durations
+            self.scan_gif_size = (w, h)
+        else:
+            self.scan_gif_frames = []
         if not self.scan_gif_frames:
             return
         self.scan_animation_running = True
