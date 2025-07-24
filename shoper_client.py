@@ -88,7 +88,11 @@ class ShoperClient:
 
     def get_sales_stats(self, params=None):
         """Return sales statistics using the built-in Shoper endpoint."""
-        return self.get("orders/stats", params=params or {})
+        try:
+            return self.get("orders/stats", params=params or {})
+        except RuntimeError:  # pragma: no cover - network failure
+            print("[INFO] orders/stats unavailable")
+            return {}
 
     def import_csv(self, file_path):
         """Upload a CSV file using the Shoper API."""
