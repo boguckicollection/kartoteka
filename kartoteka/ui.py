@@ -116,43 +116,6 @@ def reload_sets():
 reload_sets()
 
 
-class LocationDialog(simpledialog.Dialog):
-    """Collect starting box, column and position in a single dialog."""
-
-    def body(self, master):
-        tk.Label(master, text="Karton").grid(row=0, column=0, padx=5, pady=2)
-        tk.Label(master, text="Kolumna").grid(row=0, column=1, padx=5, pady=2)
-        tk.Label(master, text="Pozycja").grid(row=0, column=2, padx=5, pady=2)
-
-        self.box_var = tk.IntVar(value=1)
-        self.col_var = tk.IntVar(value=1)
-        self.pos_var = tk.IntVar(value=1)
-
-        tk.Entry(master, textvariable=self.box_var, width=5).grid(row=1, column=0)
-        tk.Entry(master, textvariable=self.col_var, width=5).grid(row=1, column=1)
-        tk.Entry(master, textvariable=self.pos_var, width=5).grid(row=1, column=2)
-        return master
-
-    def validate(self):
-        try:
-            box = self.box_var.get()
-            col = self.col_var.get()
-            pos = self.pos_var.get()
-        except tk.TclError:
-            return False
-        if box < 1 or col < 1 or col > 4 or pos < 1 or pos > 1000:
-            messagebox.showerror(
-                "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
-            )
-            return False
-        self.result = (box, col, pos)
-        return True
-
-
-def prompt_start_location(parent):
-    """Return (box, column, pos) from a LocationDialog."""
-    dlg = LocationDialog(parent)
-    return getattr(dlg, "result", None)
 
 
 def get_set_code(name: str) -> str:
@@ -273,6 +236,9 @@ class CardEditorApp:
         self.folder_name = ""
         self.folder_path = ""
         self.progress_var = tk.StringVar(value="0/0")
+        self.start_box_var = tk.IntVar(value=1)
+        self.start_col_var = tk.IntVar(value=1)
+        self.start_pos_var = tk.IntVar(value=1)
         self.starting_idx = 0
         self.start_frame = None
         self.shoper_frame = None
@@ -347,7 +313,7 @@ class CardEditorApp:
         scan_btn = self.create_button(
             button_frame,
             text="\U0001f50d Skanuj",
-            command=self.load_images,
+            command=self.show_location_frame,
         )
         scan_btn.pack(side="left", padx=5)
         self.create_button(
@@ -375,6 +341,31 @@ class CardEditorApp:
             text="\U0001f4f7 FTP Obrazy",
             command=self.upload_images_dialog,
         ).pack(side="left", padx=5)
+
+        # Frame with starting location inputs
+        self.location_frame = ctk.CTkFrame(self.start_frame)
+        for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
+            ctk.CTkLabel(self.location_frame, text=label).grid(row=0, column=idx, padx=5, pady=2)
+        ctk.CTkEntry(self.location_frame, textvariable=self.start_box_var, width=60).grid(row=1, column=0)
+        ctk.CTkEntry(self.location_frame, textvariable=self.start_col_var, width=60).grid(row=1, column=1)
+        ctk.CTkEntry(self.location_frame, textvariable=self.start_pos_var, width=60).grid(row=1, column=2)
+        img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "box.png")
+        if os.path.exists(img_path):
+            img = Image.open(img_path)
+            img.thumbnail((120, 120))
+            self.location_photo = ImageTk.PhotoImage(img)
+            tk.Label(
+                self.location_frame,
+                image=self.location_photo,
+                bg=self.root.cget("background"),
+            ).grid(row=0, column=3, rowspan=2, padx=10)
+        self.create_button(
+            self.location_frame,
+            text="Dalej",
+            command=self.browse_scans,
+        ).grid(row=2, column=0, columnspan=4, pady=5)
+        # Hide until the user clicks 'Skanuj'
+        self.location_frame.pack_forget()
 
         # Display store statistics when Shoper credentials are available
         stats_frame = tk.Frame(
@@ -511,6 +502,11 @@ class CardEditorApp:
             text=text,
             command=lambda: messagebox.showinfo("Info", "Funkcja niezaimplementowana."),
         )
+
+    def show_location_frame(self):
+        """Display the start location selection frame."""
+        if self.location_frame is not None:
+            self.location_frame.pack(pady=10)
 
     def create_button(self, master=None, **kwargs):
         if master is None:
@@ -1230,7 +1226,7 @@ class CardEditorApp:
         self.load_button = self.create_button(
             self.button_frame,
             text="Import",
-            command=self.load_images,
+            command=self.browse_scans,
         )
         self.load_button.pack(side="left", padx=5)
 
@@ -1554,18 +1550,29 @@ class CardEditorApp:
         else:
             self.cheat_frame.grid()
 
-    def load_images(self):
+    def browse_scans(self):
+        """Ask for a folder and load scans starting from the entered location."""
+        try:
+            box = self.start_box_var.get()
+            column = self.start_col_var.get()
+            pos = self.start_pos_var.get()
+        except tk.TclError:
+            messagebox.showerror(
+                "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
+            )
+            return
+        if column < 1 or column > 4 or pos < 1 or pos > 1000:
+            messagebox.showerror(
+                "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
+            )
+            return
         folder = filedialog.askdirectory()
         if not folder:
             return
-
-        parent = getattr(self, "root", None)
-        location = prompt_start_location(parent)
-        if not location:
-            return
-        box, column, pos = location
-
         self.starting_idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
+        CardEditorApp.load_images(self, folder)
+
+    def load_images(self, folder):
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None

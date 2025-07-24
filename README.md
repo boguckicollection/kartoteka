@@ -51,7 +51,11 @@ Execute the main script with Python 3:
 python main.py
 ```
 
-The interface will allow you to load scans, fetch prices from the local database or the API, and export results to CSV.
+The interface will allow you to load scans, fetch prices from the local database
+or the API, and export results to CSV.  Use the **Skanuj** button to reveal a
+panel for entering the starting box, column and position.  After clicking
+**Dalej** and selecting a folder of images the application loads the scans
+starting from the specified location.
 
 ## Running Tests
 The automated tests are written with `pytest` and mock out all GUI components,

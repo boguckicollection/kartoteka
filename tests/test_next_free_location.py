@@ -41,7 +41,6 @@ def test_load_images_sets_start(monkeypatch, tmp_path):
     img.write_bytes(b"data")
 
     monkeypatch.setattr(ui.filedialog, "askdirectory", lambda: str(tmp_path))
-    monkeypatch.setattr(ui, "prompt_start_location", lambda *a, **k: (2, 1, 5))
 
     dummy = SimpleNamespace(
         start_frame=None,
@@ -49,9 +48,12 @@ def test_load_images_sets_start(monkeypatch, tmp_path):
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
         log=lambda *a, **k: None,
         show_card=lambda *a, **k: None,
+        start_box_var=SimpleNamespace(get=lambda: 2),
+        start_col_var=SimpleNamespace(get=lambda: 1),
+        start_pos_var=SimpleNamespace(get=lambda: 5),
     )
 
-    ui.CardEditorApp.load_images(dummy)
+    ui.CardEditorApp.browse_scans(dummy)
 
     expected = (2 - 1) * 4000 + (1 - 1) * 1000 + (5 - 1)
     assert dummy.starting_idx == expected
