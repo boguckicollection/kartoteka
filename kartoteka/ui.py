@@ -324,7 +324,7 @@ class CardEditorApp:
         self.shoper_frame = None
         self.pricing_frame = None
         self.magazyn_frame = None
-        self.location_window = None
+        self.location_frame = None
         self.mag_canvases = []
         self.mag_box_photo = None
         self.log_widget = None
@@ -423,8 +423,7 @@ class CardEditorApp:
             command=self.upload_images_dialog,
         ).pack(side="left", padx=5)
 
-        # Window with starting location inputs will be created on demand
-        self.location_frame = None
+
 
         # Display store statistics when Shoper credentials are available
         stats_frame = tk.Frame(
@@ -563,16 +562,32 @@ class CardEditorApp:
         )
 
     def show_location_frame(self):
-        """Open a window with starting location inputs."""
-        if self.location_window and self.location_window.winfo_exists():
-            self.location_window.lift()
-            return
+        """Display inputs for the starting scan location inside the main window."""
+        # Hide any other active frames similar to other views
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+        if getattr(self, "pricing_frame", None):
+            self.pricing_frame.destroy()
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
+            self.location_frame = None
+            self.pricing_frame = None
+        if getattr(self, "shoper_frame", None):
+            self.shoper_frame.destroy()
+            self.shoper_frame = None
+        if getattr(self, "magazyn_frame", None):
+            self.magazyn_frame.destroy()
+            self.magazyn_frame = None
+        if getattr(self, "frame", None):
+            self.frame.destroy()
+            self.frame = None
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
 
-        self.location_window = ctk.CTkToplevel(self.root)
-        self.location_window.title("Skan")
-        self.location_window.configure(bg=self.root.cget("background"))
-        frame = ctk.CTkFrame(self.location_window)
-        frame.pack(padx=10, pady=10)
+        self.root.minsize(1000, 700)
+        frame = ctk.CTkFrame(self.root)
+        frame.pack(expand=True, fill="both", padx=10, pady=10)
         self.location_frame = frame
 
         for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
@@ -593,11 +608,6 @@ class CardEditorApp:
             tk.Label(frame, image=self.location_photo, bg=self.root.cget("background")).grid(row=0, column=3, rowspan=2, padx=10)
 
         self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=3, column=0, columnspan=4, pady=5)
-
-        def on_close():
-            self.location_window.destroy()
-            self.location_window = None
-        self.location_window.protocol("WM_DELETE_WINDOW", on_close)
 
     def select_scan_folder(self):
         """Open a dialog to choose the folder with scans."""
@@ -730,6 +740,9 @@ class CardEditorApp:
         if getattr(self, "shoper_frame", None):
             self.shoper_frame.destroy()
             self.shoper_frame = None
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
+            self.location_frame = None
         # Ensure the window has a reasonable minimum size
         self.root.minsize(1000, 700)
 
@@ -964,6 +977,9 @@ class CardEditorApp:
             self.frame = None
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
+            self.location_frame = None
 
         self.root.minsize(1000, 700)
         self.magazyn_frame = tk.Frame(
@@ -1282,6 +1298,9 @@ class CardEditorApp:
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
             self.magazyn_frame = None
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
+            self.location_frame = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
@@ -1648,10 +1667,10 @@ class CardEditorApp:
             self.cheat_frame.grid()
 
     def start_browse_scans(self):
-        """Wrapper for 'Dalej' button that closes the location window."""
-        if self.location_window and self.location_window.winfo_exists():
-            self.location_window.destroy()
-            self.location_window = None
+        """Wrapper for 'Dalej' button that closes the location frame."""
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
+            self.location_frame = None
         self.browse_scans()
 
     def browse_scans(self):
