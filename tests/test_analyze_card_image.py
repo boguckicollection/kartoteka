@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import tkinter as tk
 
-sys.modules["customtkinter"] = SimpleNamespace(CTkEntry=tk.Entry)
+sys.modules["customtkinter"] = SimpleNamespace(CTkEntry=tk.Entry, CTkImage=MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
 importlib.reload(ui)
