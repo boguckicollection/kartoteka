@@ -588,26 +588,46 @@ class CardEditorApp:
         self.root.minsize(1000, 700)
         frame = ctk.CTkFrame(self.root)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
+        frame.grid_anchor("center")
+        for i in range(4):
+            frame.columnconfigure(i, weight=1)
         self.location_frame = frame
 
-        for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
-            ctk.CTkLabel(frame, text=label).grid(row=0, column=idx, padx=5, pady=2)
-        ctk.CTkEntry(frame, textvariable=self.start_box_var, width=60).grid(row=1, column=0)
-        ctk.CTkEntry(frame, textvariable=self.start_col_var, width=60).grid(row=1, column=1)
-        ctk.CTkEntry(frame, textvariable=self.start_pos_var, width=60).grid(row=1, column=2)
+        start_row = 0
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
+        if os.path.exists(logo_path):
+            logo_img = Image.open(logo_path)
+            logo_img.thumbnail((200, 80))
+            self.location_logo_photo = ImageTk.PhotoImage(logo_img)
+            tk.Label(
+                frame,
+                image=self.location_logo_photo,
+                bg=self.root.cget("background"),
+            ).grid(row=start_row, column=0, columnspan=4, pady=(0, 10))
+            start_row += 1
 
-        ctk.CTkLabel(frame, text="Folder").grid(row=2, column=0, padx=5, pady=2)
-        ctk.CTkEntry(frame, textvariable=self.scan_folder_var, width=200).grid(row=2, column=1, columnspan=2, sticky="ew")
-        self.create_button(frame, text="Wybierz", command=self.select_scan_folder).grid(row=2, column=3, padx=5)
+        for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
+            ctk.CTkLabel(frame, text=label).grid(row=start_row, column=idx, padx=5, pady=2)
+        ctk.CTkEntry(frame, textvariable=self.start_box_var, width=60).grid(row=start_row + 1, column=0)
+        ctk.CTkEntry(frame, textvariable=self.start_col_var, width=60).grid(row=start_row + 1, column=1)
+        ctk.CTkEntry(frame, textvariable=self.start_pos_var, width=60).grid(row=start_row + 1, column=2)
+
+        ctk.CTkLabel(frame, text="Folder").grid(row=start_row + 2, column=0, padx=5, pady=2)
+        ctk.CTkEntry(frame, textvariable=self.scan_folder_var, width=200).grid(row=start_row + 2, column=1, columnspan=2, sticky="ew")
+        self.create_button(frame, text="Wybierz", command=self.select_scan_folder).grid(row=start_row + 2, column=3, padx=5)
 
         img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "box.png")
         if os.path.exists(img_path):
             img = Image.open(img_path)
             img.thumbnail((120, 120))
             self.location_photo = ImageTk.PhotoImage(img)
-            tk.Label(frame, image=self.location_photo, bg=self.root.cget("background")).grid(row=0, column=3, rowspan=2, padx=10)
+            tk.Label(
+                frame,
+                image=self.location_photo,
+                bg=self.root.cget("background"),
+            ).grid(row=start_row, column=3, rowspan=2, padx=10)
 
-        self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=3, column=0, columnspan=4, pady=5)
+        self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=start_row + 3, column=0, columnspan=4, pady=5)
 
     def select_scan_folder(self):
         """Open a dialog to choose the folder with scans."""
