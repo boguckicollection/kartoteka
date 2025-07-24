@@ -70,3 +70,18 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
     assert "analyze_card_image failed to decode JSON" in output
     assert "not json" in output
 
+
+def test_analyze_card_image_code_block(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    content = "```json\n{\"name\": \"Pikachu\", \"number\": \"037/159\", \"set\": \"Base\"}\n```"
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+    )
+
+    with patch("openai.chat.completions.create", return_value=resp):
+        result = ui.analyze_card_image("/tmp/img.jpg")
+
+    assert result == {"name": "Pikachu", "number": "37", "set": "Base"}
+
