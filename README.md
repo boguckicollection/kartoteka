@@ -37,12 +37,13 @@ RAPIDAPI_HOST=pokemon-tcg-api.p.rapidapi.com
 SHOPER_API_URL=https://your-store.shop/webapi/rest
 SHOPER_API_TOKEN=your-token
 SHOPER_DELIVERY_ID=1
+OPENAI_API_KEY=sk-...
 FTP_HOST=example.com
 FTP_USER=username
 FTP_PASSWORD=secret
 ```
 
-The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `SHOPER_DELIVERY_ID` sets the default shipping method id for exported CSV files. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads.
+The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `SHOPER_DELIVERY_ID` sets the default shipping method id for exported CSV files. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads. `OPENAI_API_KEY` enables automatic recognition of card details from scans.
 
 ## Running the App
 Execute the main script with Python 3:

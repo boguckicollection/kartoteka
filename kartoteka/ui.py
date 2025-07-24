@@ -7,6 +7,7 @@ import os
 import csv
 import json
 import requests
+import openai
 import re
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -37,6 +38,9 @@ FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
 SHOPER_DELIVERY_ID = int(os.getenv("SHOPER_DELIVERY_ID", "1"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if OPENAI_API_KEY:
+    openai.api_key = OPENAI_API_KEY
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
@@ -213,6 +217,39 @@ def extract_cardmarket_price(card):
             print(f"[DEBUG] Using Cardmarket field '{field}' with value {value}")
             return value
     return None
+
+
+def analyze_card_image(path: str):
+    """Return card details recognized from the image using OpenAI."""
+    if not OPENAI_API_KEY:
+        return {"name": "", "number": "", "set": ""}
+    try:
+        with open(path, "rb") as f:
+            image_data = f.read()
+        resp = openai.ChatCompletion.create(
+            model="gpt-4-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Extract Pokemon card name, number and set as JSON "
+                                '{"name":"","number":"","set":""}.'
+                            ),
+                        },
+                        {"type": "image", "image": image_data},
+                    ],
+                }
+            ],
+            max_tokens=100,
+        )
+        content = resp.choices[0].message.content
+        return json.loads(content)
+    except Exception as e:
+        print(f"[ERROR] analyze_card_image failed: {e}")
+        return {"name": "", "number": "", "set": ""}
 
 
 class CardEditorApp:
@@ -1646,6 +1683,18 @@ class CardEditorApp:
             for name, val in cached.get("rarities", {}).items():
                 if name in self.rarity_vars:
                     self.rarity_vars[name].set(val)
+            self.update_set_options()
+
+        result = analyze_card_image(image_path)
+        if result:
+            name = result.get("name", "")
+            number = result.get("number", "")
+            set_name = result.get("set", "")
+            self.entries["nazwa"].delete(0, tk.END)
+            self.entries["nazwa"].insert(0, name)
+            self.entries["numer"].delete(0, tk.END)
+            self.entries["numer"].insert(0, number)
+            self.entries["set"].set(set_name)
             self.update_set_options()
 
         # focus the name entry so the user can start typing immediately
