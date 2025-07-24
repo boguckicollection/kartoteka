@@ -3,7 +3,6 @@ from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk
-import base64
 import os
 import csv
 import json
@@ -225,9 +224,6 @@ def analyze_card_image(path: str):
     if not OPENAI_API_KEY:
         return {"name": "", "number": "", "set": ""}
     try:
-        with open(path, "rb") as f:
-            image_data = f.read()
-        encoded = base64.b64encode(image_data).decode("ascii")
         resp = openai.ChatCompletion.create(
             model="gpt-4-vision-preview",
             messages=[
@@ -242,7 +238,7 @@ def analyze_card_image(path: str):
                         },
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{encoded}"},
+                            "image_url": {"url": f"file://{path}"},
                         },
                     ],
                 }
