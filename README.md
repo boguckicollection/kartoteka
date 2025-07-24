@@ -41,9 +41,10 @@ OPENAI_API_KEY=sk-...
 FTP_HOST=example.com
 FTP_USER=username
 FTP_PASSWORD=secret
+BASE_IMAGE_URL=https://your-store.shop/upload/images
 ```
 
-The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `SHOPER_DELIVERY_ID` sets the default shipping method id for exported CSV files. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads. `OPENAI_API_KEY` enables automatic recognition of card details from scans.
+The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `SHOPER_DELIVERY_ID` sets the default shipping method id for exported CSV files. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads. `OPENAI_API_KEY` enables automatic recognition of card details from scans. `BASE_IMAGE_URL` should point to the public directory where scans are uploaded so OpenAI can fetch them during analysis and the exported CSV contains correct links.
 
 ## Running the App
 Execute the main script with Python 3:
