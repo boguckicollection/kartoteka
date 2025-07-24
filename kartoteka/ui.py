@@ -589,8 +589,10 @@ class CardEditorApp:
         frame = ctk.CTkFrame(self.root)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
         frame.grid_anchor("center")
-        for i in range(4):
-            frame.columnconfigure(i, weight=1)
+        # keep the input fields close together while the folder entry expands
+        for i in range(3):
+            frame.columnconfigure(i, weight=0)
+        frame.columnconfigure(3, weight=1)
         self.location_frame = frame
 
         start_row = 0
@@ -625,7 +627,7 @@ class CardEditorApp:
                 frame,
                 image=self.location_photo,
                 bg=self.root.cget("background"),
-            ).grid(row=start_row, column=3, rowspan=2, padx=10)
+            ).grid(row=start_row, column=3, rowspan=3, padx=10, sticky="e")
 
         self.create_button(frame, text="Dalej", command=self.start_browse_scans).grid(row=start_row + 3, column=0, columnspan=4, pady=5)
 
