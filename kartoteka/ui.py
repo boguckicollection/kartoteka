@@ -27,7 +27,7 @@ import io
 
 load_dotenv()
 
-BASE_IMAGE_URL = "https://sklep839679.shoparena.pl/upload/images"
+BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/upload/images")
 
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
