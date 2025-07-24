@@ -32,7 +32,7 @@ def next_free_location(app):
             idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
             used.add(idx)
 
-    idx = 0
+    idx = getattr(app, "starting_idx", 0)
     while idx in used:
         idx += 1
     return generate_location(idx)

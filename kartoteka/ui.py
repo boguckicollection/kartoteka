@@ -234,6 +234,7 @@ class CardEditorApp:
         self.folder_name = ""
         self.folder_path = ""
         self.progress_var = tk.StringVar(value="0/0")
+        self.starting_idx = 0
         self.start_frame = None
         self.shoper_frame = None
         self.pricing_frame = None
@@ -1514,6 +1515,22 @@ class CardEditorApp:
         folder = filedialog.askdirectory()
         if not folder:
             return
+
+        box = simpledialog.askinteger("Początkowa lokalizacja", "Karton", minvalue=1, initialvalue=1)
+        if box is None:
+            return
+        column = simpledialog.askinteger(
+            "Początkowa lokalizacja", "Kolumna", minvalue=1, maxvalue=4, initialvalue=1
+        )
+        if column is None:
+            return
+        pos = simpledialog.askinteger(
+            "Początkowa lokalizacja", "Pozycja", minvalue=1, initialvalue=1
+        )
+        if pos is None:
+            return
+
+        self.starting_idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None
