@@ -6,11 +6,13 @@ class ShoperClient:
     """Minimal wrapper for Shoper REST API."""
 
     def __init__(self, base_url=None, token=None):
-        self.base_url = (base_url or os.getenv("SHOPER_API_URL", "")).rstrip("/")
+        env_url = os.getenv("SHOPER_API_URL", "").strip()
+        self.base_url = (base_url or env_url).rstrip("/")
         # Ensure the URL points to the REST endpoint
         if self.base_url and not self.base_url.endswith("/webapi/rest"):
             self.base_url = f"{self.base_url}/webapi/rest"
-        self.token = token or os.getenv("SHOPER_API_TOKEN")
+        env_token = os.getenv("SHOPER_API_TOKEN", "").strip()
+        self.token = token or env_token
         if not self.base_url or not self.token:
             raise ValueError("SHOPER_API_URL or SHOPER_API_TOKEN not set")
         self.session = requests.Session()
