@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 import unicodedata
 from itertools import combinations
 import html
-import subprocess
 import sys
 
 from shoper_client import ShoperClient
