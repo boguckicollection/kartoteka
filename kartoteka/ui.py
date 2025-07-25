@@ -334,6 +334,7 @@ class CardEditorApp:
         self.loading_label = None
         self.price_pool_total = 0.0
         self.pool_total_label = None
+        self.in_scan = False
         self.show_loading_screen()
         threading.Thread(target=self.startup_tasks, daemon=True).start()
 
@@ -1581,6 +1582,12 @@ class CardEditorApp:
             self.pool_total_label.config(text="Suma puli: 0.00")
 
     def back_to_welcome(self):
+        if getattr(self, "in_scan", False):
+            if not messagebox.askyesno(
+                "Potwierdzenie", "Czy na pewno chcesz przerwać?"
+            ):
+                return
+        self.in_scan = False
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
             self.pricing_frame = None
@@ -1990,10 +1997,12 @@ class CardEditorApp:
             if not folder:
                 return
             self.scan_folder_var.set(folder)
+        self.in_scan = True
         self.starting_idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
         CardEditorApp.load_images(self, folder)
 
     def load_images(self, folder):
+        self.in_scan = True
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None
@@ -2908,6 +2917,7 @@ class CardEditorApp:
         csv_utils.load_csv_data(self)
 
     def export_csv(self):
+        self.in_scan = False
         csv_utils.export_csv(self)
 
     def upload_images_dialog(self):
