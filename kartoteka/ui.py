@@ -767,6 +767,10 @@ class CardEditorApp:
         for key, var in self.dashboard_stats.items():
             var.set(str(stats.get(key, 0)))
 
+    def _on_shoper_tab_changed(self):
+        if self.shoper_tabs.get() == "Inwentarz" and getattr(self, "inventory_tree", None):
+            self.load_products_from_shoper(self.inventory_tree)
+
     def open_shoper_window(self):
         if not self.shoper_client:
             messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
@@ -819,7 +823,9 @@ class CardEditorApp:
                 bg=self.root.cget("background"),
             ).grid(row=0, column=0, pady=(0, 10))
 
-        self.shoper_tabs = ctk.CTkTabview(self.shoper_frame)
+        self.shoper_tabs = ctk.CTkTabview(
+            self.shoper_frame, command=self._on_shoper_tab_changed
+        )
         self.shoper_tabs.grid(row=1, column=0, sticky="nsew", pady=5)
         self.shoper_tabs.add("Wyślij produkt")
         self.shoper_tabs.add("Inwentarz")
@@ -899,13 +905,13 @@ class CardEditorApp:
         output.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         output.bind("<Double-1>", self.open_product_details)
         # Automatically display current products upon connecting
-        self.fetch_inventory(output)
+        self.load_products_from_shoper(output)
         self.inventory_tree = output
 
         self.create_button(
             inventory_tab,
             text="Odśwież",
-            command=lambda: self.fetch_inventory(output),
+            command=lambda: self.load_products_from_shoper(output),
         ).grid(row=2, column=0, pady=5)
 
         upload_output = tk.Text(
@@ -972,6 +978,11 @@ class CardEditorApp:
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
+    # backward compatibility
+    def fetch_inventory(self, widget):
+        """Deprecated: use load_products_from_shoper."""
+        return self.load_products_from_shoper(widget)
+
     def open_product_details(self, event=None):
         tree = event.widget if event else self.inventory_tree
         selected = tree.selection()
@@ -1027,7 +1038,7 @@ class CardEditorApp:
             payload["images"] = card["image1"]
         return payload
 
-    def fetch_inventory(self, widget):
+    def load_products_from_shoper(self, widget):
         try:
             all_products = []
             page = 1
