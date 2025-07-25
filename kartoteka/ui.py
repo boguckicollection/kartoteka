@@ -314,6 +314,7 @@ class CardEditorApp:
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
+        self.sets_file = "tcg_sets.json"
         self.progress_var = tk.StringVar(value="0/0")
         self.start_box_var = tk.StringVar(value="1")
         self.start_col_var = tk.StringVar(value="1")
@@ -1881,8 +1882,10 @@ class CardEditorApp:
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         if lang == "JP":
+            self.sets_file = "tcg_sets_jp.json"
             self.set_dropdown.configure(values=tcg_sets_jp)
         else:
+            self.sets_file = "tcg_sets.json"
             self.set_dropdown.configure(values=tcg_sets_eng)
         if getattr(self, "cheat_frame", None) is not None:
             self.create_cheat_frame()
@@ -2339,7 +2342,7 @@ class CardEditorApp:
         try:
             self.loading_label.configure(text="Sprawdzanie nowych setów...")
             self.root.update()
-            with open("tcg_sets.json", encoding="utf-8") as f:
+            with open(self.sets_file, encoding="utf-8") as f:
                 current_sets = json.load(f)
         except Exception:
             current_sets = {}
@@ -2376,7 +2379,7 @@ class CardEditorApp:
             new_items.append({"name": name, "code": code})
 
         if added:
-            with open("tcg_sets.json", "w", encoding="utf-8") as f:
+            with open(self.sets_file, "w", encoding="utf-8") as f:
                 json.dump(current_sets, f, indent=2, ensure_ascii=False)
             reload_sets()
             names = ", ".join(item["name"] for item in new_items)
