@@ -808,6 +808,7 @@ class CardEditorApp:
         search_frame.grid(row=1, column=0, sticky="ew", pady=5)
         search_frame.columnconfigure(1, weight=1)
         search_frame.columnconfigure(3, weight=1)
+        search_frame.columnconfigure(5, weight=1)
 
         tk.Label(
             search_frame, text="Szukaj", bg=self.root.cget("background")
@@ -824,20 +825,27 @@ class CardEditorApp:
             row=0, column=3, sticky="ew"
         )
         tk.Label(
-            search_frame, text="Sortuj", bg=self.root.cget("background")
+            search_frame, text="Set", bg=self.root.cget("background")
         ).grid(row=0, column=4, sticky="e")
+        self.shoper_set_var = tk.StringVar()
+        ctk.CTkEntry(search_frame, textvariable=self.shoper_set_var, placeholder_text="Set").grid(
+            row=0, column=5, sticky="ew"
+        )
+        tk.Label(
+            search_frame, text="Sortuj", bg=self.root.cget("background")
+        ).grid(row=0, column=6, sticky="e")
         self.shoper_sort_var = tk.StringVar(value="")
         ctk.CTkComboBox(
             search_frame,
             variable=self.shoper_sort_var,
             values=["", "name", "-name", "price", "-price"],
             width=10,
-        ).grid(row=0, column=5, padx=5)
+        ).grid(row=0, column=7, padx=5)
         self.create_button(
             search_frame,
             text="Wyszukaj",
             command=lambda: self.search_products(output),
-        ).grid(row=0, column=6, padx=5)
+        ).grid(row=0, column=8, padx=5)
 
         output = tk.Text(
             self.shoper_frame,
@@ -987,10 +995,13 @@ class CardEditorApp:
             filters = {}
             term = self.shoper_search_var.get().strip()
             number = self.shoper_number_var.get().strip()
+            set_name = self.shoper_set_var.get().strip()
             if term:
                 filters["filters[name][like]"] = term
             if number:
                 filters["filters[code][like]"] = number
+            if set_name:
+                filters["filters[set][like]"] = set_name
             sort = self.shoper_sort_var.get().strip()
             data = self.shoper_client.search_products(filters=filters, sort=sort)
             widget.delete("1.0", tk.END)
