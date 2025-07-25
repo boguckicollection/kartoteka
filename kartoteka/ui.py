@@ -437,16 +437,22 @@ class CardEditorApp:
         for i in range(3):
             stats_frame.columnconfigure(i, weight=1)
 
-        stats = self.load_store_stats()
+        self.dashboard_stats = {}
 
-        total = stats.get("total_orders")
-        try:
-            total_num = int(total)
-        except (TypeError, ValueError):
-            total_num = None
-        progress_ship = None
-        if total_num:
-            progress_ship = (total_num - stats.get("pending_shipments", 0)) / float(total_num)
+        stats = self.load_store_stats()
+        progress_ship = stats.get("shipment_progress")
+
+        key_map = {
+            "Nowe dzisiaj": "new_orders_today",
+            "Oczekujące wysyłki": "pending_shipments",
+            "Oczekujące płatności": "pending_payments",
+            "Otwarte zwroty": "open_returns",
+            "Sprzedaż dzisiaj": "sales_today",
+            "Sprzedaż tydzień": "sales_week",
+            "Sprzedaż miesiąc": "sales_month",
+            "Średnia wartość": "avg_order_value",
+            "Aktywne karty": "active_cards",
+        }
 
         stats_map = [
             (
@@ -537,7 +543,7 @@ class CardEditorApp:
         for i, (label, value, icon, info, prog) in enumerate(stats_map):
             row = i // 3
             col = i % 3
-            card = self.create_stat_card(
+            card, var = self.create_stat_card(
                 stats_frame,
                 label,
                 value,
@@ -546,6 +552,7 @@ class CardEditorApp:
                 info,
                 prog,
             )
+            self.dashboard_stats[key_map.get(label, label)] = var
             card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
         self.create_button(
@@ -553,6 +560,12 @@ class CardEditorApp:
             text="Pokaż szczegóły",
             command=self.open_shoper_window,
         ).grid(row=len(stats_map) // 3 + 1, column=0, columnspan=3, pady=5)
+
+        self.create_button(
+            stats_frame,
+            text="Odśwież statystyki",
+            command=self.refresh_store_stats,
+        ).grid(row=len(stats_map) // 3 + 2, column=0, columnspan=3, pady=5)
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
@@ -646,13 +659,16 @@ class CardEditorApp:
         frame.grid_propagate(False)
         tk.Label(frame, text=icon, font=("Helvetica", 24), bg=color).pack()
         tk.Label(frame, text=title, font=("Helvetica", 12, "bold"), bg=color).pack()
-        tk.Label(frame, text=value, font=("Helvetica", 24), bg=color).pack()
+
+        var = tk.StringVar(value=str(value))
+        tk.Label(frame, textvariable=var, font=("Helvetica", 24), bg=color).pack()
+
         if progress is not None:
             bar = ctk.CTkProgressBar(frame)
             bar.set(max(0, min(1, progress)))
             bar.pack(fill="x", padx=5, pady=(0, 5))
         # Tooltip removed for cleaner display
-        return frame
+        return frame, var
 
     def load_store_stats(self):
         """Retrieve various store statistics from Shoper.
@@ -726,6 +742,12 @@ class CardEditorApp:
         except Exception as exc:  # pragma: no cover - network failure
             print(f"[WARNING] store stats failed: {exc}")
         return stats
+
+    def refresh_store_stats(self):
+        """Reload store statistics and update dashboard values."""
+        stats = self.load_store_stats()
+        for key, var in self.dashboard_stats.items():
+            var.set(str(stats.get(key, 0)))
 
     def open_shoper_window(self):
         if not self.shoper_client:
