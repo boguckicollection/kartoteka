@@ -32,8 +32,8 @@ BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/u
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
-SHOPER_API_URL = os.getenv("SHOPER_API_URL")
-SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN")
+SHOPER_API_URL = os.getenv("SHOPER_API_URL", "").strip()
+SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN", "").strip()
 FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
@@ -2230,10 +2230,16 @@ class CardEditorApp:
         if self.loading_frame is not None:
             self.loading_frame.destroy()
         try:
+            if not SHOPER_API_URL or not SHOPER_API_TOKEN:
+                raise ValueError("Brak konfiguracji Shoper API")
             self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
         except Exception as e:
-            print(f"[WARNING] ShoperClient init failed: {e}")
+            print(f"[ERROR] ShoperClient init failed: {e}")
             self.shoper_client = None
+        if not self.shoper_client:
+            messagebox.showerror(
+                "Błąd", "Nie można połączyć się z API Shoper. Sprawdź dane w pliku .env."
+            )
         self.setup_welcome_screen()
 
     def download_set_symbols(self, sets):
