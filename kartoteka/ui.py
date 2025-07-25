@@ -788,8 +788,7 @@ class CardEditorApp:
         )
         self.shoper_frame.pack(expand=True, fill="both", padx=10, pady=10)
         self.shoper_frame.columnconfigure(0, weight=1)
-        self.shoper_frame.rowconfigure(2, weight=1)
-        self.shoper_frame.rowconfigure(4, weight=1)
+        self.shoper_frame.rowconfigure(1, weight=1)
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
@@ -802,10 +801,26 @@ class CardEditorApp:
                 bg=self.root.cget("background"),
             ).grid(row=0, column=0, pady=(0, 10))
 
+        self.shoper_tabs = ctk.CTkTabview(self.shoper_frame)
+        self.shoper_tabs.grid(row=1, column=0, sticky="nsew", pady=5)
+        self.shoper_tabs.add("Wyślij produkt")
+        self.shoper_tabs.add("Inwentarz")
+        self.shoper_tabs.add("Zamówienia")
+        upload_tab = self.shoper_tabs.tab("Wyślij produkt")
+        inventory_tab = self.shoper_tabs.tab("Inwentarz")
+        orders_tab = self.shoper_tabs.tab("Zamówienia")
+
+        inventory_tab.columnconfigure(0, weight=1)
+        inventory_tab.rowconfigure(1, weight=1)
+        orders_tab.columnconfigure(0, weight=1)
+        orders_tab.rowconfigure(0, weight=1)
+        upload_tab.columnconfigure(0, weight=1)
+        upload_tab.rowconfigure(0, weight=1)
+
         search_frame = tk.Frame(
-            self.shoper_frame, bg=self.root.cget("background")
+            inventory_tab, bg=self.root.cget("background")
         )
-        search_frame.grid(row=1, column=0, sticky="ew", pady=5)
+        search_frame.grid(row=0, column=0, sticky="ew", pady=5)
         search_frame.columnconfigure(1, weight=1)
         search_frame.columnconfigure(3, weight=1)
         search_frame.columnconfigure(5, weight=1)
@@ -848,53 +863,56 @@ class CardEditorApp:
         ).grid(row=0, column=8, padx=5)
 
         columns = ("id", "name", "code", "price")
-        output = ttk.Treeview(self.shoper_frame, columns=columns, show="headings")
+        output = ttk.Treeview(inventory_tab, columns=columns, show="headings")
         output.heading("id", text="ID")
         output.heading("name", text="Nazwa")
         output.heading("code", text="Kod")
         output.heading("price", text="Cena")
-        output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        output.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         output.bind("<Double-1>", self.open_product_details)
         # Automatically display current products upon connecting
         self.fetch_inventory(output)
         self.inventory_tree = output
 
-        btn_frame = tk.Frame(
-            self.shoper_frame, bg=self.root.cget("background")
-        )
-        btn_frame.grid(row=3, column=0, pady=5, sticky="ew")
-
         self.create_button(
-            btn_frame,
-            text="Wyślij produkt",
-            command=lambda: self.push_product(output),
-        ).pack(side="left", padx=5)
-
-        self.create_button(
-            btn_frame,
-            text="Inwentarz",
+            inventory_tab,
+            text="Odśwież",
             command=lambda: self.fetch_inventory(output),
-        ).pack(side="left", padx=5)
+        ).grid(row=2, column=0, pady=5)
 
-        orders_output = tk.Text(
-            self.shoper_frame,
+        upload_output = tk.Text(
+            upload_tab,
             height=10,
             bg=self.root.cget("background"),
             fg="white",
         )
-        orders_output.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
+        upload_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
         self.create_button(
-            btn_frame,
+            upload_tab,
+            text="Wyślij produkt",
+            command=lambda: self.push_product(upload_output),
+        ).grid(row=1, column=0, pady=5)
+
+        orders_output = tk.Text(
+            orders_tab,
+            height=10,
+            bg=self.root.cget("background"),
+            fg="white",
+        )
+        orders_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+
+        self.create_button(
+            orders_tab,
             text="Zamówienia",
             command=lambda: self.show_orders(orders_output),
-        ).pack(side="left", padx=5)
+        ).grid(row=1, column=0, pady=5)
 
         self.create_button(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
-        ).grid(row=5, column=0, pady=5)
+        ).grid(row=2, column=0, pady=5)
 
     def push_product(self, widget):
         """Send the currently selected card to Shoper."""
