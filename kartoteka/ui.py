@@ -886,13 +886,66 @@ class CardEditorApp:
         ).grid(row=5, column=0, pady=5)
 
     def push_product(self, widget):
+        """Send the currently selected card to Shoper."""
         try:
-            sample = {"name": "Sample", "price": 0}
-            data = self.shoper_client.add_product(sample)
+            card = None
+            if getattr(self, "output_data", None):
+                try:
+                    self.save_current_data()
+                except Exception:
+                    pass
+                if 0 <= getattr(self, "index", 0) < len(self.output_data):
+                    card = self.output_data[self.index]
+                else:
+                    card = next((r for r in self.output_data if r), None)
+            if not card:
+                messagebox.showerror("Błąd", "Brak danych karty do wysłania")
+                return
+
+            payload = self._build_shoper_payload(card)
+            data = self.shoper_client.add_product(payload)
             widget.delete("1.0", tk.END)
             widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
+
+    def _build_shoper_payload(self, card: dict) -> dict:
+        """Map internal card data to the structure expected by the API."""
+        suffix = card.get("suffix", "").strip()
+        name_parts = [card.get("nazwa", "")] 
+        if suffix:
+            name_parts.append(suffix)
+        if card.get("numer"):
+            name_parts.append(card["numer"])
+        name = " ".join(part for part in name_parts if part)
+
+        payload = {
+            "product_code": card.get("product_code"),
+            "active": card.get("active", 1),
+            "name": name,
+            "price": card.get("cena", 0),
+            "vat": card.get("vat", "23%"),
+            "unit": card.get("unit", "szt."),
+            "category": card.get("category"),
+            "producer": card.get("producer"),
+            "other_price": card.get("other_price", ""),
+            "pkwiu": card.get("pkwiu", ""),
+            "weight": card.get("weight", 0.01),
+            "priority": card.get("priority", 0),
+            "short_description": card.get("short_description", ""),
+            "description": card.get("description", ""),
+            "stock": card.get("ilość", 1),
+            "stock_warnlevel": card.get("stock_warnlevel", 0),
+            "availability": card.get("availability", 1),
+            "delivery": card.get("delivery"),
+            "views": card.get("views", ""),
+            "rank": card.get("rank", ""),
+            "rank_votes": card.get("rank_votes", ""),
+            "warehouse_code": card.get("warehouse_code", ""),
+        }
+        if card.get("image1"):
+            payload["images"] = card["image1"]
+        return payload
 
     def fetch_inventory(self, widget):
         try:
