@@ -739,6 +739,24 @@ class CardEditorApp:
                         "active_products": "active_cards",
                     }[key]
                     stats[stats_key] = value
+
+            # If the statistics endpoint didn't provide the product count try
+            # to read it from the inventory list.
+            if not stats.get("active_cards"):
+                try:
+                    inv = self.shoper_client.get_inventory(page=1, per_page=1)
+                    total = (
+                        inv.get("records")
+                        or inv.get("count")
+                        or len(inv.get("list", inv))
+                    )
+                    try:
+                        total = int(float(total))
+                    except (TypeError, ValueError):
+                        total = 0
+                    stats["active_cards"] = total
+                except Exception:
+                    pass
         except Exception as exc:  # pragma: no cover - network failure
             print(f"[WARNING] store stats failed: {exc}")
         return stats
