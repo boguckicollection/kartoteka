@@ -91,3 +91,77 @@ def test_analyze_card_image_code_block(monkeypatch):
 
     assert result == {"name": "Pikachu", "number": "37", "set": "Base", "suffix": ""}
 
+
+def test_analyze_card_image_translate_name(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    resp_analyze = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content='{"name": "\u30d4\u30ab\u30c1\u30e5\u30a6", "number": "037/159", "set": "Base"}'
+                )
+            )
+        ]
+    )
+    resp_translate = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
+    )
+
+    with patch("openai.chat.completions.create", side_effect=[resp_analyze, resp_translate]) as mock_create:
+        result = ui.analyze_card_image("/tmp/img.jpg", translate_name=True)
+
+    assert result == {"name": "Pikachu", "number": "37", "set": "Base", "suffix": ""}
+    assert mock_create.call_count == 2
+
+
+def test_analyze_and_fill_translates_for_jp(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    suffix_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+    suffix_var.set = MagicMock()
+
+    class DummyVar:
+        def __init__(self, value):
+            self.value = value
+        def get(self):
+            return self.value
+
+    dummy = SimpleNamespace(
+        root=SimpleNamespace(after=lambda delay, func: func()),
+        lang_var=DummyVar("JP"),
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
+        index=0,
+        stop_scan_animation=lambda: None,
+        update_set_options=lambda: None,
+    )
+    dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
+
+    resp_analyze = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content='{"name": "\u30d4\u30ab\u30c1\u30e5\u30a6", "number": "001", "set": "Base"}'
+                )
+            )
+        ]
+    )
+    resp_translate = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
+    )
+
+    with patch("openai.chat.completions.create", side_effect=[resp_analyze, resp_translate]):
+        ui.CardEditorApp._analyze_and_fill(dummy, "http://x", 0)
+
+    name_entry.insert.assert_called_with(0, "Pikachu")
+
