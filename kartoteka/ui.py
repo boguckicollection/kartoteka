@@ -2831,7 +2831,12 @@ class CardEditorApp:
             self.product_code_map[key] = self.next_product_code
             self.next_product_code += 1
         data["product_code"] = self.product_code_map[key]
-        data["warehouse_code"] = self.next_free_location()
+        prev = None
+        if 0 <= self.index < len(self.output_data):
+            existing = self.output_data[self.index]
+            if isinstance(existing, dict):
+                prev = existing.get("warehouse_code")
+        data["warehouse_code"] = prev or self.next_free_location()
         data["active"] = 1
         data["vat"] = "23%"
         data["unit"] = "szt."
