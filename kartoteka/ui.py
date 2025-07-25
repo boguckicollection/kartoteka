@@ -219,7 +219,23 @@ def extract_cardmarket_price(card):
     return None
 
 
-def analyze_card_image(path: str):
+def translate_to_english(text: str) -> str:
+    """Return an English translation of ``text`` using OpenAI."""
+    if not OPENAI_API_KEY:
+        return text
+
+    try:
+        resp = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": f"Translate to English: {text}"}],
+            max_tokens=50,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception:
+        return text
+
+
+def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
         return {"name": "", "number": "", "set": "", "suffix": ""}
@@ -286,6 +302,8 @@ def analyze_card_image(path: str):
             if parts and parts[-1].upper() in {"EX", "GX", "V", "VMAX", "VSTAR", "SHINY", "PROMO"}:
                 suffix = parts[-1].upper()
                 name = " ".join(parts[:-1])
+        if translate_name and isinstance(name, str) and not name.isascii():
+            name = translate_to_english(name)
         data["name"] = name
         data["suffix"] = suffix
         return data
@@ -2164,7 +2182,14 @@ class CardEditorApp:
             self.image_label.configure(image=self.current_card_photo)
 
     def _analyze_and_fill(self, url, idx):
-        result = analyze_card_image(url)
+        lang_var = getattr(self, "lang_var", None)
+        translate = False
+        if lang_var is not None:
+            try:
+                translate = lang_var.get() == "JP"
+            except Exception:
+                translate = False
+        result = analyze_card_image(url, translate_name=translate)
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
