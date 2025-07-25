@@ -847,14 +847,17 @@ class CardEditorApp:
             command=lambda: self.search_products(output),
         ).grid(row=0, column=8, padx=5)
 
-        output = tk.Text(
-            self.shoper_frame,
-            bg=self.root.cget("background"),
-            fg="white",
-        )
+        columns = ("id", "name", "code", "price")
+        output = ttk.Treeview(self.shoper_frame, columns=columns, show="headings")
+        output.heading("id", text="ID")
+        output.heading("name", text="Nazwa")
+        output.heading("code", text="Kod")
+        output.heading("price", text="Cena")
         output.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        output.bind("<Double-1>", self.open_product_details)
         # Automatically display current products upon connecting
         self.fetch_inventory(output)
+        self.inventory_tree = output
 
         btn_frame = tk.Frame(
             self.shoper_frame, bg=self.root.cget("background")
@@ -912,10 +915,33 @@ class CardEditorApp:
 
             payload = self._build_shoper_payload(card)
             data = self.shoper_client.add_product(payload)
-            widget.delete("1.0", tk.END)
-            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+            if isinstance(widget, tk.Text):
+                widget.delete("1.0", tk.END)
+                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+            else:
+                messagebox.showinfo(
+                    "Wysłano",
+                    json.dumps(data, indent=2, ensure_ascii=False),
+                )
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
+
+    def open_product_details(self, event=None):
+        tree = event.widget if event else self.inventory_tree
+        selected = tree.selection()
+        if not selected:
+            return
+        item_id = selected[0]
+        product = getattr(self, "inventory_products", {}).get(item_id)
+        if not product:
+            return
+        top = tk.Toplevel(self.root)
+        top.title(f"Produkt {product.get('product_id')}")
+        top.configure(bg=self.root.cget("background"))
+        text = tk.Text(top, bg=self.root.cget("background"), fg="white")
+        text.pack(expand=True, fill="both", padx=10, pady=10)
+        text.insert("1.0", json.dumps(product, indent=2, ensure_ascii=False))
+        self.create_button(top, text="Zamknij", command=top.destroy).pack(pady=5)
 
     def _build_shoper_payload(self, card: dict) -> dict:
         """Map internal card data to the structure expected by the API."""
@@ -970,22 +996,43 @@ class CardEditorApp:
                     break
                 page += 1
 
-            widget.delete("1.0", tk.END)
-            lines = []
-            for prod in all_products:
-                translations = prod.get("translations") or {}
-                name = ""
-                if isinstance(translations, dict):
-                    first = next(iter(translations.values()), {})
-                    name = first.get("name", "")
-                lines.append(f"{prod.get('product_id')}: {name}")
-            if lines:
-                widget.insert(tk.END, "\n".join(lines))
+            if isinstance(widget, ttk.Treeview):
+                widget.delete(*widget.get_children())
+                self.inventory_products = {}
+                for prod in all_products:
+                    translations = prod.get("translations") or {}
+                    name = ""
+                    if isinstance(translations, dict):
+                        first = next(iter(translations.values()), {})
+                        name = first.get("name", "")
+                    item_id = widget.insert(
+                        "",
+                        "end",
+                        values=(
+                            prod.get("product_id"),
+                            name,
+                            prod.get("code", ""),
+                            prod.get("price", ""),
+                        ),
+                    )
+                    self.inventory_products[item_id] = prod
             else:
-                widget.insert(
-                    tk.END,
-                    json.dumps(all_products, indent=2, ensure_ascii=False),
-                )
+                widget.delete("1.0", tk.END)
+                lines = []
+                for prod in all_products:
+                    translations = prod.get("translations") or {}
+                    name = ""
+                    if isinstance(translations, dict):
+                        first = next(iter(translations.values()), {})
+                        name = first.get("name", "")
+                    lines.append(f"{prod.get('product_id')}: {name}")
+                if lines:
+                    widget.insert(tk.END, "\n".join(lines))
+                else:
+                    widget.insert(
+                        tk.END,
+                        json.dumps(all_products, indent=2, ensure_ascii=False),
+                    )
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
@@ -1004,8 +1051,17 @@ class CardEditorApp:
                 filters["filters[set][like]"] = set_name
             sort = self.shoper_sort_var.get().strip()
             data = self.shoper_client.search_products(filters=filters, sort=sort)
-            widget.delete("1.0", tk.END)
-            widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+            if isinstance(widget, tk.Text):
+                widget.delete("1.0", tk.END)
+                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+            else:
+                top = tk.Toplevel(self.root)
+                top.title("Wyniki")
+                top.configure(bg=self.root.cget("background"))
+                text = tk.Text(top, bg=self.root.cget("background"), fg="white")
+                text.pack(expand=True, fill="both", padx=10, pady=10)
+                text.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+                self.create_button(top, text="Zamknij", command=top.destroy).pack(pady=5)
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
