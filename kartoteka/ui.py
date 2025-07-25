@@ -842,6 +842,7 @@ class CardEditorApp:
         search_frame.columnconfigure(1, weight=1)
         search_frame.columnconfigure(3, weight=1)
         search_frame.columnconfigure(5, weight=1)
+        search_frame.columnconfigure(7, weight=1)
 
         tk.Label(
             search_frame, text="Szukaj", bg=self.root.cget("background")
@@ -865,20 +866,29 @@ class CardEditorApp:
             row=0, column=5, sticky="ew"
         )
         tk.Label(
-            search_frame, text="Sortuj", bg=self.root.cget("background")
+            search_frame, text="Kategoria", bg=self.root.cget("background")
         ).grid(row=0, column=6, sticky="e")
+        self.shoper_category_var = tk.StringVar()
+        ctk.CTkEntry(
+            search_frame,
+            textvariable=self.shoper_category_var,
+            placeholder_text="Kategoria",
+        ).grid(row=0, column=7, sticky="ew")
+        tk.Label(
+            search_frame, text="Sortuj", bg=self.root.cget("background")
+        ).grid(row=0, column=8, sticky="e")
         self.shoper_sort_var = tk.StringVar(value="")
         ctk.CTkComboBox(
             search_frame,
             variable=self.shoper_sort_var,
             values=["", "name", "-name", "price", "-price"],
             width=10,
-        ).grid(row=0, column=7, padx=5)
+        ).grid(row=0, column=9, padx=5)
         self.create_button(
             search_frame,
             text="Wyszukaj",
             command=lambda: self.search_products(output),
-        ).grid(row=0, column=8, padx=5)
+        ).grid(row=0, column=10, padx=5)
 
         columns = ("id", "name", "code", "price")
         output = ttk.Treeview(inventory_tab, columns=columns, show="headings")
@@ -1079,12 +1089,15 @@ class CardEditorApp:
             term = self.shoper_search_var.get().strip()
             number = self.shoper_number_var.get().strip()
             set_name = self.shoper_set_var.get().strip()
+            category = self.shoper_category_var.get().strip()
             if term:
                 filters["filters[name][like]"] = term
             if number:
                 filters["filters[code][like]"] = number
             if set_name:
                 filters["filters[set][like]"] = set_name
+            if category:
+                filters["filters[category]"] = category
             sort = self.shoper_sort_var.get().strip()
             data = self.shoper_client.search_products(filters=filters, sort=sort)
             if isinstance(widget, tk.Text):
