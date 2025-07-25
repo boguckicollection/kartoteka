@@ -45,3 +45,42 @@ def test_export_includes_warehouse(tmp_path):
         assert row["unit"] == "szt."
 
 
+def test_export_appends_inventory(tmp_path, monkeypatch):
+    out_path = tmp_path / "out.csv"
+    inv_path = tmp_path / "inv.csv"
+    monkeypatch.setenv("INVENTORY_CSV", str(inv_path))
+    import importlib
+    import kartoteka.csv_utils as csv_utils
+    importlib.reload(csv_utils)
+    import kartoteka.ui as ui
+    importlib.reload(ui)
+
+    dummy = SimpleNamespace(
+        output_data=[{
+            "nazwa": "Pikachu",
+            "numer": "1",
+            "set": "Base",
+            "suffix": "",
+            "product_code": 1,
+            "cena": "10",
+            "category": "Karty",
+            "producer": "Pokemon",
+            "short_description": "s",
+            "description": "d",
+            "warehouse_code": "K1R1P1",
+            "image1": "img.jpg",
+        }]
+    )
+    dummy.back_to_welcome = lambda: None
+
+    with patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False):
+        ui.CardEditorApp.export_csv(dummy)
+
+    with open(inv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        rows = list(reader)
+        assert rows[0]["warehouse_code"] == "K1R1P1"
+
+

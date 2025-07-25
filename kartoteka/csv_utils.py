@@ -7,6 +7,7 @@ from ftp_client import FTPClient
 FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
+INVENTORY_CSV = os.getenv("INVENTORY_CSV", "magazyn.csv")
 
 
 def load_csv_data(app):
@@ -207,10 +208,81 @@ def export_csv(app):
                     "warehouse_code": row.get("warehouse_code", ""),
                 }
             )
+    append_inventory_csv(app)
     messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
     if messagebox.askyesno("Wysyłka", "Czy wysłać plik do Shoper?"):
         send_csv_to_shoper(app, file_path)
     app.back_to_welcome()
+
+
+def append_inventory_csv(app, path: str = INVENTORY_CSV):
+    """Append all collected rows to the inventory CSV."""
+    fieldnames = [
+        "product_code",
+        "active",
+        "name",
+        "price",
+        "vat",
+        "unit",
+        "category",
+        "producer",
+        "other_price",
+        "pkwiu",
+        "weight",
+        "priority",
+        "short_description",
+        "description",
+        "stock",
+        "stock_warnlevel",
+        "availability",
+        "views",
+        "rank",
+        "rank_votes",
+        "images 1",
+        "warehouse_code",
+    ]
+
+    file_exists = os.path.exists(path)
+    with open(path, "a", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+        if not file_exists:
+            writer.writeheader()
+        for row in app.output_data:
+            if row is None:
+                continue
+            suffix = row.get("suffix", "").strip()
+            name_parts = [row["nazwa"]]
+            if suffix:
+                name_parts.append(suffix)
+            name_parts.append(row["numer"])
+            formatted_name = " ".join(name_parts)
+
+            writer.writerow(
+                {
+                    "product_code": row["product_code"],
+                    "active": row.get("active", 1),
+                    "name": formatted_name,
+                    "price": row["cena"],
+                    "vat": row.get("vat", "23%"),
+                    "unit": row.get("unit", "szt."),
+                    "category": row["category"],
+                    "producer": row["producer"],
+                    "other_price": row.get("other_price", ""),
+                    "pkwiu": row.get("pkwiu", ""),
+                    "weight": row.get("weight", 0.01),
+                    "priority": row.get("priority", 0),
+                    "short_description": row["short_description"],
+                    "description": row["description"],
+                    "stock": 1,
+                    "stock_warnlevel": row.get("stock_warnlevel", 0),
+                    "availability": row.get("availability", 1),
+                    "views": row.get("views", ""),
+                    "rank": row.get("rank", ""),
+                    "rank_votes": row.get("rank_votes", ""),
+                    "images 1": row.get("image1", row.get("images", "")),
+                    "warehouse_code": row.get("warehouse_code", ""),
+                }
+            )
 
 
 def send_csv_to_shoper(app, file_path: str):
