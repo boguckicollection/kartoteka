@@ -237,7 +237,7 @@ def translate_to_english(text: str) -> str:
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
-        return {"name": "", "number": "", "set": "", "suffix": ""}
+        return {"name": "", "number": "", "suffix": ""}
 
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
@@ -257,17 +257,14 @@ def analyze_card_image(path: str, translate_name: bool = False):
                         {
                             "type": "text",
                             "text": (
-                                "Extract Pokemon card name, number, set and suffix (EX, GX, V, VMAX, VSTAR, Shiny, Promo) as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
+                                "Extract Pokemon card name, number and suffix (EX, GX, V, VMAX, VSTAR, Shiny, Promo) as JSON {\"name\":\"\",\"number\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
                             ),
                         },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": url},
-                        },
+                        {"type": "image_url", "image_url": {"url": url}},
                     ],
                 }
             ],
-            max_tokens=100,
+            max_tokens=80,
         )
         content = resp.choices[0].message.content
         try:
@@ -286,7 +283,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
                 data = json.loads(text)
             except json.JSONDecodeError as e:
                 print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
-                return {"name": "", "number": "", "set": "", "suffix": ""}
+                return {"name": "", "number": "", "suffix": ""}
 
         number = data.get("number", "")
         if isinstance(number, str):
@@ -308,7 +305,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         return data
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {"name": "", "number": "", "set": "", "suffix": ""}
+        return {"name": "", "number": "", "suffix": ""}
 
 
 class CardEditorApp:
@@ -787,8 +784,11 @@ class CardEditorApp:
             var.set(str(stats.get(key, 0)))
 
     def _on_shoper_tab_changed(self):
-        if self.shoper_tabs.get() == "Inwentarz" and getattr(self, "inventory_tree", None):
-            self.load_products_from_shoper(self.inventory_tree)
+        if (
+            self.shoper_tabs.get() == "Stan magazynowy"
+            and getattr(self, "inventory_tree", None)
+        ):
+            self.load_inventory_csv(self.inventory_tree)
 
     def open_shoper_window(self):
         if not self.shoper_client:
@@ -847,10 +847,10 @@ class CardEditorApp:
         )
         self.shoper_tabs.grid(row=1, column=0, sticky="nsew", pady=5)
         self.shoper_tabs.add("Wyślij produkt")
-        self.shoper_tabs.add("Inwentarz")
+        self.shoper_tabs.add("Stan magazynowy")
         self.shoper_tabs.add("Zamówienia")
         upload_tab = self.shoper_tabs.tab("Wyślij produkt")
-        inventory_tab = self.shoper_tabs.tab("Inwentarz")
+        inventory_tab = self.shoper_tabs.tab("Stan magazynowy")
         orders_tab = self.shoper_tabs.tab("Zamówienia")
 
         inventory_tab.columnconfigure(0, weight=1)
@@ -915,22 +915,21 @@ class CardEditorApp:
             command=lambda: self.search_products(output),
         ).grid(row=0, column=10, padx=5)
 
-        columns = ("id", "name", "code", "price")
+        columns = ("code", "name", "stock", "warehouse")
         output = ttk.Treeview(inventory_tab, columns=columns, show="headings")
-        output.heading("id", text="ID")
-        output.heading("name", text="Nazwa")
         output.heading("code", text="Kod")
-        output.heading("price", text="Cena")
+        output.heading("name", text="Nazwa")
+        output.heading("stock", text="Ilość")
+        output.heading("warehouse", text="Magazyn")
         output.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        output.bind("<Double-1>", self.open_product_details)
-        # Automatically display current products upon connecting
-        self.load_products_from_shoper(output)
+        # Automatically display current products from local CSV
+        self.load_inventory_csv(output)
         self.inventory_tree = output
 
         self.create_button(
             inventory_tab,
             text="Odśwież",
-            command=lambda: self.load_products_from_shoper(output),
+            command=lambda: self.load_inventory_csv(output),
         ).grid(row=2, column=0, pady=5)
 
         upload_output = tk.Text(
@@ -1109,6 +1108,35 @@ class CardEditorApp:
                         tk.END,
                         json.dumps(all_products, indent=2, ensure_ascii=False),
                     )
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
+    def load_inventory_csv(self, widget):
+        """Load local inventory data from the CSV file."""
+        try:
+            path = csv_utils.INVENTORY_CSV
+            if isinstance(widget, ttk.Treeview):
+                widget.delete(*widget.get_children())
+                with open(path, newline="", encoding="utf-8") as f:
+                    reader = csv.DictReader(f, delimiter=";")
+                    for row in reader:
+                        widget.insert(
+                            "",
+                            "end",
+                            values=(
+                                row.get("product_code"),
+                                row.get("name"),
+                                row.get("stock"),
+                                row.get("warehouse_code"),
+                            ),
+                        )
+            else:
+                with open(path, newline="", encoding="utf-8") as f:
+                    data = f.read()
+                widget.delete("1.0", tk.END)
+                widget.insert(tk.END, data)
+        except FileNotFoundError:
+            messagebox.showerror("Błąd", f"Nie znaleziono pliku {path}")
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
