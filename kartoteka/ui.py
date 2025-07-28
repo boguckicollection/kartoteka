@@ -85,6 +85,8 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
 
 def norm_header(name: str) -> str:
     """Return a normalized column name."""
+    if name is None:
+        return ""
     return name.strip().lower()
 
 
@@ -1433,7 +1435,8 @@ class CardEditorApp:
                 dialect = csv.excel
             reader = csv.DictReader(f, dialect=dialect)
             rows = [
-                {norm_header(k): v for k, v in r.items()} for r in reader
+                {norm_header(k): v for k, v in r.items() if k is not None}
+                for r in reader
             ]
 
         headers = [norm_header(h) for h in (reader.fieldnames or [])]
