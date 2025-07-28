@@ -1044,6 +1044,13 @@ class CardEditorApp:
         )
         container.pack(expand=True, fill="both")
 
+        refresh_tree = self._build_auction_widgets(container)
+        self._load_auction_queue()
+        refresh_tree()
+        self._update_auction_status()
+
+    def _build_auction_widgets(self, container):
+        """Create auction editor widgets and return a refresh callback."""
         left_panel = tk.Frame(container, bg=self.root.cget("background"))
         left_panel.pack(side="right", fill="y", padx=10, pady=10)
 
@@ -1052,16 +1059,16 @@ class CardEditorApp:
         self.auction_photo = None
 
         tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        current_price_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        self.current_price_var = tk.StringVar()
+        tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        leader_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        self.leader_var = tk.StringVar()
+        tk.Label(left_panel, textvariable=self.leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        remaining_time_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        self.remaining_time_var = tk.StringVar()
+        tk.Label(left_panel, textvariable=self.remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
         win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
@@ -1107,12 +1114,11 @@ class CardEditorApp:
         ]:
             tree.heading(col, text=txt)
         tree.pack(expand=True, fill="both", padx=10, pady=10)
-        tree.bind("<<TreeviewSelect>>", show_selected)
 
-        info_var = tk.StringVar()
+        self.info_var = tk.StringVar()
         tk.Label(
             win,
-            textvariable=info_var,
+            textvariable=self.info_var,
             bg=self.root.cget("background"),
             fg="white",
         ).pack(pady=2)
@@ -1128,7 +1134,7 @@ class CardEditorApp:
         ).grid(row=0, column=0, padx=2, sticky="e")
         tk.Label(
             status_frame,
-            textvariable=current_price_var,
+            textvariable=self.current_price_var,
             bg=self.root.cget("background"),
             fg="white",
         ).grid(row=0, column=1, padx=2, sticky="w")
@@ -1141,7 +1147,7 @@ class CardEditorApp:
         ).grid(row=0, column=2, padx=2, sticky="e")
         tk.Label(
             status_frame,
-            textvariable=remaining_time_var,
+            textvariable=self.remaining_time_var,
             bg=self.root.cget("background"),
             fg="white",
         ).grid(row=0, column=3, padx=2, sticky="w")
@@ -1154,7 +1160,7 @@ class CardEditorApp:
         ).grid(row=0, column=4, padx=2, sticky="e")
         tk.Label(
             status_frame,
-            textvariable=leader_var,
+            textvariable=self.leader_var,
             bg=self.root.cget("background"),
             fg="white",
         ).grid(row=0, column=5, padx=2, sticky="w")
@@ -1173,11 +1179,11 @@ class CardEditorApp:
                 )
             if self.auction_queue:
                 nxt = self.auction_queue[0]
-                info_var.set(
+                self.info_var.set(
                     f"Następna karta: {nxt['nazwa_karty']} ({nxt['numer_karty']})"
                 )
             else:
-                info_var.set("Brak kart w kolejce")
+                self.info_var.set("Brak kart w kolejce")
             if not tree.selection():
                 items = tree.get_children()
                 if items:
@@ -1345,6 +1351,12 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
         pause_btn.configure(command=toggle_pause)
 
+        tree.bind("<<TreeviewSelect>>", show_selected)
+
+        return refresh_tree
+
+    def _load_auction_queue(self):
+        """Load auction queue from ``magazyn.csv`` into ``self.auction_queue``."""
         path = csv_utils.INVENTORY_CSV
         if os.path.exists(path):
             try:
@@ -1353,68 +1365,67 @@ class CardEditorApp:
                     self.auction_queue = list(reader)
             except Exception:
                 self.auction_queue = []
+        else:
+            self.auction_queue = []
 
-        refresh_tree()
+    def _update_auction_status(self):
+        """Update status panel with info from ``aktualna_aukcja.json``."""
+        path = os.path.join("templates", "aktualna_aukcja.json")
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
 
-        def update_current_info():
-            path = os.path.join("templates", "aktualna_aukcja.json")
-            if os.path.exists(path):
-                try:
-                    with open(path, encoding="utf-8") as f:
-                        data = json.load(f)
+                self.info_var.set(
+                    f"Aktualna: {data.get('nazwa')} ({data.get('numer')})"
+                )
 
-                    info_var.set(
-                        f"Aktualna: {data.get('nazwa')} ({data.get('numer')})"
-                    )
+                remaining = ""
+                if data.get("start_time"):
+                    try:
+                        start = datetime.datetime.fromisoformat(
+                            data["start_time"].rstrip("Z")
+                        )
+                        end = start + datetime.timedelta(
+                            seconds=int(data.get("czas", 0))
+                        )
+                        rem = int(
+                            (end - datetime.datetime.utcnow()).total_seconds()
+                        )
+                        remaining = f"{max(rem, 0)}s"
+                    except Exception:
+                        remaining = ""
 
-                    remaining = ""
-                    if data.get("start_time"):
-                        try:
-                            start = datetime.datetime.fromisoformat(
-                                data["start_time"].rstrip("Z")
-                            )
-                            end = start + datetime.timedelta(
-                                seconds=int(data.get("czas", 0))
-                            )
-                            rem = int(
-                                (end - datetime.datetime.utcnow()).total_seconds()
-                            )
-                            remaining = f"{max(rem, 0)}s"
-                        except Exception:
-                            remaining = ""
-
-                    winner = data.get("zwyciezca") or "Brak"
-                    current_price_var.set(str(data.get("ostateczna_cena", "")))
-                    remaining_time_var.set(remaining)
-                    leader_var.set(winner)
-                    img_path = data.get("obraz")
-                    if img_path:
-                        try:
-                            if urlparse(img_path).scheme in ("http", "https"):
-                                resp = requests.get(img_path, timeout=5)
-                                resp.raise_for_status()
-                                img = Image.open(io.BytesIO(resp.content))
+                winner = data.get("zwyciezca") or "Brak"
+                self.current_price_var.set(str(data.get("ostateczna_cena", "")))
+                self.remaining_time_var.set(remaining)
+                self.leader_var.set(winner)
+                img_path = data.get("obraz")
+                if img_path:
+                    try:
+                        if urlparse(img_path).scheme in ("http", "https"):
+                            resp = requests.get(img_path, timeout=5)
+                            resp.raise_for_status()
+                            img = Image.open(io.BytesIO(resp.content))
+                        else:
+                            if os.path.exists(img_path):
+                                img = Image.open(img_path)
                             else:
-                                if os.path.exists(img_path):
-                                    img = Image.open(img_path)
-                                else:
-                                    img = None
-                            if img is not None:
-                                img.thumbnail((200, 280))
-                                if hasattr(ctk, "CTkImage"):
-                                    photo = ctk.CTkImage(light_image=img, size=img.size)
-                                else:
-                                    photo = ImageTk.PhotoImage(img)
-                                self.auction_photo = photo
-                                self.auction_image_label.configure(image=photo)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-            if self.auction_frame and self.auction_frame.winfo_exists():
-                self.auction_frame.after(1000, update_current_info)
-
-        update_current_info()
+                                img = None
+                        if img is not None:
+                            img.thumbnail((200, 280))
+                            if hasattr(ctk, "CTkImage"):
+                                photo = ctk.CTkImage(light_image=img, size=img.size)
+                            else:
+                                photo = ImageTk.PhotoImage(img)
+                            self.auction_photo = photo
+                            self.auction_image_label.configure(image=photo)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        if self.auction_frame and self.auction_frame.winfo_exists():
+            self.auction_frame.after(1000, self._update_auction_status)
 
     # backward compatibility
     def fetch_inventory(self, widget):
