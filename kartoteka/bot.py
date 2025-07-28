@@ -662,4 +662,7 @@ async def on_reaction_add(reaction, user):
         if channel:
             await channel.send(f"Użytkownik {user} zaznaczył OK.")
 
-bot.run(TOKEN)
+
+def run_bot() -> None:
+    """Start the Discord bot."""
+    bot.run(TOKEN)

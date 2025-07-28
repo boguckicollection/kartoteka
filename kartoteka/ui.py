@@ -1025,6 +1025,14 @@ class CardEditorApp:
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
 
+        try:
+            import bot
+            if not getattr(bot, "_thread_started", False):
+                threading.Thread(target=bot.run_bot, daemon=True).start()
+                bot._thread_started = True
+        except Exception as e:
+            messagebox.showerror("Błąd", str(e))
+
         self.root.minsize(1000, 700)
         self.auction_frame = tk.Frame(
             self.root, bg=self.root.cget("background")
