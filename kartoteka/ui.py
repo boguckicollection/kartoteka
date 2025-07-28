@@ -1280,6 +1280,29 @@ class CardEditorApp:
                     self.auction_queue.pop(idx)
             refresh_tree()
 
+        def import_selected():
+            rows = []
+            treeview = getattr(self, "inventory_tree", None)
+            if treeview and str(treeview.winfo_exists()) == "1":
+                codes = [treeview.item(i, "values")[0] for i in treeview.selection()]
+                if codes:
+                    try:
+                        rows = self.read_inventory_rows(codes, csv_utils.INVENTORY_CSV)
+                    except Exception as exc:
+                        messagebox.showerror("Błąd", str(exc))
+                        return
+            if not rows:
+                path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+                if not path:
+                    return
+                try:
+                    rows = self.read_inventory_rows([], path)
+                except Exception as exc:
+                    messagebox.showerror("Błąd", str(exc))
+                    return
+            self.auction_queue.extend(rows)
+            refresh_tree()
+
         def save_queue():
             fieldnames = [
                 "nazwa_karty",
@@ -1317,6 +1340,9 @@ class CardEditorApp:
         self.create_button(btn_frame, text="Dodaj", command=add_row).pack(
             side="left", padx=5
         )
+        self.create_button(
+            btn_frame, text="Wczytaj zaznaczone", command=import_selected
+        ).pack(side="left", padx=5)
         self.create_button(
             btn_frame, text="Usuń zaznaczone", command=remove_selected
         ).pack(side="left", padx=5)
@@ -1371,6 +1397,16 @@ class CardEditorApp:
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             self.auction_queue = list(reader)
+
+    def read_inventory_rows(self, codes, path=csv_utils.INVENTORY_CSV):
+        """Return rows from ``path`` filtered by ``codes``."""
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = list(reader)
+        if codes:
+            wanted = {str(c) for c in codes}
+            rows = [r for r in rows if str(r.get("product_code")) in wanted]
+        return rows
 
     def _update_auction_status(self):
         """Update status panel with info from ``aktualna_aukcja.json``."""
