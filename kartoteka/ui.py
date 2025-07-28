@@ -83,6 +83,11 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
     return text.strip()
 
 
+def norm_header(name: str) -> str:
+    """Return a normalized column name."""
+    return name.strip().lower()
+
+
 
 
 # Wczytanie danych setów
@@ -1427,9 +1432,11 @@ class CardEditorApp:
             except csv.Error:
                 dialect = csv.excel
             reader = csv.DictReader(f, dialect=dialect)
-            rows = list(reader)
+            rows = [
+                {norm_header(k): v for k, v in r.items()} for r in reader
+            ]
 
-        headers = [h.strip().lower() for h in (reader.fieldnames or [])]
+        headers = [norm_header(h) for h in (reader.fieldnames or [])]
         if "nazwa_karty" not in headers:
             if "name" in headers:
                 for row in rows:
