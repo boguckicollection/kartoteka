@@ -1598,6 +1598,26 @@ class CardEditorApp:
         try:
             path = csv_utils.INVENTORY_CSV
             if isinstance(widget, ttk.Treeview):
+                style = ttk.Style(widget)
+                style.configure(
+                    "Inventory.Treeview",
+                    background=BG_COLOR,
+                    fieldbackground=BG_COLOR,
+                    foreground=TEXT_COLOR,
+                )
+                style.map(
+                    "Inventory.Treeview", background=[("selected", HOVER_COLOR)]
+                )
+                style.configure(
+                    "Inventory.Treeview.Heading",
+                    background=ACCENT_COLOR,
+                    foreground=TEXT_COLOR,
+                )
+                style.map(
+                    "Inventory.Treeview.Heading",
+                    background=[("active", HOVER_COLOR)],
+                )
+                widget.configure(style="Inventory.Treeview")
                 widget.delete(*widget.get_children())
                 with open(path, newline="", encoding="utf-8") as f:
                     reader = csv.DictReader(f, delimiter=";")
