@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from string import Template
 import logging
+from auction_utils import create_auction_product
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -374,6 +375,7 @@ class Aukcja:
         self.payment_method = None
         self.obraz_url = None
         self.logo_url = None
+        self.product_url = None
 
     def licytuj(self, user):
         self.cena += self.przebicie
@@ -498,6 +500,8 @@ async def send_order_dm(aukcja: Aukcja):
     try:
         if aukcja.obraz_url:
             message += f"\n{aukcja.obraz_url}"
+        if aukcja.product_url:
+            message += f"\n{aukcja.product_url}"
         dm = await user.send(message)
         await dm.add_reaction("✅")
         pending_ok[dm.id] = user
@@ -577,6 +581,9 @@ async def zakoncz_aukcje(msg):
 
         if aktualna_aukcja.zwyciezca:
             zapisz_zamowienie(aktualna_aukcja)
+            aktualna_aukcja.product_url = await asyncio.to_thread(
+                create_auction_product, aktualna_aukcja
+            )
             bot.loop.create_task(send_order_dm(aktualna_aukcja))
 
         # finalize user bid messages
