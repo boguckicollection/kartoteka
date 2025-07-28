@@ -103,8 +103,10 @@ The auction queue reads cards from `magazyn.csv`. Preferred headers are
 `nazwa_karty`, `numer_karty`, `cena_początkowa`, `kwota_przebicia` and
 `czas_trwania`. When these columns are missing the loader also accepts a Shoper
 export with `name` and `price`. The last token of `name` is interpreted as the
-card number and the remaining text becomes the card name. Missing bidding step
-and duration values default to `1` and `60` seconds respectively.
+card number and the remaining text becomes the card name. If no number is
+present the entire value is used as the card name and the number field is left
+empty. Missing bidding step and duration values default to `1` and `60` seconds
+respectively.
 
 ### CSV and image upload
 After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to FTP using the credentials from `.env`. The exported CSV includes `images 1` and `warehouse_code` columns with the remote image path and storage location. A copy of every row is also appended to the file specified in `INVENTORY_CSV` so the full stock list remains in one place. Use the **FTP Obrazy** button on the welcome screen to upload a folder of images to the configured FTP server.

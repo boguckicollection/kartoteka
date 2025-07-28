@@ -1429,11 +1429,13 @@ class CardEditorApp:
             if "name" in headers:
                 for row in rows:
                     if "nazwa_karty" not in row:
-                        parts = str(row.get("name", "")).strip().rsplit(" ", 1)
-                        if len(parts) == 2:
+                        name_val = str(row.get("name", "")).strip()
+                        parts = name_val.rsplit(" ", 1)
+                        if len(parts) == 2 and re.search(r"\d", parts[1]):
                             row["nazwa_karty"], row["numer_karty"] = parts
                         else:
-                            raise ValueError("Nie rozpoznano formatu pliku CSV")
+                            row["nazwa_karty"] = name_val
+                            row["numer_karty"] = ""
                     row["cena_początkowa"] = row.get("price", row.get("cena_początkowa", "0"))
                     row.setdefault("kwota_przebicia", "1")
                     row.setdefault("czas_trwania", "60")

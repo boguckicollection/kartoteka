@@ -34,3 +34,15 @@ def test_read_inventory_rows_alt_headers(tmp_path):
     assert rows[0]["kwota_przebicia"] == "1"
     assert rows[0]["czas_trwania"] == "60"
 
+
+def test_read_inventory_rows_name_without_number(tmp_path):
+    csv_path = tmp_path / "inv.csv"
+    csv_path.write_text(
+        "product_code;name;price\n1;Trainer Card;5\n",
+        encoding="utf-8",
+    )
+    dummy = SimpleNamespace()
+    rows = ui.CardEditorApp.read_inventory_rows(dummy, [], str(csv_path))
+    assert rows[0]["nazwa_karty"] == "Trainer Card"
+    assert rows[0]["numer_karty"] == ""
+
