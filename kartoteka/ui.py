@@ -349,6 +349,7 @@ class CardEditorApp:
         self.loading_label = None
         self.price_pool_total = 0.0
         self.pool_total_label = None
+        self.auction_queue = []
         self.in_scan = False
         self.show_loading_screen()
         threading.Thread(target=self.startup_tasks, daemon=True).start()
@@ -996,6 +997,178 @@ class CardEditorApp:
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
+    def open_auctions_window(self):
+        """Open a queue editor for Discord auctions and save to ``aukcje.csv``."""
+
+        win = tk.Toplevel(self.root)
+        win.title("Licytacje")
+        win.configure(bg=self.root.cget("background"))
+
+        form = tk.Frame(win, bg=self.root.cget("background"))
+        form.pack(pady=5)
+
+        labels = ["Nazwa karty", "Numer", "Cena start", "Kwota przebicia", "Czas [s]"]
+        vars = []
+        for i, lbl in enumerate(labels):
+            tk.Label(form, text=lbl, bg=self.root.cget("background"), fg="white").grid(row=0, column=i, padx=2)
+            var = tk.StringVar()
+            ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
+            vars.append(var)
+
+        tree = ttk.Treeview(
+            win,
+            columns=("lp", "name", "num", "start", "step", "time"),
+            show="headings",
+            height=8,
+        )
+        for col, txt in zip(
+            ["lp", "name", "num", "start", "step", "time"],
+            ["Lp", "Karta", "Nr", "Cena", "Przebicie", "Czas"],
+        ):
+            tree.heading(col, text=txt)
+        tree.column("lp", width=40)
+        tree.pack(expand=True, fill="both", padx=10, pady=10)
+
+        info_var = tk.StringVar()
+        tk.Label(win, textvariable=info_var, bg=self.root.cget("background"), fg="white").pack(pady=2)
+
+        def refresh_tree():
+            for r in tree.get_children():
+                tree.delete(r)
+            for idx, row in enumerate(self.auction_queue, 1):
+                tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        idx,
+                        row["nazwa_karty"],
+                        row["numer_karty"],
+                        row["cena_początkowa"],
+                        row["kwota_przebicia"],
+                        row["czas_trwania"],
+                    ),
+                )
+            if self.auction_queue:
+                nxt = self.auction_queue[0]
+                info_var.set(
+                    f"Następna karta: {nxt['nazwa_karty']} ({nxt['numer_karty']})"
+                )
+            else:
+                info_var.set("Brak kart w kolejce")
+
+        def add_row():
+            name, num, start, step, czas = [v.get().strip() for v in vars]
+            if not name or not num:
+                messagebox.showerror("Błąd", "Podaj nazwę i numer karty")
+                return
+            row = {
+                "nazwa_karty": name,
+                "numer_karty": num,
+                "opis": "",
+                "cena_początkowa": start or "0",
+                "kwota_przebicia": step or "1",
+                "czas_trwania": czas or "60",
+            }
+            self.auction_queue.append(row)
+            for v in vars:
+                v.set("")
+            refresh_tree()
+
+        def remove_selected():
+            sel = tree.selection()
+            for item_id in reversed(sel):
+                idx = tree.index(item_id)
+                tree.delete(item_id)
+                if 0 <= idx < len(self.auction_queue):
+                    self.auction_queue.pop(idx)
+            refresh_tree()
+
+        def save_queue():
+            fieldnames = [
+                "nazwa_karty",
+                "numer_karty",
+                "opis",
+                "cena_początkowa",
+                "kwota_przebicia",
+                "czas_trwania",
+            ]
+            with open("aukcje.csv", "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in self.auction_queue:
+                    writer.writerow(row)
+            try:
+                import bot
+
+                bot.aukcje_kolejka.clear()
+                for r in self.auction_queue:
+                    aukcja = bot.Aukcja(
+                        r["nazwa_karty"],
+                        r["numer_karty"],
+                        r["opis"],
+                        r["cena_początkowa"],
+                        r["kwota_przebicia"],
+                        r["czas_trwania"],
+                    )
+                    bot.aukcje_kolejka.append(aukcja)
+            except Exception:
+                pass
+            messagebox.showinfo("Aukcje", "Kolejka zapisana do aukcje.csv")
+
+        btn_frame = tk.Frame(win, bg=self.root.cget("background"))
+        btn_frame.pack(pady=5)
+        self.create_button(btn_frame, text="Dodaj", command=add_row).pack(
+            side="left", padx=5
+        )
+        self.create_button(
+            btn_frame, text="Usuń zaznaczone", command=remove_selected
+        ).pack(side="left", padx=5)
+        self.create_button(btn_frame, text="Zapisz", command=save_queue).pack(
+            side="left", padx=5
+        )
+        self.create_button(btn_frame, text="Zamknij", command=win.destroy).pack(
+            side="left", padx=5
+        )
+
+        if os.path.exists("aukcje.csv"):
+            try:
+                with open("aukcje.csv", newline="", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    self.auction_queue = list(reader)
+            except Exception:
+                self.auction_queue = []
+
+        refresh_tree()
+
+        def update_current_info():
+            path = os.path.join("templates", "aktualna_aukcja.json")
+            if os.path.exists(path):
+                try:
+                    with open(path, encoding="utf-8") as f:
+                        data = json.load(f)
+                    remaining = ""
+                    if data.get("start_time"):
+                        try:
+                            start = datetime.datetime.fromisoformat(
+                                data["start_time"].rstrip("Z")
+                            )
+                            end = start + datetime.timedelta(
+                                seconds=int(data.get("czas", 0))
+                            )
+                            rem = int((end - datetime.datetime.utcnow()).total_seconds())
+                            remaining = f", pozostało {max(rem,0)}s"
+                        except Exception:
+                            remaining = ""
+                    info_var.set(
+                        f"Aktualna: {data.get('nazwa')} ({data.get('numer')}) - {data.get('ostateczna_cena')} PLN{remaining}"
+                    )
+                except Exception:
+                    pass
+            if win.winfo_exists():
+                win.after(1000, update_current_info)
+
+        update_current_info()
+
     # backward compatibility
     def fetch_inventory(self, widget):
         """Deprecated: use load_products_from_shoper."""
@@ -1197,43 +1370,6 @@ class CardEditorApp:
             widget.insert(tk.END, "\n".join(lines))
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
-
-    def open_auctions_window(self):
-        """Display items from the 'Licytacja' category in a new window."""
-        if not self.shoper_client:
-            messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
-            return
-        win = tk.Toplevel(self.root)
-        win.title("Licytacje")
-        win.configure(bg=self.root.cget("background"))
-        output = tk.Text(win, bg=self.root.cget("background"), fg="white")
-        output.pack(expand=True, fill="both", padx=10, pady=10)
-        self.create_button(win, text="Zamknij", command=win.destroy).pack(pady=5)
-        self.fetch_auction_items(output)
-
-    def fetch_auction_items(self, widget):
-        """Fetch items in the 'Licytacja' category from Shoper."""
-        try:
-            data = self.shoper_client.search_products(
-                filters={"filters[category]": "Licytacja"}
-            )
-            widget.delete("1.0", tk.END)
-            products = data.get("list", data)
-            lines = []
-            for prod in products:
-                translations = prod.get("translations") or {}
-                name = ""
-                if isinstance(translations, dict):
-                    first = next(iter(translations.values()), {})
-                    name = first.get("name", "")
-                lines.append(f"{prod.get('product_id')}: {name}")
-            if lines:
-                widget.insert(tk.END, "\n".join(lines))
-            else:
-                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
-        except Exception as e:
-            messagebox.showerror("Błąd", str(e))
-
     @staticmethod
     def location_from_code(code: str) -> str:
         return storage.location_from_code(code)
