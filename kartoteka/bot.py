@@ -8,7 +8,6 @@ import datetime
 import json
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
-import requests
 from string import Template
 import logging
 
@@ -26,7 +25,8 @@ SELLER_CHANNEL_ID = int(os.getenv("SELLER_CHANNEL_ID", "0"))
 OGLOSZENIA_KANAL_ID = int(os.getenv("OGLOSZENIA_KANAL_ID", "0"))
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 LIVE_CHAT_ID = os.getenv("LIVE_CHAT_ID")
-POKEMONTCG_API_TOKEN = os.getenv("POKEMONTCG_API_TOKEN")
+BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "").rstrip("/")
+SCANS_DIR = os.getenv("SCANS_DIR", "scans")
 
 # Directory where aktualna_aukcja.html and aktualna_aukcja.json are stored
 OUTPUT_DIR = Path("templates")
@@ -48,49 +48,29 @@ paused = False
 
 
 def fetch_card_assets(nazwa: str, numer: str) -> tuple[str | None, str | None]:
-    """Return card and set logo image URLs from PokemonTCG API if available."""
-    base = "https://api.pokemontcg.io/v2/cards"
-    numer = numer.strip().lower()
-    headers = {}
-    if POKEMONTCG_API_TOKEN:
-        headers["X-Api-Key"] = POKEMONTCG_API_TOKEN
+    """Return card image URL from local scans if available."""
+    name = nazwa.strip().lower().replace(" ", "_")
+    num = numer.strip().lower().replace("/", "-")
+    candidates = [
+        f"{name}_{num}",
+        f"{name}-{num}",
+        f"{name} {num}",
+        num,
+    ]
+    exts = [".jpg", ".png", ".jpeg"]
 
-    def _parse(card):
-        if card:
-            return (
-                card.get("images", {}).get("large"),
-                card.get("set", {}).get("images", {}).get("logo"),
-            )
-        return None, None
+    base_dir = Path(SCANS_DIR)
+    for root, _dirs, files in os.walk(base_dir):
+        lower_map = {f.lower(): f for f in files}
+        for cand in candidates:
+            for ext in exts:
+                fname = cand + ext
+                if fname in lower_map:
+                    rel = Path(root) / lower_map[fname]
+                    rel_path = rel.relative_to(base_dir).as_posix()
+                    url = f"{BASE_IMAGE_URL}/{rel_path}" if BASE_IMAGE_URL else str(rel)
+                    return url, None
 
-    # First try to fetch by card ID (e.g. sv2-10)
-    try:
-        resp = requests.get(f"{base}/{numer}", headers=headers, timeout=5)
-        resp.raise_for_status()
-        card = resp.json().get("data")
-        return _parse(card)
-    except Exception as e:
-        logging.warning("Direct lookup for %s failed: %s", numer, e)
-
-    # Fallback to search query if direct lookup failed
-    try:
-        set_id = ""
-        card_no = numer
-        if "-" in numer:
-            set_id, card_no = numer.split("-", 1)
-        parts = [f'name:"{nazwa}"', f'number:"{card_no}"']
-        if set_id:
-            parts.append(f'set.id:{set_id}')
-        query = " ".join(parts)
-        params = {"q": query, "pageSize": 1}
-        resp = requests.get(base, params=params, headers=headers, timeout=5)
-        resp.raise_for_status()
-        cards = resp.json().get("data")
-        if cards:
-            return _parse(cards[0])
-        logging.warning("No results for query: %s", query)
-    except Exception as e:
-        logging.warning("Search request for %s failed: %s", numer, e)
     logging.warning("Card image for %s (%s) not found", nazwa, numer)
     return None, None
 
