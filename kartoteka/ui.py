@@ -1182,6 +1182,7 @@ class CardEditorApp:
                 try:
                     with open(path, encoding="utf-8") as f:
                         data = json.load(f)
+
                     remaining = ""
                     if data.get("start_time"):
                         try:
@@ -1195,8 +1196,10 @@ class CardEditorApp:
                             remaining = f", pozostało {max(rem,0)}s"
                         except Exception:
                             remaining = ""
+
+                    winner = data.get("zwyciezca") or "Brak"
                     info_var.set(
-                        f"Aktualna: {data.get('nazwa')} ({data.get('numer')}) - {data.get('ostateczna_cena')} PLN{remaining}"
+                        f"Aktualna: {data.get('nazwa')} ({data.get('numer')}) - {data.get('ostateczna_cena')} PLN{remaining} | Prowadzi: {winner}"
                     )
                 except Exception:
                     pass
