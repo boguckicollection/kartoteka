@@ -1041,12 +1041,30 @@ class CardEditorApp:
             var = tk.StringVar()
             ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
             vars.append(var)
+        style = ttk.Style(win)
+        style.configure(
+            "Auction.Treeview",
+            background=BG_COLOR,
+            fieldbackground=BG_COLOR,
+            foreground=TEXT_COLOR,
+        )
+        style.map("Auction.Treeview", background=[("selected", HOVER_COLOR)])
+        style.configure(
+            "Auction.Treeview.Heading",
+            background=ACCENT_COLOR,
+            foreground=TEXT_COLOR,
+        )
+        style.map(
+            "Auction.Treeview.Heading",
+            background=[("active", HOVER_COLOR)]
+        )
 
         tree = ttk.Treeview(
             win,
             columns=("name", "price"),
             show="headings",
             height=8,
+            style="Auction.Treeview",
         )
         for col, txt in [
             ("name", "Karta"),
