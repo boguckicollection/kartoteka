@@ -1116,7 +1116,7 @@ class CardEditorApp:
 
         tree = ttk.Treeview(
             win,
-            columns=("name", "price"),
+            columns=("name", "price", "warehouse_code"),
             show="headings",
             height=8,
             style="Auction.Treeview",
@@ -1124,6 +1124,7 @@ class CardEditorApp:
         for col, txt in [
             ("name", "Karta"),
             ("price", "Cena"),
+            ("warehouse_code", "Kod magazynu"),
         ]:
             tree.heading(col, text=txt)
         tree.pack(expand=True, fill="both", padx=10, pady=10)
@@ -1186,15 +1187,19 @@ class CardEditorApp:
                     "",
                     "end",
                     values=(
-                        row.get("nazwa_karty"),
-                        row.get("cena_początkowa"),
+                        row.get("name") or row.get("nazwa_karty"),
+                        row.get("price") or row.get("cena_początkowa"),
+                        row.get("warehouse_code", ""),
                     ),
                 )
             if self.auction_queue:
                 nxt = self.auction_queue[0]
-                self.info_var.set(
-                    f"Następna karta: {nxt.get('nazwa_karty')} ({nxt.get('numer_karty')})"
-                )
+                nazwa = nxt.get('name') or nxt.get('nazwa_karty')
+                numer = nxt.get('numer_karty')
+                if numer:
+                    self.info_var.set(f"Następna karta: {nazwa} ({numer})")
+                else:
+                    self.info_var.set(f"Następna karta: {nazwa}")
             else:
                 self.info_var.set("Brak kart w kolejce")
             if not tree.selection():
