@@ -17,6 +17,7 @@ import unicodedata
 from itertools import combinations
 import html
 import sys
+from typing import Optional
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
@@ -29,6 +30,7 @@ import io
 load_dotenv()
 
 BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/upload/images")
+SCANS_DIR = os.getenv("SCANS_DIR", "scans")
 
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
@@ -1029,7 +1031,32 @@ class CardEditorApp:
         )
         self.auction_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        win = self.auction_frame
+        container = tk.Frame(
+            self.auction_frame, bg=self.root.cget("background")
+        )
+        container.pack(expand=True, fill="both")
+
+        left_panel = tk.Frame(container, bg=self.root.cget("background"))
+        left_panel.pack(side="left", fill="y", padx=10, pady=10)
+
+        self.auction_image_label = tk.Label(left_panel, bg=self.root.cget("background"))
+        self.auction_image_label.pack(pady=5)
+        self.auction_photo = None
+
+        tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        current_price_var = tk.StringVar()
+        tk.Label(left_panel, textvariable=current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+
+        tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        leader_var = tk.StringVar()
+        tk.Label(left_panel, textvariable=leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+
+        tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        remaining_time_var = tk.StringVar()
+        tk.Label(left_panel, textvariable=remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+
+        win = tk.Frame(container, bg=self.root.cget("background"))
+        win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
         form = tk.Frame(win, bg=self.root.cget("background"))
         form.pack(pady=5)
@@ -1072,6 +1099,7 @@ class CardEditorApp:
         ]:
             tree.heading(col, text=txt)
         tree.pack(expand=True, fill="both", padx=10, pady=10)
+        tree.bind("<<TreeviewSelect>>", show_selected)
 
         info_var = tk.StringVar()
         tk.Label(
@@ -1090,7 +1118,6 @@ class CardEditorApp:
             bg=self.root.cget("background"),
             fg="white",
         ).grid(row=0, column=0, padx=2, sticky="e")
-        current_price_var = tk.StringVar()
         tk.Label(
             status_frame,
             textvariable=current_price_var,
@@ -1104,7 +1131,6 @@ class CardEditorApp:
             bg=self.root.cget("background"),
             fg="white",
         ).grid(row=0, column=2, padx=2, sticky="e")
-        remaining_time_var = tk.StringVar()
         tk.Label(
             status_frame,
             textvariable=remaining_time_var,
@@ -1118,7 +1144,6 @@ class CardEditorApp:
             bg=self.root.cget("background"),
             fg="white",
         ).grid(row=0, column=4, padx=2, sticky="e")
-        leader_var = tk.StringVar()
         tk.Label(
             status_frame,
             textvariable=leader_var,
@@ -1145,6 +1170,64 @@ class CardEditorApp:
                 )
             else:
                 info_var.set("Brak kart w kolejce")
+            if not tree.selection():
+                items = tree.get_children()
+                if items:
+                    tree.selection_set(items[0])
+            show_selected()
+
+        def find_scan(name: str, num: str) -> Optional[str]:
+            name = name.strip().lower().replace(" ", "_")
+            num = num.strip().lower().replace("/", "-")
+            candidates = [
+                f"{name}_{num}",
+                f"{name}-{num}",
+                f"{name} {num}",
+                num,
+            ]
+            exts = [".jpg", ".png", ".jpeg"]
+            base_dir = SCANS_DIR
+            for root_dir, _d, files in os.walk(base_dir):
+                lower = {f.lower(): f for f in files}
+                for cand in candidates:
+                    for ext in exts:
+                        fname = cand + ext
+                        if fname in lower:
+                            return os.path.join(root_dir, lower[fname])
+            return None
+
+        def load_image(path: Optional[str]):
+            if not path:
+                return
+            try:
+                if urlparse(path).scheme in ("http", "https"):
+                    resp = requests.get(path, timeout=5)
+                    resp.raise_for_status()
+                    img = Image.open(io.BytesIO(resp.content))
+                else:
+                    if os.path.exists(path):
+                        img = Image.open(path)
+                    else:
+                        return
+                img.thumbnail((200, 280))
+                if hasattr(ctk, "CTkImage"):
+                    photo = ctk.CTkImage(light_image=img, size=img.size)
+                else:
+                    photo = ImageTk.PhotoImage(img)
+                self.auction_photo = photo
+                self.auction_image_label.configure(image=photo)
+            except Exception:
+                pass
+
+        def show_selected(event=None):
+            sel = tree.selection()
+            if not sel:
+                return
+            idx = tree.index(sel[0])
+            if 0 <= idx < len(self.auction_queue):
+                row = self.auction_queue[idx]
+                path = row.get("images 1") or find_scan(row["nazwa_karty"], row["numer_karty"])
+                load_image(path)
 
         def add_row():
             name, num, start, step, czas = [v.get().strip() for v in vars]
@@ -1296,6 +1379,28 @@ class CardEditorApp:
                     current_price_var.set(str(data.get("ostateczna_cena", "")))
                     remaining_time_var.set(remaining)
                     leader_var.set(winner)
+                    img_path = data.get("obraz")
+                    if img_path:
+                        try:
+                            if urlparse(img_path).scheme in ("http", "https"):
+                                resp = requests.get(img_path, timeout=5)
+                                resp.raise_for_status()
+                                img = Image.open(io.BytesIO(resp.content))
+                            else:
+                                if os.path.exists(img_path):
+                                    img = Image.open(img_path)
+                                else:
+                                    img = None
+                            if img is not None:
+                                img.thumbnail((200, 280))
+                                if hasattr(ctk, "CTkImage"):
+                                    photo = ctk.CTkImage(light_image=img, size=img.size)
+                                else:
+                                    photo = ImageTk.PhotoImage(img)
+                                self.auction_photo = photo
+                                self.auction_image_label.configure(image=photo)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
             if self.auction_frame and self.auction_frame.winfo_exists():
