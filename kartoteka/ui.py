@@ -342,6 +342,7 @@ class CardEditorApp:
         self.pricing_frame = None
         self.magazyn_frame = None
         self.location_frame = None
+        self.auction_frame = None
         self.mag_canvases = []
         self.mag_box_photo = None
         self.log_widget = None
@@ -1001,10 +1002,34 @@ class CardEditorApp:
 
     def open_auctions_window(self):
         """Open a queue editor for Discord auctions and save to ``aukcje.csv``."""
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+        if getattr(self, "pricing_frame", None):
+            self.pricing_frame.destroy()
+            self.pricing_frame = None
+        if getattr(self, "shoper_frame", None):
+            self.shoper_frame.destroy()
+            self.shoper_frame = None
+        if getattr(self, "frame", None):
+            self.frame.destroy()
+            self.frame = None
+        if getattr(self, "magazyn_frame", None):
+            self.magazyn_frame.destroy()
+            self.magazyn_frame = None
+        if getattr(self, "location_frame", None):
+            self.location_frame.destroy()
+            self.location_frame = None
+        if getattr(self, "auction_frame", None):
+            self.auction_frame.destroy()
 
-        win = tk.Toplevel(self.root)
-        win.title("Licytacje")
-        win.configure(bg=self.root.cget("background"))
+        self.root.minsize(1000, 700)
+        self.auction_frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
+        self.auction_frame.pack(expand=True, fill="both", padx=10, pady=10)
+
+        win = self.auction_frame
 
         form = tk.Frame(win, bg=self.root.cget("background"))
         form.pack(pady=5)
@@ -1178,9 +1203,9 @@ class CardEditorApp:
         self.create_button(btn_frame, text="Zapisz", command=save_queue).pack(
             side="left", padx=5
         )
-        self.create_button(btn_frame, text="Zamknij", command=win.destroy).pack(
-            side="left", padx=5
-        )
+        self.create_button(
+            btn_frame, text="Powrót", command=self.back_to_welcome
+        ).pack(side="left", padx=5)
 
         control_frame = tk.Frame(win, bg=self.root.cget("background"))
         control_frame.pack(pady=5)
@@ -1259,8 +1284,8 @@ class CardEditorApp:
                     leader_var.set(winner)
                 except Exception:
                     pass
-            if win.winfo_exists():
-                win.after(1000, update_current_info)
+            if self.auction_frame and self.auction_frame.winfo_exists():
+                self.auction_frame.after(1000, update_current_info)
 
         update_current_info()
 
@@ -1880,6 +1905,9 @@ class CardEditorApp:
         if getattr(self, "location_frame", None):
             self.location_frame.destroy()
             self.location_frame = None
+        if getattr(self, "auction_frame", None):
+            self.auction_frame.destroy()
+            self.auction_frame = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
