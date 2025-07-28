@@ -1045,7 +1045,7 @@ class CardEditorApp:
         container.pack(expand=True, fill="both")
 
         left_panel = tk.Frame(container, bg=self.root.cget("background"))
-        left_panel.pack(side="left", fill="y", padx=10, pady=10)
+        left_panel.pack(side="right", fill="y", padx=10, pady=10)
 
         self.auction_image_label = tk.Label(left_panel, bg=self.root.cget("background"))
         self.auction_image_label.pack(pady=5)
@@ -1349,7 +1349,7 @@ class CardEditorApp:
         if os.path.exists(path):
             try:
                 with open(path, newline="", encoding="utf-8") as f:
-                    reader = csv.DictReader(f)
+                    reader = csv.DictReader(f, delimiter=";")
                     self.auction_queue = list(reader)
             except Exception:
                 self.auction_queue = []
