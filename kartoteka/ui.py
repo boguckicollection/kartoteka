@@ -1044,16 +1044,15 @@ class CardEditorApp:
 
         tree = ttk.Treeview(
             win,
-            columns=("lp", "name", "num", "start", "step", "time"),
+            columns=("name", "price"),
             show="headings",
             height=8,
         )
-        for col, txt in zip(
-            ["lp", "name", "num", "start", "step", "time"],
-            ["Lp", "Karta", "Nr", "Cena", "Przebicie", "Czas"],
-        ):
+        for col, txt in [
+            ("name", "Karta"),
+            ("price", "Cena"),
+        ]:
             tree.heading(col, text=txt)
-        tree.column("lp", width=40)
         tree.pack(expand=True, fill="both", padx=10, pady=10)
 
         info_var = tk.StringVar()
@@ -1112,17 +1111,13 @@ class CardEditorApp:
         def refresh_tree():
             for r in tree.get_children():
                 tree.delete(r)
-            for idx, row in enumerate(self.auction_queue, 1):
+            for row in self.auction_queue:
                 tree.insert(
                     "",
                     "end",
                     values=(
-                        idx,
                         row["nazwa_karty"],
-                        row["numer_karty"],
                         row["cena_początkowa"],
-                        row["kwota_przebicia"],
-                        row["czas_trwania"],
                     ),
                 )
             if self.auction_queue:
@@ -1241,9 +1236,10 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
         pause_btn.configure(command=toggle_pause)
 
-        if os.path.exists("aukcje.csv"):
+        path = csv_utils.INVENTORY_CSV
+        if os.path.exists(path):
             try:
-                with open("aukcje.csv", newline="", encoding="utf-8") as f:
+                with open(path, newline="", encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     self.auction_queue = list(reader)
             except Exception:
