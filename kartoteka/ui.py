@@ -1032,7 +1032,57 @@ class CardEditorApp:
         tree.pack(expand=True, fill="both", padx=10, pady=10)
 
         info_var = tk.StringVar()
-        tk.Label(win, textvariable=info_var, bg=self.root.cget("background"), fg="white").pack(pady=2)
+        tk.Label(
+            win,
+            textvariable=info_var,
+            bg=self.root.cget("background"),
+            fg="white",
+        ).pack(pady=2)
+
+        status_frame = tk.Frame(win, bg=self.root.cget("background"))
+        status_frame.pack(pady=2)
+
+        tk.Label(
+            status_frame,
+            text="Aktualna cena:",
+            bg=self.root.cget("background"),
+            fg="white",
+        ).grid(row=0, column=0, padx=2, sticky="e")
+        current_price_var = tk.StringVar()
+        tk.Label(
+            status_frame,
+            textvariable=current_price_var,
+            bg=self.root.cget("background"),
+            fg="white",
+        ).grid(row=0, column=1, padx=2, sticky="w")
+
+        tk.Label(
+            status_frame,
+            text="Pozostały czas:",
+            bg=self.root.cget("background"),
+            fg="white",
+        ).grid(row=0, column=2, padx=2, sticky="e")
+        remaining_time_var = tk.StringVar()
+        tk.Label(
+            status_frame,
+            textvariable=remaining_time_var,
+            bg=self.root.cget("background"),
+            fg="white",
+        ).grid(row=0, column=3, padx=2, sticky="w")
+
+        tk.Label(
+            status_frame,
+            text="Prowadzi:",
+            bg=self.root.cget("background"),
+            fg="white",
+        ).grid(row=0, column=4, padx=2, sticky="e")
+        leader_var = tk.StringVar()
+        tk.Label(
+            status_frame,
+            textvariable=leader_var,
+            bg=self.root.cget("background"),
+            fg="white",
+        ).grid(row=0, column=5, padx=2, sticky="w")
 
         def refresh_tree():
             for r in tree.get_children():
@@ -1183,6 +1233,10 @@ class CardEditorApp:
                     with open(path, encoding="utf-8") as f:
                         data = json.load(f)
 
+                    info_var.set(
+                        f"Aktualna: {data.get('nazwa')} ({data.get('numer')})"
+                    )
+
                     remaining = ""
                     if data.get("start_time"):
                         try:
@@ -1192,15 +1246,17 @@ class CardEditorApp:
                             end = start + datetime.timedelta(
                                 seconds=int(data.get("czas", 0))
                             )
-                            rem = int((end - datetime.datetime.utcnow()).total_seconds())
-                            remaining = f", pozostało {max(rem,0)}s"
+                            rem = int(
+                                (end - datetime.datetime.utcnow()).total_seconds()
+                            )
+                            remaining = f"{max(rem, 0)}s"
                         except Exception:
                             remaining = ""
 
                     winner = data.get("zwyciezca") or "Brak"
-                    info_var.set(
-                        f"Aktualna: {data.get('nazwa')} ({data.get('numer')}) - {data.get('ostateczna_cena')} PLN{remaining} | Prowadzi: {winner}"
-                    )
+                    current_price_var.set(str(data.get("ostateczna_cena", "")))
+                    remaining_time_var.set(remaining)
+                    leader_var.set(winner)
                 except Exception:
                     pass
             if win.winfo_exists():
