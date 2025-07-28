@@ -20,3 +20,17 @@ def test_read_inventory_rows_filters(tmp_path):
     assert rows[0]["nazwa_karty"] == "A"
     rows_all = ui.CardEditorApp.read_inventory_rows(dummy, [], str(csv_path))
     assert len(rows_all) == 2
+
+def test_read_inventory_rows_alt_headers(tmp_path):
+    csv_path = tmp_path / "inv.csv"
+    csv_path.write_text(
+        "product_code;name;price\n1;A 1;9\n", encoding="utf-8"
+    )
+    dummy = SimpleNamespace()
+    rows = ui.CardEditorApp.read_inventory_rows(dummy, [], str(csv_path))
+    assert rows[0]["nazwa_karty"] == "A"
+    assert rows[0]["numer_karty"] == "1"
+    assert rows[0]["cena_początkowa"] == "9"
+    assert rows[0]["kwota_przebicia"] == "1"
+    assert rows[0]["czas_trwania"] == "60"
+

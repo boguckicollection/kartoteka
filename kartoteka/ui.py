@@ -1052,6 +1052,9 @@ class CardEditorApp:
                 "Błąd", f"Nie znaleziono pliku {csv_utils.INVENTORY_CSV}"
             )
             self.auction_queue = []
+        except ValueError as exc:
+            messagebox.showerror("Błąd", str(exc))
+            self.auction_queue = []
         except Exception as exc:
             messagebox.showerror("Błąd", str(exc))
             self.auction_queue = []
@@ -1183,14 +1186,14 @@ class CardEditorApp:
                     "",
                     "end",
                     values=(
-                        row["nazwa_karty"],
-                        row["cena_początkowa"],
+                        row.get("nazwa_karty"),
+                        row.get("cena_początkowa"),
                     ),
                 )
             if self.auction_queue:
                 nxt = self.auction_queue[0]
                 self.info_var.set(
-                    f"Następna karta: {nxt['nazwa_karty']} ({nxt['numer_karty']})"
+                    f"Następna karta: {nxt.get('nazwa_karty')} ({nxt.get('numer_karty')})"
                 )
             else:
                 self.info_var.set("Brak kart w kolejce")
@@ -1250,7 +1253,9 @@ class CardEditorApp:
             idx = tree.index(sel[0])
             if 0 <= idx < len(self.auction_queue):
                 row = self.auction_queue[idx]
-                path = row.get("images 1") or find_scan(row["nazwa_karty"], row["numer_karty"])
+                path = row.get("images 1") or find_scan(
+                    row.get("nazwa_karty", ""), row.get("numer_karty", "")
+                )
                 load_image(path)
 
         def add_row():
@@ -1323,12 +1328,12 @@ class CardEditorApp:
                 bot.aukcje_kolejka.clear()
                 for r in self.auction_queue:
                     aukcja = bot.Aukcja(
-                        r["nazwa_karty"],
-                        r["numer_karty"],
-                        r["opis"],
-                        r["cena_początkowa"],
-                        r["kwota_przebicia"],
-                        r["czas_trwania"],
+                        r.get("nazwa_karty"),
+                        r.get("numer_karty"),
+                        r.get("opis"),
+                        r.get("cena_początkowa"),
+                        r.get("kwota_przebicia"),
+                        r.get("czas_trwania"),
                     )
                     bot.aukcje_kolejka.append(aukcja)
             except Exception:
@@ -1405,15 +1410,35 @@ class CardEditorApp:
     def _load_auction_queue(self):
         """Load auction queue from ``magazyn.csv`` into ``self.auction_queue``."""
         path = csv_utils.INVENTORY_CSV
-        with open(path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            self.auction_queue = list(reader)
+        self.auction_queue = self.read_inventory_rows([], path)
 
     def read_inventory_rows(self, codes, path=csv_utils.INVENTORY_CSV):
         """Return rows from ``path`` filtered by ``codes``."""
         with open(path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f, delimiter=";")
+            sample = f.read(2048)
+            f.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=";,")
+            except csv.Error:
+                dialect = csv.excel
+            reader = csv.DictReader(f, dialect=dialect)
             rows = list(reader)
+
+        headers = [h.strip().lower() for h in (reader.fieldnames or [])]
+        if "nazwa_karty" not in headers:
+            if "name" in headers:
+                for row in rows:
+                    if "nazwa_karty" not in row:
+                        parts = str(row.get("name", "")).strip().rsplit(" ", 1)
+                        if len(parts) == 2:
+                            row["nazwa_karty"], row["numer_karty"] = parts
+                        else:
+                            raise ValueError("Nie rozpoznano formatu pliku CSV")
+                    row["cena_początkowa"] = row.get("price", row.get("cena_początkowa", "0"))
+                    row.setdefault("kwota_przebicia", "1")
+                    row.setdefault("czas_trwania", "60")
+            else:
+                raise ValueError("Nie rozpoznano formatu pliku CSV")
         if codes:
             wanted = {str(c) for c in codes}
             rows = [r for r in rows if str(r.get("product_code")) in wanted]
