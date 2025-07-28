@@ -1349,9 +1349,7 @@ class CardEditorApp:
         self.create_button(btn_frame, text="Zapisz", command=save_queue).pack(
             side="left", padx=5
         )
-        self.create_button(
-            btn_frame, text="Powrót", command=self.back_to_welcome
-        ).pack(side="left", padx=5)
+
 
         control_frame = tk.Frame(win, bg=self.root.cget("background"))
         control_frame.pack(pady=5)
@@ -1371,6 +1369,13 @@ class CardEditorApp:
         pause_btn = self.create_button(control_frame, text="⏸ Pauza")
         pause_btn.pack(side="left", padx=5)
 
+        def reload_queue():
+            try:
+                self._load_auction_queue()
+                refresh_tree()
+            except Exception as exc:
+                messagebox.showerror("Błąd", str(exc))
+
         def toggle_pause():
             try:
                 import bot
@@ -1386,6 +1391,12 @@ class CardEditorApp:
             control_frame, text="Następna karta", command=next_card
         ).pack(side="left", padx=5)
         pause_btn.configure(command=toggle_pause)
+        self.create_button(
+            control_frame, text="Wczytaj ponownie", command=reload_queue
+        ).pack(side="left", padx=5)
+        self.create_button(
+            control_frame, text="Powrót do menu", command=self.back_to_welcome
+        ).pack(side="left", padx=5)
 
         tree.bind("<<TreeviewSelect>>", show_selected)
 
