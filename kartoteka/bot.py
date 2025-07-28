@@ -102,15 +102,14 @@ async def update_panel_embed():
                 pozostalo = 0
             info += f"\nPozostało: {pozostalo}s"
         embed.add_field(name="Aktualna aukcja", value=info, inline=False)
-    view = PanelView()
     global seller_panel_msg
     if seller_panel_msg:
         try:
-            await seller_panel_msg.edit(embed=embed, view=view)
+            await seller_panel_msg.edit(embed=embed, view=None)
         except discord.NotFound:
-            seller_panel_msg = await channel.send(embed=embed, view=view)
+            seller_panel_msg = await channel.send(embed=embed, view=None)
     else:
-        seller_panel_msg = await channel.send(embed=embed, view=view)
+        seller_panel_msg = await channel.send(embed=embed, view=None)
 
 
 
@@ -157,15 +156,14 @@ async def update_announcement_embed():
     kolejka = "\n".join(f"{a.nazwa} ({a.numer})" for a in aukcje_kolejka[:5]) or "Brak"
     embed.add_field(name="W kolejce", value=kolejka, inline=False)
 
-    view = AnnouncementView()
     global announcement_msg
     if announcement_msg:
         try:
-            await announcement_msg.edit(embed=embed, view=view)
+            await announcement_msg.edit(embed=embed, view=None)
         except discord.NotFound:
-            announcement_msg = await channel.send(embed=embed, view=view)
+            announcement_msg = await channel.send(embed=embed, view=None)
     else:
-        announcement_msg = await channel.send(embed=embed, view=view)
+        announcement_msg = await channel.send(embed=embed, view=None)
 
 async def announce_winner(aukcja: 'Aukcja'):
     """Wyświetl w ogłoszeniach wynik zakończonej aukcji."""
@@ -206,15 +204,14 @@ async def announce_winner(aukcja: 'Aukcja'):
             value="Brak kolejnych aukcji",
             inline=False,
         )
-    view = AnnouncementView()
     global announcement_msg
     if announcement_msg:
         try:
-            await announcement_msg.edit(embed=embed, view=view)
+            await announcement_msg.edit(embed=embed, view=None)
         except discord.NotFound:
-            announcement_msg = await channel.send(embed=embed, view=view)
+            announcement_msg = await channel.send(embed=embed, view=None)
     else:
-        announcement_msg = await channel.send(embed=embed, view=view)
+        announcement_msg = await channel.send(embed=embed, view=None)
 
 async def notify_seller_end(aukcja: 'Aukcja'):
     """Przekaż wynik aukcji na kanał sprzedawcy."""
@@ -382,29 +379,7 @@ class Aukcja:
         self.historia.append((str(user), self.cena, datetime.datetime.utcnow().isoformat()))
         self.zwyciezca = user
 
-@bot.command()
-async def zaladuj(ctx):
-    if ctx.author.id != ADMIN_ID:
-        await ctx.send('Brak uprawnień.')
-        return
-    global aukcje_kolejka
-    aukcje_kolejka.clear()
-    with open('aukcje.csv', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            aukcja = Aukcja(row['nazwa_karty'], row['numer_karty'], row['opis'], row['cena_początkowa'], row['kwota_przebicia'], row['czas_trwania'])
-            aukcje_kolejka.append(aukcja)
-    await ctx.send(f'Załadowano {len(aukcje_kolejka)} aukcji.')
-    await update_panel_embed()
-    await start_next_auction()
-    await update_announcement_embed()
 
-@bot.command()
-async def start_aukcja(ctx):
-    if ctx.author.id != ADMIN_ID:
-        await ctx.send('Brak uprawnień.')
-        return
-    await start_next_auction()
 
 
 def zapisz_html(aukcja: Aukcja, template_path: str = "templates/auction_template.html"):
@@ -599,38 +574,6 @@ async def zakoncz_aukcje(msg):
         await update_panel_embed()
 
 
-class PanelView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label='Następna karta', style=discord.ButtonStyle.primary)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != ADMIN_ID:
-            await interaction.response.send_message('Brak uprawnień.', ephemeral=True)
-            return
-        await start_next_auction(interaction)
-
-    @discord.ui.button(label='⏸ Pauza', style=discord.ButtonStyle.secondary)
-    async def pause(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != ADMIN_ID:
-            await interaction.response.send_message('Brak uprawnień.', ephemeral=True)
-            return
-        global paused
-        paused = not paused
-        button.label = '▶ Wznów' if paused else '⏸ Pauza'
-        await interaction.response.defer()
-        await update_panel_embed()
-
-class AnnouncementView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label='Następna karta', style=discord.ButtonStyle.primary)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != ADMIN_ID:
-            await interaction.response.send_message('Brak uprawnień.', ephemeral=True)
-            return
-        await start_next_auction(interaction)
 
 class LicytacjaView(discord.ui.View):
     def __init__(self):
