@@ -1045,7 +1045,17 @@ class CardEditorApp:
         container.pack(expand=True, fill="both")
 
         refresh_tree = self._build_auction_widgets(container)
-        self._load_auction_queue()
+        try:
+            self._load_auction_queue()
+        except FileNotFoundError:
+            messagebox.showerror(
+                "Błąd", f"Nie znaleziono pliku {csv_utils.INVENTORY_CSV}"
+            )
+            self.auction_queue = []
+        except Exception as exc:
+            messagebox.showerror("Błąd", str(exc))
+            self.auction_queue = []
+
         refresh_tree()
         self._update_auction_status()
 
@@ -1358,15 +1368,9 @@ class CardEditorApp:
     def _load_auction_queue(self):
         """Load auction queue from ``magazyn.csv`` into ``self.auction_queue``."""
         path = csv_utils.INVENTORY_CSV
-        if os.path.exists(path):
-            try:
-                with open(path, newline="", encoding="utf-8") as f:
-                    reader = csv.DictReader(f, delimiter=";")
-                    self.auction_queue = list(reader)
-            except Exception:
-                self.auction_queue = []
-        else:
-            self.auction_queue = []
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            self.auction_queue = list(reader)
 
     def _update_auction_status(self):
         """Update status panel with info from ``aktualna_aukcja.json``."""
