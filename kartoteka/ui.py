@@ -9,6 +9,8 @@ import json
 import requests
 import openai
 import re
+import asyncio
+import datetime
 from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
@@ -1129,6 +1131,40 @@ class CardEditorApp:
         self.create_button(btn_frame, text="Zamknij", command=win.destroy).pack(
             side="left", padx=5
         )
+
+        control_frame = tk.Frame(win, bg=self.root.cget("background"))
+        control_frame.pack(pady=5)
+
+        def start_auction():
+            try:
+                import bot
+                asyncio.run_coroutine_threadsafe(
+                    bot.start_next_auction(), bot.bot.loop
+                )
+            except Exception as e:
+                messagebox.showerror("Błąd", str(e))
+
+        def next_card():
+            start_auction()
+
+        pause_btn = self.create_button(control_frame, text="⏸ Pauza")
+        pause_btn.pack(side="left", padx=5)
+
+        def toggle_pause():
+            try:
+                import bot
+                bot.paused = not bot.paused
+                pause_btn.configure(text="▶ Wznów" if bot.paused else "⏸ Pauza")
+            except Exception as e:
+                messagebox.showerror("Błąd", str(e))
+
+        self.create_button(
+            control_frame, text="Start aukcji", command=start_auction
+        ).pack(side="left", padx=5)
+        self.create_button(
+            control_frame, text="Następna karta", command=next_card
+        ).pack(side="left", padx=5)
+        pause_btn.configure(command=toggle_pause)
 
         if os.path.exists("aukcje.csv"):
             try:
