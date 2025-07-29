@@ -2621,6 +2621,22 @@ class CardEditorApp:
             if not folder:
                 return
             self.scan_folder_var.set(folder)
+        csv_path = getattr(self, "session_csv_path", None)
+        if not csv_path:
+            try:
+                csv_path = filedialog.asksaveasfilename(
+                    defaultextension=".csv", filetypes=[("CSV files", "*.csv")]
+                )
+            except tk.TclError:  # no display
+                csv_path = os.path.join(folder, "session.csv")
+            if not csv_path:
+                return
+            self.session_csv_path = csv_path
+            with open(csv_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(
+                    f, fieldnames=csv_utils.INVENTORY_FIELDNAMES, delimiter=";"
+                )
+                writer.writeheader()
         self.in_scan = True
         self.starting_idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
         CardEditorApp.load_images(self, folder)
@@ -3517,6 +3533,14 @@ class CardEditorApp:
                 data["cena"] = ""
 
         self.output_data[self.index] = data
+        if getattr(self, "session_csv_path", None):
+            with open(self.session_csv_path, "a", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=csv_utils.INVENTORY_FIELDNAMES,
+                    delimiter=";",
+                )
+                writer.writerow(csv_utils.format_inventory_row(data))
 
     def save_and_next(self):
         """Save the current card data and display the next scan."""
