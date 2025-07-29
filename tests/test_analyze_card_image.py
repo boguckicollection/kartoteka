@@ -39,6 +39,7 @@ def test_show_card_uses_analyzer(tmp_path):
         card_cache={},
         file_to_key={},
         _guess_key_from_filename=lambda *a, **k: None,
+        lookup_inventory_entry=lambda *a, **k: None,
         update_set_options=lambda *a, **k: None,
     )
 
@@ -164,4 +165,64 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
         ui.CardEditorApp._analyze_and_fill(dummy, "http://x", 0)
 
     name_entry.insert.assert_called_with(0, "Pikachu")
+
+
+def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        "name;numer;set;suffix\nPikachu;001;Base;EX\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("INVENTORY_CSV", str(csv_path))
+    import importlib
+    import kartoteka.csv_utils as csv_utils
+    importlib.reload(csv_utils)
+    import kartoteka.ui as ui
+    importlib.reload(ui)
+
+    img = tmp_path / "card.jpg"
+    img.write_bytes(b"data")
+
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    suffix_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    name_entry.focus_set = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+    suffix_var.set = MagicMock()
+
+    dummy = SimpleNamespace(
+        cards=[str(img)],
+        index=0,
+        image_objects=[],
+        image_label=MagicMock(),
+        progress_var=SimpleNamespace(set=lambda *a, **k: None),
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
+        rarity_vars={},
+        type_vars={},
+        card_cache={},
+        file_to_key={img.name: "Pikachu|001|Base"},
+        _guess_key_from_filename=lambda *a, **k: None,
+        update_set_options=lambda *a, **k: None,
+    )
+
+    dummy.lookup_inventory_entry = ui.CardEditorApp.lookup_inventory_entry.__get__(dummy, ui.CardEditorApp)
+
+    dummy.start_scan_animation = lambda *a, **k: None
+    dummy.stop_scan_animation = lambda *a, **k: None
+
+    with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
+         patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
+         patch.object(ui, "analyze_card_image", return_value={}) as mock_analyze:
+        ui.CardEditorApp.show_card(dummy)
+
+    mock_analyze.assert_not_called()
+    name_entry.insert.assert_called_with(0, "Pikachu")
+    num_entry.insert.assert_called_with(0, "001")
+    set_var.set.assert_called_with("Base")
+    suffix_var.set.assert_called_with("EX")
 

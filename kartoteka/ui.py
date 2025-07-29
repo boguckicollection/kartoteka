@@ -1461,6 +1461,42 @@ class CardEditorApp:
             rows = [r for r in rows if str(r.get("product_code")) in wanted]
         return rows
 
+    def lookup_inventory_entry(self, key):
+        """Return first row from ``INVENTORY_CSV`` matching ``key``."""
+        try:
+            name, number, set_name = key.split("|", 2)
+        except ValueError:
+            return None
+
+        try:
+            with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                for raw in reader:
+                    row = {norm_header(k): v for k, v in raw.items() if k is not None}
+                    row_name = (row.get("nazwa") or row.get("nazwa_karty") or row.get("name") or "").strip()
+                    row_number = (
+                        row.get("numer")
+                        or row.get("numer_karty")
+                        or row.get("number")
+                        or ""
+                    ).strip()
+                    row_set = row.get("set", "").strip()
+                    if (
+                        row_name == name and row_number == number and row_set == set_name
+                    ):
+                        result = {
+                            "nazwa": row_name,
+                            "numer": row_number,
+                            "set": row_set,
+                        }
+                        if "suffix" in row and row.get("suffix"):
+                            result["suffix"] = row.get("suffix", "").strip()
+                        return result
+        except FileNotFoundError:
+            return None
+
+        return None
+
     def _update_auction_status(self):
         """Update status panel with info from ``aktualna_aukcja.json``."""
         path = os.path.join("templates", "aktualna_aukcja.json")
@@ -2593,6 +2629,7 @@ class CardEditorApp:
         cache_key = self.file_to_key.get(os.path.basename(image_path))
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
+        inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
         image = Image.open(image_path)
         image.thumbnail((400, 560))
         self.current_card_image = image.copy()
@@ -2626,6 +2663,7 @@ class CardEditorApp:
         for var in self.type_vars.values():
             var.set(False)
 
+        skip_analysis = False
         if cache_key and cache_key in self.card_cache:
             cached = self.card_cache[cache_key]
             for field, value in cached.get("entries", {}).items():
@@ -2642,14 +2680,24 @@ class CardEditorApp:
                     self.rarity_vars[name].set(val)
             self.update_set_options()
 
+        elif inv_entry:
+            self.entries["nazwa"].insert(0, inv_entry.get("nazwa", ""))
+            self.entries["numer"].insert(0, inv_entry.get("numer", ""))
+            self.entries["set"].set(inv_entry.get("set", ""))
+            if "suffix" in inv_entry:
+                self.entries.get("suffix").set(inv_entry.get("suffix", ""))
+            self.update_set_options()
+            skip_analysis = True
+
         folder = os.path.basename(os.path.dirname(image_path))
         remote_url = f"{BASE_IMAGE_URL}/{folder}/{os.path.basename(image_path)}"
-        self.start_scan_animation()
-        threading.Thread(
-            target=self._analyze_and_fill,
-            args=(remote_url, self.index),
-            daemon=True,
-        ).start()
+        if not skip_analysis:
+            self.start_scan_animation()
+            threading.Thread(
+                target=self._analyze_and_fill,
+                args=(remote_url, self.index),
+                daemon=True,
+            ).start()
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
