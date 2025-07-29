@@ -9,6 +9,67 @@ FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
 INVENTORY_CSV = os.getenv("INVENTORY_CSV", "magazyn.csv")
 
+# column order for inventory CSV files
+INVENTORY_FIELDNAMES = [
+    "product_code",
+    "active",
+    "name",
+    "price",
+    "vat",
+    "unit",
+    "category",
+    "producer",
+    "other_price",
+    "pkwiu",
+    "weight",
+    "priority",
+    "short_description",
+    "description",
+    "stock",
+    "stock_warnlevel",
+    "availability",
+    "views",
+    "rank",
+    "rank_votes",
+    "images 1",
+    "warehouse_code",
+]
+
+
+def format_inventory_row(row):
+    """Return a row formatted for the inventory CSV."""
+    suffix = row.get("suffix", "").strip()
+    name_parts = [row["nazwa"]]
+    if suffix:
+        name_parts.append(suffix)
+    name_parts.append(row["numer"])
+    formatted_name = " ".join(name_parts)
+
+    return {
+        "product_code": row["product_code"],
+        "active": row.get("active", 1),
+        "name": formatted_name,
+        "price": row["cena"],
+        "vat": row.get("vat", "23%"),
+        "unit": row.get("unit", "szt."),
+        "category": row["category"],
+        "producer": row["producer"],
+        "other_price": row.get("other_price", ""),
+        "pkwiu": row.get("pkwiu", ""),
+        "weight": row.get("weight", 0.01),
+        "priority": row.get("priority", 0),
+        "short_description": row["short_description"],
+        "description": row["description"],
+        "stock": row.get("stock", 1),
+        "stock_warnlevel": row.get("stock_warnlevel", 0),
+        "availability": row.get("availability", 1),
+        "views": row.get("views", ""),
+        "rank": row.get("rank", ""),
+        "rank_votes": row.get("rank_votes", ""),
+        "images 1": row.get("image1", row.get("images", "")),
+        "warehouse_code": row.get("warehouse_code", ""),
+    }
+
 
 def load_csv_data(app):
     """Load a CSV file and merge duplicate rows."""
@@ -146,68 +207,13 @@ def export_csv(app):
             combined[key] = row.copy()
             combined[key]["stock"] = 1
 
-    fieldnames = [
-        "product_code",
-        "active",
-        "name",
-        "price",
-        "vat",
-        "unit",
-        "category",
-        "producer",
-        "other_price",
-        "pkwiu",
-        "weight",
-        "priority",
-        "short_description",
-        "description",
-        "stock",
-        "stock_warnlevel",
-        "availability",
-        "views",
-        "rank",
-        "rank_votes",
-        "images 1",
-    ]
-    fieldnames.append("warehouse_code")
+    fieldnames = INVENTORY_FIELDNAMES
 
     with open(file_path, mode="w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
         writer.writeheader()
         for row in combined.values():
-            suffix = row.get("suffix", "").strip()
-            name_parts = [row["nazwa"]]
-            if suffix:
-                name_parts.append(suffix)
-            name_parts.append(row["numer"])
-            formatted_name = " ".join(name_parts)
-
-            writer.writerow(
-                {
-                    "product_code": row["product_code"],
-                    "active": row.get("active", 1),
-                    "name": formatted_name,
-                    "price": row["cena"],
-                    "vat": row.get("vat", "23%"),
-                    "unit": row.get("unit", "szt."),
-                    "category": row["category"],
-                    "producer": row["producer"],
-                    "other_price": row.get("other_price", ""),
-                    "pkwiu": row.get("pkwiu", ""),
-                    "weight": row.get("weight", 0.01),
-                    "priority": row.get("priority", 0),
-                    "short_description": row["short_description"],
-                    "description": row["description"],
-                    "stock": row["stock"],
-                    "stock_warnlevel": row.get("stock_warnlevel", 0),
-                    "availability": row.get("availability", 1),
-                    "views": row.get("views", ""),
-                    "rank": row.get("rank", ""),
-                    "rank_votes": row.get("rank_votes", ""),
-                    "images 1": row.get("image1", row.get("images", "")),
-                    "warehouse_code": row.get("warehouse_code", ""),
-                }
-            )
+            writer.writerow(format_inventory_row(row))
     append_inventory_csv(app)
     messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
     if messagebox.askyesno("Wysyłka", "Czy wysłać plik do Shoper?"):
@@ -217,30 +223,7 @@ def export_csv(app):
 
 def append_inventory_csv(app, path: str = INVENTORY_CSV):
     """Append all collected rows to the inventory CSV."""
-    fieldnames = [
-        "product_code",
-        "active",
-        "name",
-        "price",
-        "vat",
-        "unit",
-        "category",
-        "producer",
-        "other_price",
-        "pkwiu",
-        "weight",
-        "priority",
-        "short_description",
-        "description",
-        "stock",
-        "stock_warnlevel",
-        "availability",
-        "views",
-        "rank",
-        "rank_votes",
-        "images 1",
-        "warehouse_code",
-    ]
+    fieldnames = INVENTORY_FIELDNAMES
 
     file_exists = os.path.exists(path)
     with open(path, "a", encoding="utf-8", newline="") as f:
@@ -250,39 +233,7 @@ def append_inventory_csv(app, path: str = INVENTORY_CSV):
         for row in app.output_data:
             if row is None:
                 continue
-            suffix = row.get("suffix", "").strip()
-            name_parts = [row["nazwa"]]
-            if suffix:
-                name_parts.append(suffix)
-            name_parts.append(row["numer"])
-            formatted_name = " ".join(name_parts)
-
-            writer.writerow(
-                {
-                    "product_code": row["product_code"],
-                    "active": row.get("active", 1),
-                    "name": formatted_name,
-                    "price": row["cena"],
-                    "vat": row.get("vat", "23%"),
-                    "unit": row.get("unit", "szt."),
-                    "category": row["category"],
-                    "producer": row["producer"],
-                    "other_price": row.get("other_price", ""),
-                    "pkwiu": row.get("pkwiu", ""),
-                    "weight": row.get("weight", 0.01),
-                    "priority": row.get("priority", 0),
-                    "short_description": row["short_description"],
-                    "description": row["description"],
-                    "stock": 1,
-                    "stock_warnlevel": row.get("stock_warnlevel", 0),
-                    "availability": row.get("availability", 1),
-                    "views": row.get("views", ""),
-                    "rank": row.get("rank", ""),
-                    "rank_votes": row.get("rank_votes", ""),
-                    "images 1": row.get("image1", row.get("images", "")),
-                    "warehouse_code": row.get("warehouse_code", ""),
-                }
-            )
+            writer.writerow(format_inventory_row(row))
 
 
 def send_csv_to_shoper(app, file_path: str):
