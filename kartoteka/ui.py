@@ -998,6 +998,36 @@ class CardEditorApp:
 
             payload = self._build_shoper_payload(card)
             data = self.shoper_client.add_product(payload)
+            product_id = data.get("product_id") or data.get("id")
+            try:
+                attr_values = [
+                    name
+                    for name, var in self.type_vars.items()
+                    if getattr(var, "get", lambda: False)()
+                ]
+                suffix_var = self.entries.get("suffix")
+                if suffix_var is not None:
+                    suffix_val = getattr(suffix_var, "get", lambda: "")().strip()
+                    if suffix_val:
+                        attr_values.append(suffix_val)
+                if product_id and attr_values:
+                    cache = getattr(self, "_attribute_cache", {})
+                    attr_id = cache.get("Typ")
+                    if attr_id is None:
+                        attrs = self.shoper_client.get_attributes()
+                        for a in attrs.get("list", attrs):
+                            name = a.get("name")
+                            aid = a.get("attribute_id")
+                            if name and aid is not None:
+                                cache[name] = aid
+                        attr_id = cache.get("Typ")
+                        self._attribute_cache = cache
+                    if attr_id is not None:
+                        self.shoper_client.add_product_attribute(
+                            product_id, attr_id, attr_values
+                        )
+            except Exception:
+                pass
             if isinstance(widget, tk.Text):
                 widget.delete("1.0", tk.END)
                 widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))

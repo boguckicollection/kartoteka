@@ -103,3 +103,16 @@ class ShoperClient:
         with open(file_path, "rb") as fh:
             files = {"file": (os.path.basename(file_path), fh, "text/csv")}
             return self.post("import/csv", files=files)
+
+    def get_attributes(self):
+        """Return a list of product attributes."""
+        return self.get("attributes")
+
+    def add_product_attribute(self, product_id, attribute_id, values):
+        """Assign a product attribute to a product."""
+        payload = {
+            "product_id": product_id,
+            "attribute_id": attribute_id,
+            "values": values,
+        }
+        return self.post("products-attributes", json=payload)
