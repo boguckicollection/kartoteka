@@ -3484,15 +3484,20 @@ class CardEditorApp:
         set_name = html.escape(data["set"])
         card_type = html.escape(data["typ"])
         condition = html.escape(data["stan"])
+        psa10_price = html.escape(str(data.get("psa10_price", "")))
 
         data["short_description"] = (
             f"<p><strong>{name}</strong></p>"
-            "<ul>"
-            f"<li>Zestaw: {set_name}</li>"
-            f"<li>Numer karty: {number}</li>"
-            f"<li>Typ: {card_type}</li>"
-            f"<li>Stan: {condition}</li>"
+            "<!-- <ul> -->"
+            f'<ul style="margin:0 0 0.7em 1.2em;">'
+            f'<li>Zestaw: {set_name}</li>'
+            f'<li>Numer karty: {number}</li>'
+            f'<li>Typ: {card_type}</li>'
+            f'<li>Stan: {condition}</li>'
             "</ul>"
+            '<img src="/mnt/data/156dc026-51e1-4ac1-80a5-49ed2036d9eb.png" '
+            'style="height:1em;vertical-align:middle;margin-right:0.2em;" alt="PSA10">'
+            f'<span>{psa10_price}</span>'
         )
 
         desc_paragraphs = [
