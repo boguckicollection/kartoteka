@@ -103,7 +103,7 @@ When a card is sent to Shoper via **Wyślij produkt** the application also posts
 
 ### Inventory CSV format
 The auction queue reads cards from `magazyn.csv`. Preferred headers are
-`nazwa_karty`, `numer_karty`, `cena_początkowa`, `kwota_przebicia` and
+`nazwa_karty`, `numer_karty`, `cena_początkowa`, `psa10_price`, `kwota_przebicia` and
 `czas_trwania`. When these columns are missing the loader also accepts a Shoper
 export with `name` and `price`. The last token of `name` is interpreted as the
 card number and the remaining text becomes the card name. If no number is

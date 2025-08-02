@@ -33,6 +33,7 @@ INVENTORY_FIELDNAMES = [
     "rank_votes",
     "images 1",
     "warehouse_code",
+    "psa10_price",
 ]
 
 
@@ -55,6 +56,7 @@ def format_inventory_row(row):
         "category": row["category"],
         "producer": row["producer"],
         "other_price": row.get("other_price", ""),
+        "psa10_price": row.get("psa10_price", ""),
         "pkwiu": row.get("pkwiu", ""),
         "weight": row.get("weight", 0.01),
         "priority": row.get("priority", 0),
