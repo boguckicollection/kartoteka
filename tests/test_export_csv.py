@@ -26,6 +26,7 @@ def test_export_includes_warehouse(tmp_path):
             "description": "d",
             "warehouse_code": "K1R1P1",
             "image1": "img.jpg",
+            "psa10_price": "99",
         }]
     )
     dummy.back_to_welcome = lambda: None
@@ -39,10 +40,12 @@ def test_export_includes_warehouse(tmp_path):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert "warehouse_code" in reader.fieldnames
+        assert "psa10_price" in reader.fieldnames
         row = rows[0]
         assert row["warehouse_code"] == "K1R1P1"
         assert row["vat"] == "23%"
         assert row["unit"] == "szt."
+        assert row["psa10_price"] == "99"
 
 
 def test_export_appends_inventory(tmp_path, monkeypatch):
@@ -69,6 +72,7 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
             "description": "d",
             "warehouse_code": "K1R1P1",
             "image1": "img.jpg",
+            "psa10_price": "99",
         }]
     )
     dummy.back_to_welcome = lambda: None
@@ -82,5 +86,6 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert rows[0]["warehouse_code"] == "K1R1P1"
+        assert rows[0]["psa10_price"] == "99"
 
 
