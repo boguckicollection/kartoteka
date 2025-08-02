@@ -3500,13 +3500,29 @@ class CardEditorApp:
             f'<span>{psa10_price}</span>'
         )
 
-        desc_paragraphs = [
-            f"{name} – Pokémon TCG",
-            f"Karta pochodzi z zestawu {set_name} i ma numer {number}. Typ karty: {card_type}. Stan: {condition}.",
-            "Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.",
-            "Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty.",
-        ]
-        data["description"] = "".join(f"<p>{p}</p>" for p in desc_paragraphs)
+        desc_template = (
+            '<div style="font-size:1.10em;line-height:1.7;">'
+            '<p>{name} – Pokémon TCG</p>'
+            '<p>Karta pochodzi z zestawu {set} i ma numer {number}. '
+            'Typ karty: {type}. Stan: {condition}.</p>'
+            '<p>Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio '
+            'zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.</p>'
+            '<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty.</p>'
+            '<p>'
+            '<img src="/mnt/data/156dc026-51e1-4ac1-80a5-49ed2036d9eb.png" '
+            'style="height:1em;vertical-align:middle;margin-right:0.2em;" alt="PSA10">'
+            '<span>{psa10_price}</span>'
+            '</p>'
+            '</div>'
+        )
+        data["description"] = desc_template.format(
+            name=name,
+            set=set_name,
+            number=number,
+            condition=condition,
+            type=card_type,
+            psa10_price=psa10_price,
+        )
 
         data["stock_warnlevel"] = 0
         data["availability"] = 1
