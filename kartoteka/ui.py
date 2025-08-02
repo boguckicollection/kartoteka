@@ -3150,6 +3150,92 @@ class CardEditorApp:
             print(f"[ERROR] Fetching price from TCGGO failed: {e}")
         return None
 
+    def fetch_psa10_price(self, name, number, set_name):
+        """Return PSA10 price for a card converted to PLN.
+
+        The function queries the card API similarly to ``fetch_card_price`` and
+        looks up the PSA10 graded price from the Cardmarket section.  If the
+        nested structure or the value is missing at any point, an empty string is
+        returned.  The price is converted using the current EUR→PLN exchange
+        rate and the result is formatted as an integer when possible or a float
+        string otherwise.
+        """
+
+        name_api = normalize(name, keep_spaces=True)
+        name_input = normalize(name)
+        number_input = number.strip().lower()
+        set_input = set_name.strip().lower()
+        if set_input == "prismatic evolutions: additionals":
+            set_code = "xpre"
+        else:
+            set_code = get_set_code(set_name)
+
+        try:
+            headers = {}
+            if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                url = f"https://{RAPIDAPI_HOST}/cards/search"
+                params = {"search": name_api}
+                headers = {
+                    "X-RapidAPI-Key": RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            else:
+                url = "https://www.tcggo.com/api/cards/"
+                params = {
+                    "name": name_api,
+                    "number": number_input,
+                    "set": set_code,
+                }
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                return ""
+
+            cards = response.json()
+            if isinstance(cards, dict):
+                if "cards" in cards:
+                    cards = cards["cards"]
+                elif "data" in cards:
+                    cards = cards["data"]
+                else:
+                    cards = []
+
+            for card in cards:
+                card_name = normalize(card.get("name", ""))
+                card_number = str(card.get("card_number", "")).lower()
+                card_set = str(card.get("episode", {}).get("name", "")).lower()
+
+                name_match = name_input in card_name
+                number_match = number_input == card_number
+                set_match = set_input in card_set or card_set.startswith(set_input)
+
+                if name_match and number_match and set_match:
+                    psa10 = (
+                        card.get("prices", {})
+                        .get("cardmarket", {})
+                        .get("graded", {})
+                        .get("psa", {})
+                        .get("psa10")
+                    )
+                    try:
+                        if psa10 is None:
+                            return ""
+                        rate = self.get_exchange_rate()
+                        price_pln = round(float(psa10) * rate, 2)
+                        return (
+                            str(int(price_pln))
+                            if price_pln.is_integer()
+                            else str(price_pln)
+                        )
+                    except (TypeError, ValueError):
+                        return ""
+            return ""
+        except requests.Timeout:
+            print("[ERROR] Request timed out")
+        except Exception as e:
+            print(f"[ERROR] Fetching PSA10 price failed: {e}")
+        return ""
+
     def fetch_card_variants(self, name, number, set_name):
         """Return all matching cards from the API with prices."""
         name_api = normalize(name, keep_spaces=True)
