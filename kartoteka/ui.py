@@ -68,11 +68,6 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
     text = unicodedata.normalize("NFKD", text)
     text = text.lower()
     for suffix in [
-        " ex",
-        " gx",
-        " v",
-        " vmax",
-        " vstar",
         " shiny",
         " promo",
     ]:
@@ -268,7 +263,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
                         {
                             "type": "text",
                             "text": (
-                                "Extract Pokemon card name, number and suffix (EX, GX, V, VMAX, VSTAR, Shiny, Promo) as JSON {\"name\":\"\",\"number\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
+                                "Extract Pokemon card name, number and suffix (Shiny, Promo) as JSON {\"name\":\"\",\"number\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
                             ),
                         },
                         {"type": "image_url", "image_url": {"url": url}},
@@ -306,7 +301,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         suffix = data.get("suffix", "").upper() if isinstance(data.get("suffix"), str) else ""
         if isinstance(name, str) and not suffix:
             parts = name.split()
-            if parts and parts[-1].upper() in {"EX", "GX", "V", "VMAX", "VSTAR", "SHINY", "PROMO"}:
+            if parts and parts[-1].upper() in {"SHINY", "PROMO"}:
                 suffix = parts[-1].upper()
                 name = " ".join(parts[:-1])
         if translate_name and isinstance(name, str) and not name.isascii():
@@ -2422,7 +2417,7 @@ class CardEditorApp:
         suffix_dropdown = ctk.CTkComboBox(
             self.info_frame,
             variable=self.suffix_var,
-            values=["", "EX", "GX", "V", "VMAX", "VSTAR", "Shiny", "Promo"],
+            values=["", "Shiny", "Promo"],
             width=20,
         )
         suffix_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)

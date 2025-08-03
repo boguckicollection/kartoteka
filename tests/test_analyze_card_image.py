@@ -49,7 +49,7 @@ def test_show_card_uses_analyzer(tmp_path):
 
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "suffix": "V"}) as mock_analyze:
+        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "suffix": "Promo"}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
     folder = os.path.basename(img.parent)
@@ -58,7 +58,7 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("")
-    suffix_var.set.assert_called_with("V")
+    suffix_var.set.assert_called_with("Promo")
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
@@ -170,7 +170,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;numer;set;suffix\nPikachu;001;Base;EX\n",
+        "name;numer;set;suffix\nPikachu;001;Base;Promo\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("INVENTORY_CSV", str(csv_path))
@@ -224,5 +224,5 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     name_entry.insert.assert_called_with(0, "Pikachu")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")
-    suffix_var.set.assert_called_with("EX")
+    suffix_var.set.assert_called_with("Promo")
 
