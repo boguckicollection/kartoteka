@@ -20,6 +20,9 @@ def test_show_card_uses_analyzer(tmp_path):
     num_entry = MagicMock()
     set_var = MagicMock()
     suffix_var = MagicMock()
+    promo_var = MagicMock()
+    promo_var.get = MagicMock(return_value=False)
+    promo_var.set = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     name_entry.focus_set = MagicMock()
@@ -35,7 +38,7 @@ def test_show_card_uses_analyzer(tmp_path):
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
         rarity_vars={},
-        type_vars={},
+        type_vars={"Promo": promo_var},
         card_cache={},
         file_to_key={},
         _guess_key_from_filename=lambda *a, **k: None,
@@ -58,7 +61,8 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("")
-    suffix_var.set.assert_called_with("Promo")
+    suffix_var.set.assert_called_with("")
+    promo_var.set.assert_called_with(True)
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
@@ -187,6 +191,9 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     num_entry = MagicMock()
     set_var = MagicMock()
     suffix_var = MagicMock()
+    promo_var = MagicMock()
+    promo_var.get = MagicMock(return_value=False)
+    promo_var.set = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     name_entry.focus_set = MagicMock()
@@ -203,7 +210,7 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
         rarity_vars={},
-        type_vars={},
+        type_vars={"Promo": promo_var},
         card_cache={},
         file_to_key={img.name: "Pikachu|001|Base"},
         _guess_key_from_filename=lambda *a, **k: None,
@@ -224,5 +231,6 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     name_entry.insert.assert_called_with(0, "Pikachu")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")
-    suffix_var.set.assert_called_with("Promo")
+    suffix_var.set.assert_called_with("")
+    promo_var.set.assert_called_with(True)
 
