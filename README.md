@@ -99,7 +99,7 @@ Use the **Porządkuj** button to open a window with actions against your Shoper 
 The welcome screen displays a small dashboard with store statistics fetched from your Shoper account: counts of new orders, pending shipments or payments and recent sales totals. To populate these fields the token must have permissions to read orders and statistics. Active product count is taken from the sales statistics when available, otherwise the application queries the inventory to determine the total number of products. Use the **Pokaż szczegóły** button to open the Shoper window with full functionality.
 
 ### Product attributes
-When a card is sent to Shoper via **Wyślij produkt** the application also posts a `Typ` attribute for the new product. The attribute ID is looked up using `GET /attributes` on first use and cached for later calls. The value is built from all enabled type checkboxes (`Common`, `Holo`, `Reverse`, `Pokeball`, `Masterball`, `Stamp`) combined with the selected suffix (`EX`, `GX`, `V`, `VMAX`, `VSTAR`, `Shiny`, `Promo`).
+When a card is sent to Shoper via **Wyślij produkt** the application also posts a `Typ` attribute for the new product. The attribute ID is looked up using `GET /attributes` on first use and cached for later calls. The value is built from all enabled type checkboxes (`Common`, `Holo`, `Reverse`, `Pokeball`, `Masterball`, `Stamp`) combined with the selected suffix (`Shiny`, `Promo`).
 
 ### Inventory CSV format
 The auction queue reads cards from `magazyn.csv`. Preferred headers are
