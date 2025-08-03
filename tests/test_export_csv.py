@@ -7,9 +7,10 @@ import sys
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
+import kartoteka.csv_utils as csv_utils
 
 
-def test_export_includes_warehouse(tmp_path):
+def test_export_includes_new_fields(tmp_path):
     out_path = tmp_path / "out.csv"
 
     dummy = SimpleNamespace(
@@ -24,9 +25,7 @@ def test_export_includes_warehouse(tmp_path):
             "producer": "Pokemon",
             "short_description": "s",
             "description": "d",
-            "warehouse_code": "K1R1P1",
             "image1": "img.jpg",
-            "psa10_price": "99",
         }]
     )
     dummy.back_to_welcome = lambda: None
@@ -39,13 +38,11 @@ def test_export_includes_warehouse(tmp_path):
     with open(out_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
-        assert "warehouse_code" in reader.fieldnames
-        assert "psa10_price" in reader.fieldnames
+        assert reader.fieldnames == csv_utils.INVENTORY_FIELDNAMES
         row = rows[0]
-        assert row["warehouse_code"] == "K1R1P1"
-        assert row["vat"] == "23%"
-        assert row["unit"] == "szt."
-        assert row["psa10_price"] == "99"
+        assert row["currency"] == "PLN"
+        assert row["producer_code"] == "1"
+        assert "vat" not in reader.fieldnames
 
 
 def test_export_appends_inventory(tmp_path, monkeypatch):
@@ -53,9 +50,7 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
     inv_path = tmp_path / "inv.csv"
     monkeypatch.setenv("INVENTORY_CSV", str(inv_path))
     import importlib
-    import kartoteka.csv_utils as csv_utils
     importlib.reload(csv_utils)
-    import kartoteka.ui as ui
     importlib.reload(ui)
 
     dummy = SimpleNamespace(
@@ -70,9 +65,7 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
             "producer": "Pokemon",
             "short_description": "s",
             "description": "d",
-            "warehouse_code": "K1R1P1",
             "image1": "img.jpg",
-            "psa10_price": "99",
         }]
     )
     dummy.back_to_welcome = lambda: None
@@ -85,7 +78,7 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
     with open(inv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
-        assert rows[0]["warehouse_code"] == "K1R1P1"
-        assert rows[0]["psa10_price"] == "99"
+        assert rows[0]["producer_code"] == "1"
+        assert rows[0]["currency"] == "PLN"
 
 
