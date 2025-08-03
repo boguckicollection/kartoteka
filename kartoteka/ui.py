@@ -3549,28 +3549,20 @@ class CardEditorApp:
             self.product_code_map[key] = self.next_product_code
             self.next_product_code += 1
         data["product_code"] = self.product_code_map[key]
-        prev = None
-        if 0 <= self.index < len(self.output_data):
-            existing = self.output_data[self.index]
-            if isinstance(existing, dict):
-                prev = existing.get("warehouse_code")
-        data["warehouse_code"] = prev or self.next_free_location()
-        data["active"] = 1
-        data["vat"] = "23%"
         data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['set']}"
         data["producer"] = "Pokémon"
-        data["other_price"] = ""
-        data["pkwiu"] = ""
-        data["weight"] = 0.01
-        data["priority"] = 0
+        data["producer_code"] = data["numer"]
+        data["currency"] = "PLN"
+        data["seo_title"] = ""
+        data["seo_description"] = ""
+        data["seo_keywords"] = ""
 
         name = html.escape(data["nazwa"])
         number = html.escape(data["numer"])
         set_name = html.escape(data["set"])
         card_type = html.escape(data["typ"])
         condition = html.escape(data["stan"])
-        psa10_price = html.escape(str(data.get("psa10_price", "")))
 
         data["short_description"] = (
             f"<p><strong>{name}</strong></p>"
@@ -3581,9 +3573,6 @@ class CardEditorApp:
             f'<li>Typ: {card_type}</li>'
             f'<li>Stan: {condition}</li>'
             "</ul>"
-            '<img src="/mnt/data/156dc026-51e1-4ac1-80a5-49ed2036d9eb.png" '
-            'style="height:1em;vertical-align:middle;margin-right:0.2em;" alt="PSA10">'
-            f'<span>{psa10_price}</span>'
         )
 
         desc_template = (
@@ -3594,11 +3583,6 @@ class CardEditorApp:
             '<p>Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio '
             'zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.</p>'
             '<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty.</p>'
-            '<p>'
-            '<img src="/mnt/data/156dc026-51e1-4ac1-80a5-49ed2036d9eb.png" '
-            'style="height:1em;vertical-align:middle;margin-right:0.2em;" alt="PSA10">'
-            '<span>{psa10_price}</span>'
-            '</p>'
             '</div>'
         )
         data["description"] = desc_template.format(
@@ -3607,15 +3591,10 @@ class CardEditorApp:
             number=number,
             condition=condition,
             type=card_type,
-            psa10_price=psa10_price,
         )
 
-        data["stock_warnlevel"] = 0
         data["availability"] = 1
         data["delivery"] = SHOPER_DELIVERY_ID
-        data["views"] = ""
-        data["rank"] = ""
-        data["rank_votes"] = ""
 
         cena_local = self.get_price_from_db(data["nazwa"], data["numer"], data["set"])
         is_reverse = self.type_vars["Reverse"].get()

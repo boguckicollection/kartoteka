@@ -81,4 +81,6 @@ def test_save_current_appends_session(tmp_path):
         rows = list(reader)
         assert len(rows) == 1
         assert rows[0]["name"]
+        assert rows[0]["currency"] == "PLN"
+        assert rows[0]["producer_code"] == "4"
 
