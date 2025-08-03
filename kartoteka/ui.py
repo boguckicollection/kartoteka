@@ -2484,6 +2484,29 @@ class CardEditorApp:
         )
         self.save_button.grid(row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts)
 
+        self.eur_entry = ctk.CTkEntry(
+            self.info_frame, width=200, placeholder_text="Kwota w EUR"
+        )
+        self.eur_entry.grid(
+            row=start_row + 11, column=0, columnspan=4, sticky="ew", **grid_opts
+        )
+
+        self.convert_button = self.create_button(
+            self.info_frame,
+            text="Przelicz",
+            command=self.convert_eur_to_pln,
+        )
+        self.convert_button.grid(
+            row=start_row + 11, column=4, columnspan=2, sticky="ew", **grid_opts
+        )
+
+        self.pln_result_label = ctk.CTkLabel(self.info_frame, text="PLN: -")
+        self.pln_result_label.grid(
+            row=start_row + 12, column=0, columnspan=6, sticky="ew", **grid_opts
+        )
+
+        self.eur_entry.bind("<Return>", self.convert_eur_to_pln)
+
         for entry in self.entries.values():
             if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
                 entry.bind("<Return>", lambda e: self.save_and_next())
@@ -2532,6 +2555,18 @@ class CardEditorApp:
         if filtered:
             self.set_var.set(filtered[0])
         event.widget.tk_focusNext().focus()
+        return "break"
+
+    def convert_eur_to_pln(self, event=None):
+        eur_text = self.eur_entry.get().strip()
+        try:
+            eur = float(eur_text)
+        except ValueError:
+            self.pln_result_label.configure(text="Błąd")
+            return "break"
+        rate = self.get_exchange_rate()
+        pln = eur * rate * PRICE_MULTIPLIER
+        self.pln_result_label.configure(text=f"PLN: {pln:.2f}")
         return "break"
 
     def create_cheat_frame(self, show_headers: bool = True):
