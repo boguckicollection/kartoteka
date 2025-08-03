@@ -35,8 +35,8 @@ def test_push_product_posts_attribute(monkeypatch):
         save_current_data=lambda: None,
         _build_shoper_payload=lambda card: {"name": "x"},
         shoper_client=fake_client,
-        type_vars={"Reverse": DummyVar(True)},
-        entries={"suffix": DummyVar("Promo")},
+        type_vars={"Reverse": DummyVar(True), "Promo": DummyVar(True)},
+        entries={"suffix": DummyVar("")},
     )
 
     monkeypatch.setattr(ui.messagebox, "showerror", lambda *a, **k: None)

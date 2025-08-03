@@ -263,7 +263,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
                         {
                             "type": "text",
                             "text": (
-                                "Extract Pokemon card name, number and suffix (Shiny, Promo) as JSON {\"name\":\"\",\"number\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
+                                "Extract Pokemon card name, number and suffix (Shiny) as JSON {\"name\":\"\",\"number\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
                             ),
                         },
                         {"type": "image_url", "image_url": {"url": url}},
@@ -301,7 +301,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         suffix = data.get("suffix", "").upper() if isinstance(data.get("suffix"), str) else ""
         if isinstance(name, str) and not suffix:
             parts = name.split()
-            if parts and parts[-1].upper() in {"SHINY", "PROMO"}:
+            if parts and parts[-1].upper() in {"SHINY"}:
                 suffix = parts[-1].upper()
                 name = " ".join(parts[:-1])
         if translate_name and isinstance(name, str) and not name.isascii():
@@ -2379,7 +2379,7 @@ class CardEditorApp:
         self.type_vars = {}
         self.type_frame = ctk.CTkFrame(self.info_frame)
         self.type_frame.grid(row=start_row + 4, column=1, columnspan=7, sticky="w", **grid_opts)
-        types = ["Common", "Holo", "Reverse", "Pokeball", "Masterball", "Stamp"]
+        types = ["Common", "Holo", "Reverse", "Pokeball", "Masterball", "Promo", "Stamp"]
         for t in types:
             var = tk.BooleanVar()
             self.type_vars[t] = var
@@ -2417,7 +2417,7 @@ class CardEditorApp:
         suffix_dropdown = ctk.CTkComboBox(
             self.info_frame,
             variable=self.suffix_var,
-            values=["", "Shiny", "Promo"],
+            values=["", "Shiny"],
             width=20,
         )
         suffix_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
@@ -2761,7 +2761,12 @@ class CardEditorApp:
             self.entries["numer"].insert(0, inv_entry.get("numer", ""))
             self.entries["set"].set(inv_entry.get("set", ""))
             if "suffix" in inv_entry:
-                self.entries.get("suffix").set(inv_entry.get("suffix", ""))
+                suffix_val = inv_entry.get("suffix", "")
+                if suffix_val.upper() == "PROMO" and "Promo" in self.type_vars:
+                    self.type_vars["Promo"].set(True)
+                    self.entries.get("suffix").set("")
+                else:
+                    self.entries.get("suffix").set(suffix_val)
             self.update_set_options()
             skip_analysis = True
 
@@ -2861,7 +2866,10 @@ class CardEditorApp:
             name = result.get("name", "")
             number = result.get("number", "")
             set_name = result.get("set", "")
-            suffix_val = result.get("suffix", "")
+            suffix_val = result.get("suffix", "").strip()
+            if suffix_val.upper() == "PROMO" and "Promo" in self.type_vars:
+                self.type_vars["Promo"].set(True)
+                suffix_val = ""
             self.entries["nazwa"].delete(0, tk.END)
             self.entries["nazwa"].insert(0, name)
             self.entries["numer"].delete(0, tk.END)
