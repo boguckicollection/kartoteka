@@ -3521,13 +3521,28 @@ class CardEditorApp:
         tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
-        """Open a Cardmarket search for the current card in the default browser."""
+        """Open a Cardmarket search for the current card inside the app."""
         name = self.entries["nazwa"].get()
         number = self.entries["numer"].get()
         search_terms = " ".join(t for t in [name, number] if t)
         params = urlencode({"searchString": search_terms})
         url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
-        webbrowser.open(url)
+
+        try:
+            from tkinterweb import HtmlFrame
+        except Exception:
+            webbrowser.open(url)
+            return
+
+        top = ctk.CTkToplevel(self.root)
+        top.title("Cardmarket Search")
+        top.geometry("800x600")
+
+        browser = HtmlFrame(top)
+        browser.pack(fill="both", expand=True)
+        browser.load_website(url)
+
+        self.create_button(top, text="Close", command=top.destroy).pack(pady=5)
 
     def get_exchange_rate(self):
         try:
