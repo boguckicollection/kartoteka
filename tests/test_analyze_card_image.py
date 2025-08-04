@@ -63,29 +63,26 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content="not json"))]
-    )
+    resp = SimpleNamespace(output=[])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
-    with patch("openai.chat.completions.create", return_value=resp):
+    with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
-    output = capsys.readouterr().out
 
+    output = capsys.readouterr().out
     assert result == {"name": "", "number": "", "set": ""}
-    assert "analyze_card_image failed to decode JSON" in output
-    assert "not json" in output
+    assert "analyze_card_image failed to parse response" in output
 
 
 def test_analyze_card_image_truncated_code_block(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = "```json\n{\"name\": \"Pikachu\", \"number\": \"037/159\"}"
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    parsed = ui.CardData(name="Pikachu", number="037/159", set="")
+    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
-    with patch("openai.chat.completions.create", return_value=resp):
+    with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {"name": "Pikachu", "number": "37", "set": ""}
@@ -95,12 +92,11 @@ def test_analyze_card_image_leading_text(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = "Sure!\n{\"name\": \"Pikachu\", \"number\": \"037/159\"}\nThanks!"
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    parsed = ui.CardData(name="Pikachu", number="037/159", set="")
+    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
-    with patch("openai.chat.completions.create", return_value=resp):
+    with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {"name": "Pikachu", "number": "37", "set": ""}
@@ -110,12 +106,11 @@ def test_analyze_card_image_with_set(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = '{"name": "Pikachu", "number": "001", "set": "swsh11"}'
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    parsed = ui.CardData(name="Pikachu", number="001", set="swsh11")
+    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
-    with patch("openai.chat.completions.create", return_value=resp):
+    with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {"name": "Pikachu", "number": "1", "set": "Lost Origin"}
@@ -126,18 +121,19 @@ def test_analyze_card_image_includes_logo_labels(monkeypatch):
     importlib.reload(ui)
 
     logos = {"ABC": "http://logo"}
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))]
-    )
+    parsed = ui.CardData(name="", number="", set="")
+    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    mock_parse = MagicMock(return_value=resp)
+    client = SimpleNamespace(responses=SimpleNamespace(parse=mock_parse))
 
     with patch.object(ui, "load_set_logo_uris", return_value=logos), patch(
-        "openai.chat.completions.create", return_value=resp
-    ) as mock_create:
+        "openai.OpenAI", return_value=client
+    ):
         ui.analyze_card_image("http://example.com/img.jpg")
 
-    content = mock_create.call_args.kwargs["messages"][0]["content"]
-    assert content[2] == {"type": "text", "text": "Set ABC"}
-    assert content[3] == {"type": "image_url", "image_url": {"url": "http://logo"}}
+    content = mock_parse.call_args.kwargs["input"][0]["content"]
+    assert content[2] == {"type": "input_text", "text": "Set ABC"}
+    assert content[3] == {"type": "input_image", "image_url": "http://logo"}
 
 
 @pytest.mark.parametrize("letter", ["E", "F"])
@@ -145,12 +141,11 @@ def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = f'{{"name": "Pikachu", "number": "001", "set": "{letter}"}}'
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    parsed = ui.CardData(name="Pikachu", number="001", set=letter)
+    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
-    with patch("openai.chat.completions.create", return_value=resp):
+    with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {"name": "Pikachu", "number": "1", "set": ""}
@@ -160,12 +155,11 @@ def test_analyze_card_image_unknown_set(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = '{"name": "Pikachu", "number": "001", "set": "unknown-set"}'
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    parsed = ui.CardData(name="Pikachu", number="001", set="unknown-set")
+    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
-    with patch("openai.chat.completions.create", return_value=resp):
+    with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {"name": "Pikachu", "number": "1", "set": ""}
@@ -175,24 +169,20 @@ def test_analyze_card_image_translate_name(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    resp_analyze = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    content='{"name": "\u30d4\u30ab\u30c1\u30e5\u30a6", "number": "037/159"}'
-                )
-            )
-        ]
-    )
+    parsed = ui.CardData(name="\u30d4\u30ab\u30c1\u30e5\u30a6", number="037/159", set="")
+    resp_parse = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp_parse)))
     resp_translate = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
     )
 
-    with patch("openai.chat.completions.create", side_effect=[resp_analyze, resp_translate]) as mock_create:
+    with patch("openai.OpenAI", return_value=client), patch(
+        "openai.chat.completions.create", return_value=resp_translate
+    ) as mock_create:
         result = ui.analyze_card_image("/tmp/img.jpg", translate_name=True)
 
     assert result == {"name": "Pikachu", "number": "37", "set": ""}
-    assert mock_create.call_count == 2
+    mock_create.assert_called_once()
 
 
 def test_analyze_and_fill_translates_for_jp(monkeypatch):
@@ -224,20 +214,16 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     )
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
 
-    resp_analyze = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    content='{"name": "\u30d4\u30ab\u30c1\u30e5\u30a6", "number": "001"}'
-                )
-            )
-        ]
-    )
+    parsed = ui.CardData(name="\u30d4\u30ab\u30c1\u30e5\u30a6", number="001", set="")
+    resp_parse = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp_parse)))
     resp_translate = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
     )
 
-    with patch("openai.chat.completions.create", side_effect=[resp_analyze, resp_translate]):
+    with patch("openai.OpenAI", return_value=client), patch(
+        "openai.chat.completions.create", return_value=resp_translate
+    ):
         ui.CardEditorApp._analyze_and_fill(dummy, "http://x", 0)
 
     name_entry.insert.assert_called_with(0, "Pikachu")
