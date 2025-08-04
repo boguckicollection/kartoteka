@@ -3263,7 +3263,6 @@ class CardEditorApp:
                         card.get("prices", {})
                         .get("cardmarket", {})
                         .get("graded", {})
-                        .get("psa", {})
                         .get("psa10")
                     )
                     try:
