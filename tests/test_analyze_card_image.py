@@ -52,7 +52,7 @@ def test_show_card_uses_analyzer(tmp_path):
 
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "suffix": "Promo"}) as mock_analyze:
+        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base", "suffix": "Promo"}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
     folder = os.path.basename(img.parent)
@@ -60,7 +60,7 @@ def test_show_card_uses_analyzer(tmp_path):
     mock_analyze.assert_called_once_with(expected_url)
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
-    set_var.set.assert_called_with("")
+    set_var.set.assert_called_with("Base")
     suffix_var.set.assert_called_with("")
     promo_var.set.assert_called_with(True)
 
@@ -77,7 +77,7 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
         result = ui.analyze_card_image("/tmp/img.jpg")
     output = capsys.readouterr().out
 
-    assert result == {"name": "", "number": "", "suffix": ""}
+    assert result == {"name": "", "number": "", "set": "", "suffix": ""}
     assert "analyze_card_image failed to decode JSON" in output
     assert "not json" in output
 
@@ -94,7 +94,22 @@ def test_analyze_card_image_code_block(monkeypatch):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "37", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "37", "set": "", "suffix": ""}
+
+
+def test_analyze_card_image_with_set(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    content = '{"name": "Pikachu", "number": "001", "set": "Base"}'
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+    )
+
+    with patch("openai.chat.completions.create", return_value=resp):
+        result = ui.analyze_card_image("/tmp/img.jpg")
+
+    assert result == {"name": "Pikachu", "number": "1", "set": "Base", "suffix": ""}
 
 
 def test_analyze_card_image_translate_name(monkeypatch):
@@ -117,7 +132,7 @@ def test_analyze_card_image_translate_name(monkeypatch):
     with patch("openai.chat.completions.create", side_effect=[resp_analyze, resp_translate]) as mock_create:
         result = ui.analyze_card_image("/tmp/img.jpg", translate_name=True)
 
-    assert result == {"name": "Pikachu", "number": "37", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "37", "set": "", "suffix": ""}
     assert mock_create.call_count == 2
 
 
