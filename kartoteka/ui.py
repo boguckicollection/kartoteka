@@ -329,6 +329,8 @@ def analyze_card_image(path: str, translate_name: bool = False):
         name = data.get("name", "")
         suffix = data.get("suffix", "").upper() if isinstance(data.get("suffix"), str) else ""
         set_code = data.get("set", "") if isinstance(data.get("set"), str) else ""
+        if set_code.strip().upper() == "E":
+            set_code = ""
         if isinstance(name, str) and not suffix:
             parts = name.split()
             if parts and parts[-1].upper() in {"SHINY"}:
