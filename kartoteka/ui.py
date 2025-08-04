@@ -97,8 +97,8 @@ def norm_header(name: str) -> str:
 # Wczytanie danych setów
 def reload_sets():
     """Load set definitions from the JSON files."""
-    global tcg_sets_eng_by_era, tcg_sets_eng_map, tcg_sets_eng
-    global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp
+    global tcg_sets_eng_by_era, tcg_sets_eng_map, tcg_sets_eng, tcg_sets_eng_code_map
+    global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp, tcg_sets_jp_code_map
 
     try:
         with open("tcg_sets.json", encoding="utf-8") as f:
@@ -107,6 +107,11 @@ def reload_sets():
         tcg_sets_eng_by_era = {}
     tcg_sets_eng_map = {
         item["name"]: item["code"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+    }
+    tcg_sets_eng_code_map = {
+        item["code"]: item["name"]
         for sets in tcg_sets_eng_by_era.values()
         for item in sets
     }
@@ -121,6 +126,11 @@ def reload_sets():
         tcg_sets_jp_by_era = {}
     tcg_sets_jp_map = {
         item["name"]: item["code"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+    }
+    tcg_sets_jp_code_map = {
+        item["code"]: item["name"]
         for sets in tcg_sets_jp_by_era.values()
         for item in sets
     }
@@ -144,6 +154,18 @@ def get_set_code(name: str) -> str:
             if key.lower() == search:
                 return code
     return name
+
+
+def get_set_name(code: str) -> str:
+    """Return the display name for a set code if available."""
+    if not code:
+        return ""
+    search = code.strip().lower()
+    for mapping in (tcg_sets_eng_code_map, tcg_sets_jp_code_map):
+        for key, name in mapping.items():
+            if key.lower() == search:
+                return name
+    return code
 
 
 def choose_nearest_locations(order_list, output_data):
@@ -374,9 +396,10 @@ def analyze_card_image(path: str, translate_name: bool = False):
             set_code = ""
         if translate_name and isinstance(name, str) and not name.isascii():
             name = translate_to_english(name)
+        set_name = get_set_name(set_code)
         data["name"] = name
-        data["set"] = set_code
-        return {"name": name, "number": data.get("number", ""), "set": set_code}
+        data["set"] = set_name
+        return {"name": name, "number": data.get("number", ""), "set": set_name}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
         return {"name": "", "number": "", "set": ""}
