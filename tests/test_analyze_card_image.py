@@ -5,6 +5,7 @@ import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import tkinter as tk
+import pytest
 
 sys.modules["customtkinter"] = SimpleNamespace(CTkEntry=tk.Entry, CTkImage=MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -112,11 +113,12 @@ def test_analyze_card_image_with_set(monkeypatch):
     assert result == {"name": "Pikachu", "number": "1", "set": "Base", "suffix": ""}
 
 
-def test_analyze_card_image_sanitizes_e_set(monkeypatch):
+@pytest.mark.parametrize("letter", ["E", "F"])
+def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = '{"name": "Pikachu", "number": "001", "set": "E"}'
+    content = f'{{"name": "Pikachu", "number": "001", "set": "{letter}"}}'
     resp = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
     )
