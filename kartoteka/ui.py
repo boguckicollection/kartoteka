@@ -21,6 +21,7 @@ import html
 import difflib
 import sys
 from typing import Iterable, Optional
+from pydantic import BaseModel
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
@@ -345,37 +346,11 @@ def match_set_code(value: str) -> str:
     return ""
 
 
-def extract_json_block(text: str) -> Optional[dict]:
-    """Return the first JSON object found in ``text``.
-
-    The function looks for a fenced `````json`` code block first, falling
-    back to scanning for the first ``{...}`` object.  ``None`` is returned
-    when no valid JSON can be decoded.
-    """
-
-    if not text:
-        return None
-
-    # Try fenced code block
-    fence = re.search(r"```json\s*([\s\S]*?)(```|$)", text)
-    if fence:
-        snippet = fence.group(1).strip()
-        try:
-            return json.loads(snippet)
-        except json.JSONDecodeError:
-            pass
-
-    # Fallback: search for first JSON object
-    decoder = json.JSONDecoder()
-    for match in re.finditer(r"\{", text):
-        try:
-            obj, _ = decoder.raw_decode(text[match.start():])
-            return obj
-        except json.JSONDecodeError:
-            continue
-    return None
-
-
+class CardData(BaseModel):
+    """Structured card information returned by the model."""
+    name: str = ""
+    number: str = ""
+    set: str = ""
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
@@ -393,35 +368,36 @@ def analyze_card_image(path: str, translate_name: bool = False):
         logos = load_set_logo_uris()
         content = [
             {
-                "type": "text",
+                "type": "input_text",
                 "text": (
-                    "Extract Pokemon card name, number and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\"} by comparing the set symbol on the card with the provided set logos. Respond in JSON only."
+                    "Extract Pokemon card name, number and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\"} by comparing the set symbol on the card with the provided set logos."
                 ),
             },
-            {"type": "image_url", "image_url": {"url": url}},
+            {"type": "input_image", "image_url": url},
         ]
         for code, uri in logos.items():
-            content.append({"type": "text", "text": f"Set {code}"})
-            content.append({"type": "image_url", "image_url": {"url": uri}})
-        resp = openai.chat.completions.create(
+            content.append({"type": "input_text", "text": f"Set {code}"})
+            content.append({"type": "input_image", "image_url": uri})
+        client = openai.OpenAI()
+        resp = client.responses.parse(
             model="gpt-4o",
-            messages=[{"role": "user", "content": content}],
-            max_tokens=150,
+            input=[{"role": "user", "content": content}],
+            response_format=CardData,
+            max_output_tokens=150,
         )
-        content = resp.choices[0].message.content
-        data = extract_json_block(content)
-        if data is None:
-            print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r}")
+        if not resp.output or not getattr(resp.output[0], "parsed", None):
+            print(f"[ERROR] analyze_card_image failed to parse response: {resp}")
             return {"name": "", "number": "", "set": ""}
+        data: CardData = resp.output[0].parsed
 
-        number = data.get("number", "")
+        number = data.number or ""
         if isinstance(number, str):
             m = re.match(r"\D*(\d+)", number)
             if m:
-                data["number"] = str(int(m.group(1)))
+                number = str(int(m.group(1)))
 
-        name = data.get("name", "")
-        set_code = data.get("set", "") if isinstance(data.get("set"), str) else ""
+        name = data.name or ""
+        set_code = data.set or ""
         stripped = set_code.strip()
         if len(stripped) == 1 and stripped.isalpha():
             set_code = ""
@@ -429,9 +405,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         if translate_name and isinstance(name, str) and not name.isascii():
             name = translate_to_english(name)
         set_name = get_set_name(set_code)
-        data["name"] = name
-        data["set"] = set_name
-        return {"name": name, "number": data.get("number", ""), "set": set_name}
+        return {"name": name, "number": number, "set": set_name}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
         return {"name": "", "number": "", "set": ""}
