@@ -3370,7 +3370,7 @@ class CardEditorApp:
         top.title("Cardmarket Search")
         top.geometry("800x600")
 
-        browser = HtmlFrame(top)
+        browser = HtmlFrame(top, messages_enabled=False)
         browser.pack(fill="both", expand=True)
         try:
             utilities.HEADERS["User-Agent"] = (
