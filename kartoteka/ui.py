@@ -2789,8 +2789,8 @@ class CardEditorApp:
     def startup_tasks(self):
         """Run initial setup tasks in the background."""
         self.update_sets()
-        self.load_set_logos()
-        self.root.after(0, self.finish_startup)
+        self.root.after(0, self.load_set_logos)
+        self.root.after(1, self.finish_startup)
 
     def finish_startup(self):
         """Finalize initialization after background tasks complete."""
