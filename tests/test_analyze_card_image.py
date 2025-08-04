@@ -83,11 +83,26 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
     assert "not json" in output
 
 
-def test_analyze_card_image_code_block(monkeypatch):
+def test_analyze_card_image_truncated_code_block(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = "```json\n{\"name\": \"Pikachu\", \"number\": \"037/159\"}\n```"
+    content = "```json\n{\"name\": \"Pikachu\", \"number\": \"037/159\"}"
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+    )
+
+    with patch("openai.chat.completions.create", return_value=resp):
+        result = ui.analyze_card_image("/tmp/img.jpg")
+
+    assert result == {"name": "Pikachu", "number": "37", "set": "", "suffix": ""}
+
+
+def test_analyze_card_image_leading_text(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    content = "Sure!\n{\"name\": \"Pikachu\", \"number\": \"037/159\"}\nThanks!"
     resp = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
     )
