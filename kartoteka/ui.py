@@ -270,6 +270,37 @@ def load_set_logo_uris(limit: int = 20) -> dict:
     return logos
 
 
+def extract_json_block(text: str) -> Optional[dict]:
+    """Return the first JSON object found in ``text``.
+
+    The function looks for a fenced `````json`` code block first, falling
+    back to scanning for the first ``{...}`` object.  ``None`` is returned
+    when no valid JSON can be decoded.
+    """
+
+    if not text:
+        return None
+
+    # Try fenced code block
+    fence = re.search(r"```json\s*([\s\S]*?)(```|$)", text)
+    if fence:
+        snippet = fence.group(1).strip()
+        try:
+            return json.loads(snippet)
+        except json.JSONDecodeError:
+            pass
+
+    # Fallback: search for first JSON object
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", text):
+        try:
+            obj, _ = decoder.raw_decode(text[match.start():])
+            return obj
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
@@ -289,7 +320,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
             {
                 "type": "text",
                 "text": (
-                    "Extract Pokemon card name, number, suffix and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\",\"suffix\":\"\"} by comparing the set symbol on the card with the provided set logos."
+                    "Extract Pokemon card name, number, suffix and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\",\"suffix\":\"\"} by comparing the set symbol on the card with the provided set logos. Respond in JSON only."
                 ),
             },
             {"type": "image_url", "image_url": {"url": url}},
@@ -299,26 +330,13 @@ def analyze_card_image(path: str, translate_name: bool = False):
         resp = openai.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": content}],
-            max_tokens=80,
+            max_tokens=150,
         )
         content = resp.choices[0].message.content
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError:
-            data = None
-
+        data = extract_json_block(content)
         if data is None:
-            # Remove Markdown code fences if present
-            text = content.strip()
-            if text.startswith("```"):
-                lines = text.splitlines()
-                if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].startswith("```"):
-                    text = "\n".join(lines[1:-1]).strip()
-            try:
-                data = json.loads(text)
-            except json.JSONDecodeError as e:
-                print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
-                return {"name": "", "number": "", "set": "", "suffix": ""}
+            print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r}")
+            return {"name": "", "number": "", "set": "", "suffix": ""}
 
         number = data.get("number", "")
         if isinstance(number, str):
