@@ -325,7 +325,8 @@ def analyze_card_image(path: str, translate_name: bool = False):
             },
             {"type": "image_url", "image_url": {"url": url}},
         ]
-        for uri in logos.values():
+        for code, uri in logos.items():
+            content.append({"type": "text", "text": f"Set {code}"})
             content.append({"type": "image_url", "image_url": {"url": uri}})
         resp = openai.chat.completions.create(
             model="gpt-4o",
