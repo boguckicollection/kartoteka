@@ -3356,7 +3356,7 @@ class CardEditorApp:
         url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
 
         try:
-            from tkinterweb import HtmlFrame
+            from tkinterweb import HtmlFrame, utilities
         except ModuleNotFoundError:
             messagebox.showwarning(
                 "Brak modułu",
@@ -3373,14 +3373,12 @@ class CardEditorApp:
         browser = HtmlFrame(top)
         browser.pack(fill="both", expand=True)
         try:
-            browser.load_website(
-                url,
-                useragent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/115.0.0.0 Safari/537.36"
-                ),
+            utilities.HEADERS["User-Agent"] = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/115.0.0.0 Safari/537.36"
             )
+            browser.load_website(url)
         except HTTPError as e:
             messagebox.showerror(
                 "Błąd", f"Nie udało się wczytać Cardmarket ({e.code})."
