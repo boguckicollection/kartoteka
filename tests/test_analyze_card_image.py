@@ -20,10 +20,6 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry = MagicMock()
     num_entry = MagicMock()
     set_var = MagicMock()
-    suffix_var = MagicMock()
-    promo_var = MagicMock()
-    promo_var.get = MagicMock(return_value=False)
-    promo_var.set = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     name_entry.focus_set = MagicMock()
@@ -37,9 +33,8 @@ def test_show_card_uses_analyzer(tmp_path):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
-        rarity_vars={},
-        type_vars={"Promo": promo_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        type_vars={},
         card_cache={},
         file_to_key={},
         _guess_key_from_filename=lambda *a, **k: None,
@@ -53,7 +48,7 @@ def test_show_card_uses_analyzer(tmp_path):
 
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base", "suffix": "Promo"}) as mock_analyze:
+        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base"}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
     folder = os.path.basename(img.parent)
@@ -62,8 +57,6 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")
-    suffix_var.set.assert_called_with("")
-    promo_var.set.assert_called_with(True)
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
@@ -78,7 +71,7 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
         result = ui.analyze_card_image("/tmp/img.jpg")
     output = capsys.readouterr().out
 
-    assert result == {"name": "", "number": "", "set": "", "suffix": ""}
+    assert result == {"name": "", "number": "", "set": ""}
     assert "analyze_card_image failed to decode JSON" in output
     assert "not json" in output
 
@@ -95,7 +88,7 @@ def test_analyze_card_image_truncated_code_block(monkeypatch):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "37", "set": "", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "37", "set": ""}
 
 
 def test_analyze_card_image_leading_text(monkeypatch):
@@ -110,7 +103,7 @@ def test_analyze_card_image_leading_text(monkeypatch):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "37", "set": "", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "37", "set": ""}
 
 
 def test_analyze_card_image_with_set(monkeypatch):
@@ -125,7 +118,7 @@ def test_analyze_card_image_with_set(monkeypatch):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "1", "set": "Base", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "1", "set": "Base"}
 
 
 def test_analyze_card_image_includes_logo_labels(monkeypatch):
@@ -160,7 +153,7 @@ def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "1", "set": "", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "1", "set": ""}
 
 
 def test_analyze_card_image_translate_name(monkeypatch):
@@ -183,7 +176,7 @@ def test_analyze_card_image_translate_name(monkeypatch):
     with patch("openai.chat.completions.create", side_effect=[resp_analyze, resp_translate]) as mock_create:
         result = ui.analyze_card_image("/tmp/img.jpg", translate_name=True)
 
-    assert result == {"name": "Pikachu", "number": "37", "set": "", "suffix": ""}
+    assert result == {"name": "Pikachu", "number": "37", "set": ""}
     assert mock_create.call_count == 2
 
 
@@ -194,13 +187,11 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     name_entry = MagicMock()
     num_entry = MagicMock()
     set_var = MagicMock()
-    suffix_var = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     num_entry.delete = MagicMock()
     num_entry.insert = MagicMock()
     set_var.set = MagicMock()
-    suffix_var.set = MagicMock()
 
     class DummyVar:
         def __init__(self, value):
@@ -211,7 +202,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     dummy = SimpleNamespace(
         root=SimpleNamespace(after=lambda delay, func: func()),
         lang_var=DummyVar("JP"),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
         index=0,
         stop_scan_animation=lambda: None,
         update_set_options=lambda: None,
@@ -240,7 +231,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;numer;set;suffix\nPikachu;001;Base;Promo\n",
+        "name;numer;set\nPikachu;001;Base\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("INVENTORY_CSV", str(csv_path))
@@ -256,17 +247,12 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     name_entry = MagicMock()
     num_entry = MagicMock()
     set_var = MagicMock()
-    suffix_var = MagicMock()
-    promo_var = MagicMock()
-    promo_var.get = MagicMock(return_value=False)
-    promo_var.set = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     name_entry.focus_set = MagicMock()
     num_entry.delete = MagicMock()
     num_entry.insert = MagicMock()
     set_var.set = MagicMock()
-    suffix_var.set = MagicMock()
 
     dummy = SimpleNamespace(
         cards=[str(img)],
@@ -274,9 +260,8 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "suffix": suffix_var},
-        rarity_vars={},
-        type_vars={"Promo": promo_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        type_vars={},
         card_cache={},
         file_to_key={img.name: "Pikachu|001|Base"},
         _guess_key_from_filename=lambda *a, **k: None,
@@ -297,6 +282,4 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     name_entry.insert.assert_called_with(0, "Pikachu")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with("Base")
-    suffix_var.set.assert_called_with("")
-    promo_var.set.assert_called_with(True)
 

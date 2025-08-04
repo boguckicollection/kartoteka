@@ -51,8 +51,6 @@ if OPENAI_API_KEY:
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
-POKEBALL_MULTIPLIER = 5
-MASTERBALL_MULTIPLIER = 10
 SET_LOGO_DIR = "set_logos"
 
 DEFAULT_LOGO_LIMIT = 20
@@ -328,7 +326,7 @@ def extract_json_block(text: str) -> Optional[dict]:
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
-        return {"name": "", "number": "", "set": "", "suffix": ""}
+        return {"name": "", "number": "", "set": ""}
 
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
@@ -344,7 +342,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
             {
                 "type": "text",
                 "text": (
-                    "Extract Pokemon card name, number, suffix and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\",\"suffix\":\"\"} by comparing the set symbol on the card with the provided set logos. Respond in JSON only."
+                    "Extract Pokemon card name, number and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\"} by comparing the set symbol on the card with the provided set logos. Respond in JSON only."
                 ),
             },
             {"type": "image_url", "image_url": {"url": url}},
@@ -361,7 +359,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         data = extract_json_block(content)
         if data is None:
             print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r}")
-            return {"name": "", "number": "", "set": "", "suffix": ""}
+            return {"name": "", "number": "", "set": ""}
 
         number = data.get("number", "")
         if isinstance(number, str):
@@ -370,25 +368,18 @@ def analyze_card_image(path: str, translate_name: bool = False):
                 data["number"] = str(int(m.group(1)))
 
         name = data.get("name", "")
-        suffix = data.get("suffix", "").upper() if isinstance(data.get("suffix"), str) else ""
         set_code = data.get("set", "") if isinstance(data.get("set"), str) else ""
         stripped = set_code.strip()
         if len(stripped) == 1 and stripped.isalpha():
             set_code = ""
-        if isinstance(name, str) and not suffix:
-            parts = name.split()
-            if parts and parts[-1].upper() in {"SHINY"}:
-                suffix = parts[-1].upper()
-                name = " ".join(parts[:-1])
         if translate_name and isinstance(name, str) and not name.isascii():
             name = translate_to_english(name)
         data["name"] = name
-        data["suffix"] = suffix
         data["set"] = set_code
-        return {"name": name, "number": data.get("number", ""), "set": set_code, "suffix": suffix}
+        return {"name": name, "number": data.get("number", ""), "set": set_code}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {"name": "", "number": "", "set": "", "suffix": ""}
+        return {"name": "", "number": "", "set": ""}
 
 
 class CardEditorApp:
@@ -832,11 +823,6 @@ class CardEditorApp:
                     for name, var in self.type_vars.items()
                     if getattr(var, "get", lambda: False)()
                 ]
-                suffix_var = self.entries.get("suffix")
-                if suffix_var is not None:
-                    suffix_val = getattr(suffix_var, "get", lambda: "")().strip()
-                    if suffix_val:
-                        attr_values.append(suffix_val)
                 if product_id and attr_values:
                     cache = getattr(self, "_attribute_cache", {})
                     attr_id = cache.get("Typ")
@@ -1341,14 +1327,11 @@ class CardEditorApp:
                     if (
                         row_name == name and row_number == number and row_set == set_name
                     ):
-                        result = {
+                        return {
                             "nazwa": row_name,
                             "numer": row_number,
                             "set": row_set,
                         }
-                        if "suffix" in row and row.get("suffix"):
-                            result["suffix"] = row.get("suffix", "").strip()
-                        return result
         except FileNotFoundError:
             return None
 
@@ -1437,10 +1420,7 @@ class CardEditorApp:
 
     def _build_shoper_payload(self, card: dict) -> dict:
         """Map internal card data to the structure expected by the API."""
-        suffix = card.get("suffix", "").strip()
-        name_parts = [card.get("nazwa", "")] 
-        if suffix:
-            name_parts.append(suffix)
+        name_parts = [card.get("nazwa", "")]
         if card.get("numer"):
             name_parts.append(card["numer"])
         name = " ".join(part for part in name_parts if part)
@@ -2211,7 +2191,7 @@ class CardEditorApp:
         self.type_vars = {}
         self.type_frame = ctk.CTkFrame(self.info_frame)
         self.type_frame.grid(row=start_row + 4, column=1, columnspan=7, sticky="w", **grid_opts)
-        types = ["Common", "Holo", "Reverse", "Pokeball", "Masterball", "Promo", "Stamp"]
+        types = ["Common", "Holo", "Reverse"]
         for t in types:
             var = tk.BooleanVar()
             self.type_vars[t] = var
@@ -2222,42 +2202,9 @@ class CardEditorApp:
             ).pack(side="left", padx=2)
 
         tk.Label(
-            self.info_frame, text="Rarity", bg=self.root.cget("background")
-        ).grid(
-            row=start_row + 5, column=0, sticky="w", **grid_opts
-        )
-        self.rarity_vars = {}
-        self.rarity_frame = ctk.CTkFrame(self.info_frame)
-        self.rarity_frame.grid(row=start_row + 5, column=1, columnspan=7, sticky="w", **grid_opts)
-        rarities = ["RR", "AR", "SR", "SAR", "UR", "ACE", "PROMO"]
-        for r in rarities:
-            var = tk.BooleanVar()
-            self.rarity_vars[r] = var
-            ctk.CTkCheckBox(
-                self.rarity_frame,
-                text=r,
-                variable=var,
-            ).pack(side="left", padx=2)
-
-        tk.Label(
-            self.info_frame, text="Suffix", bg=self.root.cget("background")
-        ).grid(
-            row=start_row + 6, column=0, sticky="w", **grid_opts
-        )
-        self.suffix_var = tk.StringVar(value="")
-        self.entries["suffix"] = self.suffix_var
-        suffix_dropdown = ctk.CTkComboBox(
-            self.info_frame,
-            variable=self.suffix_var,
-            values=["", "Shiny"],
-            width=20,
-        )
-        suffix_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
-
-        tk.Label(
             self.info_frame, text="Stan", bg=self.root.cget("background")
         ).grid(
-            row=start_row + 7, column=0, sticky="w", **grid_opts
+            row=start_row + 5, column=0, sticky="w", **grid_opts
         )
         self.stan_var = tk.StringVar(value="NM")
         self.entries["stan"] = self.stan_var
@@ -2267,28 +2214,28 @@ class CardEditorApp:
             values=["NM", "LP", "PL", "MP", "HP", "DMG"],
             width=20,
         )
-        stan_dropdown.grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
+        stan_dropdown.grid(row=start_row + 5, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
             self.info_frame, text="Cena", bg=self.root.cget("background")
         ).grid(
-            row=start_row + 8, column=0, sticky="w", **grid_opts
+            row=start_row + 6, column=0, sticky="w", **grid_opts
         )
         self.entries["cena"] = ctk.CTkEntry(
             self.info_frame, width=200, placeholder_text="Cena"
         )
-        self.entries["cena"].grid(row=start_row + 8, column=1, sticky="ew", **grid_opts)
+        self.entries["cena"].grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
             self.info_frame, text="PSA 10", bg=self.root.cget("background")
         ).grid(
-            row=start_row + 9, column=0, sticky="w", **grid_opts
+            row=start_row + 7, column=0, sticky="w", **grid_opts
         )
         self.entries["psa10_price"] = ctk.CTkEntry(
             self.info_frame, width=200, placeholder_text="PSA 10"
         )
         self.entries["psa10_price"].grid(
-            row=start_row + 9, column=1, sticky="ew", **grid_opts
+            row=start_row + 7, column=1, sticky="ew", **grid_opts
         )
 
         self.api_button = self.create_button(
@@ -2296,7 +2243,7 @@ class CardEditorApp:
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
         )
-        self.api_button.grid(row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         self.variants_button = self.create_button(
             self.info_frame,
@@ -2304,7 +2251,7 @@ class CardEditorApp:
             command=self.show_variants,
         )
         self.variants_button.grid(
-            row=start_row + 10, column=2, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 8, column=2, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.cardmarket_button = self.create_button(
@@ -2313,7 +2260,7 @@ class CardEditorApp:
             command=self.open_cardmarket_search,
         )
         self.cardmarket_button.grid(
-            row=start_row + 10, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 8, column=4, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.save_button = self.create_button(
@@ -2321,13 +2268,13 @@ class CardEditorApp:
             text="Zapisz i dalej",
             command=self.save_and_next,
         )
-        self.save_button.grid(row=start_row + 11, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         self.eur_entry = ctk.CTkEntry(
             self.info_frame, width=200, placeholder_text="Kwota w EUR"
         )
         self.eur_entry.grid(
-            row=start_row + 12, column=0, columnspan=4, sticky="ew", **grid_opts
+            row=start_row + 10, column=0, columnspan=4, sticky="ew", **grid_opts
         )
 
         self.convert_button = self.create_button(
@@ -2336,12 +2283,12 @@ class CardEditorApp:
             command=self.convert_eur_to_pln,
         )
         self.convert_button.grid(
-            row=start_row + 12, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 10, column=4, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.pln_result_label = ctk.CTkLabel(self.info_frame, text="PLN: -")
         self.pln_result_label.grid(
-            row=start_row + 13, column=0, columnspan=6, sticky="ew", **grid_opts
+            row=start_row + 11, column=0, columnspan=6, sticky="ew", **grid_opts
         )
 
         self.eur_entry.bind("<Return>", self.convert_eur_to_pln)
@@ -2593,9 +2540,6 @@ class CardEditorApp:
             elif isinstance(entry, tk.BooleanVar):
                 entry.set(False)
 
-        for var in self.rarity_vars.values():
-            var.set(False)
-
         for var in self.type_vars.values():
             var.set(False)
 
@@ -2611,22 +2555,12 @@ class CardEditorApp:
             for name, val in cached.get("types", {}).items():
                 if name in self.type_vars:
                     self.type_vars[name].set(val)
-            for name, val in cached.get("rarities", {}).items():
-                if name in self.rarity_vars:
-                    self.rarity_vars[name].set(val)
             self.update_set_options()
 
         elif inv_entry:
             self.entries["nazwa"].insert(0, inv_entry.get("nazwa", ""))
             self.entries["numer"].insert(0, inv_entry.get("numer", ""))
             self.entries["set"].set(inv_entry.get("set", ""))
-            if "suffix" in inv_entry:
-                suffix_val = inv_entry.get("suffix", "")
-                if suffix_val.upper() == "PROMO" and "Promo" in self.type_vars:
-                    self.type_vars["Promo"].set(True)
-                    self.entries.get("suffix").set("")
-                else:
-                    self.entries.get("suffix").set(suffix_val)
             self.update_set_options()
             skip_analysis = True
 
@@ -2726,16 +2660,11 @@ class CardEditorApp:
             name = result.get("name", "")
             number = result.get("number", "")
             set_name = result.get("set", "")
-            suffix_val = result.get("suffix", "").strip()
-            if suffix_val.upper() == "PROMO" and "Promo" in self.type_vars:
-                self.type_vars["Promo"].set(True)
-                suffix_val = ""
             self.entries["nazwa"].delete(0, tk.END)
             self.entries["nazwa"].insert(0, name)
             self.entries["numer"].delete(0, tk.END)
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
-            self.entries.get("suffix").set(suffix_val)
             self.update_set_options()
 
     def generate_location(self, idx):
@@ -3455,13 +3384,7 @@ class CardEditorApp:
         if is_reverse or is_holo:
             multiplier *= HOLO_REVERSE_MULTIPLIER
 
-        types = getattr(self, "type_vars", {})
         try:
-            if types.get("Masterball") and types["Masterball"].get():
-                multiplier *= MASTERBALL_MULTIPLIER
-            elif types.get("Pokeball") and types["Pokeball"].get():
-                multiplier *= POKEBALL_MULTIPLIER
-
             return round(float(price) * multiplier, 2)
         except (TypeError, ValueError):
             return price
@@ -3474,13 +3397,11 @@ class CardEditorApp:
         data["typ"] = ",".join(
             [name for name, var in self.type_vars.items() if var.get()]
         )
-        data["rarity"] = ",".join([k for k, v in self.rarity_vars.items() if v.get()])
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         data["ilość"] = 1
         self.card_cache[key] = {
             "entries": {k: v for k, v in data.items()},
             "types": {name: var.get() for name, var in self.type_vars.items()},
-            "rarities": {name: var.get() for name, var in self.rarity_vars.items()},
         }
 
         front_path = self.cards[self.index]

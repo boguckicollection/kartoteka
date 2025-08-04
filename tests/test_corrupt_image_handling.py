@@ -22,7 +22,6 @@ def test_show_card_logs_corrupt_image(tmp_path, capsys):
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
         entries={},
-        rarity_vars={},
         type_vars={},
         card_cache={},
         file_to_key={},

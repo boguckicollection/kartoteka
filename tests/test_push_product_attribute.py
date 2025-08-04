@@ -35,8 +35,8 @@ def test_push_product_posts_attribute(monkeypatch):
         save_current_data=lambda: None,
         _build_shoper_payload=lambda card: {"name": "x"},
         shoper_client=fake_client,
-        type_vars={"Reverse": DummyVar(True), "Promo": DummyVar(True)},
-        entries={"suffix": DummyVar("")},
+        type_vars={"Reverse": DummyVar(True)},
+        entries={},
     )
 
     monkeypatch.setattr(ui.messagebox, "showerror", lambda *a, **k: None)
@@ -47,4 +47,4 @@ def test_push_product_posts_attribute(monkeypatch):
     widget = DummyText()
     ui.CardEditorApp.push_product(dummy, widget)
 
-    fake_client.add_product_attribute.assert_called_once_with(3, 2, ["Reverse", "Promo"])
+    fake_client.add_product_attribute.assert_called_once_with(3, 2, ["Reverse"])
