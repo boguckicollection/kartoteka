@@ -24,7 +24,8 @@ def make_dummy():
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "suffix": DummyVar(""),
-            "cena": DummyVar("")
+            "cena": DummyVar(""),
+            "psa10_price": DummyVar("")
         },
         type_vars={"Reverse": DummyVar(False), "Holo": DummyVar(False)},
         rarity_vars={},

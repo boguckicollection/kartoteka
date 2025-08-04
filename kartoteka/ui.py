@@ -2446,12 +2446,24 @@ class CardEditorApp:
         )
         self.entries["cena"].grid(row=start_row + 8, column=1, sticky="ew", **grid_opts)
 
+        tk.Label(
+            self.info_frame, text="PSA 10", bg=self.root.cget("background")
+        ).grid(
+            row=start_row + 9, column=0, sticky="w", **grid_opts
+        )
+        self.entries["psa10_price"] = ctk.CTkEntry(
+            self.info_frame, width=200, placeholder_text="PSA 10"
+        )
+        self.entries["psa10_price"].grid(
+            row=start_row + 9, column=1, sticky="ew", **grid_opts
+        )
+
         self.api_button = self.create_button(
             self.info_frame,
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
         )
-        self.api_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.api_button.grid(row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         self.variants_button = self.create_button(
             self.info_frame,
@@ -2459,7 +2471,7 @@ class CardEditorApp:
             command=self.show_variants,
         )
         self.variants_button.grid(
-            row=start_row + 9, column=2, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 10, column=2, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.cardmarket_button = self.create_button(
@@ -2468,7 +2480,7 @@ class CardEditorApp:
             command=self.open_cardmarket_search,
         )
         self.cardmarket_button.grid(
-            row=start_row + 9, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 10, column=4, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.save_button = self.create_button(
@@ -2476,13 +2488,13 @@ class CardEditorApp:
             text="Zapisz i dalej",
             command=self.save_and_next,
         )
-        self.save_button.grid(row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.save_button.grid(row=start_row + 11, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         self.eur_entry = ctk.CTkEntry(
             self.info_frame, width=200, placeholder_text="Kwota w EUR"
         )
         self.eur_entry.grid(
-            row=start_row + 11, column=0, columnspan=4, sticky="ew", **grid_opts
+            row=start_row + 12, column=0, columnspan=4, sticky="ew", **grid_opts
         )
 
         self.convert_button = self.create_button(
@@ -2491,12 +2503,12 @@ class CardEditorApp:
             command=self.convert_eur_to_pln,
         )
         self.convert_button.grid(
-            row=start_row + 11, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 12, column=4, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.pln_result_label = ctk.CTkLabel(self.info_frame, text="PLN: -")
         self.pln_result_label.grid(
-            row=start_row + 12, column=0, columnspan=6, sticky="ew", **grid_opts
+            row=start_row + 13, column=0, columnspan=6, sticky="ew", **grid_opts
         )
 
         self.eur_entry.bind("<Return>", self.convert_eur_to_pln)
@@ -3464,6 +3476,11 @@ class CardEditorApp:
                 )
                 self.log(f"Card {name} {number} not found")
 
+        psa10_price = self.fetch_psa10_price(name, number, set_name)
+        if psa10_price:
+            self.entries["psa10_price"].delete(0, tk.END)
+            self.entries["psa10_price"].insert(0, psa10_price)
+
     def show_variants(self):
         """Display a list of matching cards from the API."""
         name = self.entries["nazwa"].get()
@@ -3585,6 +3602,7 @@ class CardEditorApp:
         """Store the data for the currently displayed card without changing
         the index."""
         data = {k: v.get() for k, v in self.entries.items()}
+        data.setdefault("psa10_price", "")
         data["typ"] = ",".join(
             [name for name, var in self.type_vars.items() if var.get()]
         )

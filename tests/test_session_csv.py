@@ -27,7 +27,8 @@ def make_dummy():
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "suffix": DummyVar(""),
-            "cena": DummyVar("")
+            "cena": DummyVar(""),
+            "psa10_price": DummyVar("")
         },
         type_vars={"Reverse": DummyVar(False), "Holo": DummyVar(False)},
         rarity_vars={},
@@ -64,6 +65,7 @@ def test_session_csv_created(tmp_path):
     with open(session_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         assert reader.fieldnames == csv_utils.INVENTORY_FIELDNAMES
+        assert "psa10_price" in reader.fieldnames
 
 
 def test_save_current_appends_session(tmp_path):
@@ -83,4 +85,5 @@ def test_save_current_appends_session(tmp_path):
         assert rows[0]["name"]
         assert rows[0]["currency"] == "PLN"
         assert rows[0]["producer_code"] == "4"
+        assert rows[0]["psa10_price"] == ""
 

@@ -42,6 +42,7 @@ def test_export_includes_new_fields(tmp_path):
         row = rows[0]
         assert row["currency"] == "PLN"
         assert row["producer_code"] == "1"
+        assert row["psa10_price"] == ""
         assert "vat" not in reader.fieldnames
 
 
@@ -80,5 +81,6 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
         rows = list(reader)
         assert rows[0]["producer_code"] == "1"
         assert rows[0]["currency"] == "PLN"
+        assert rows[0]["psa10_price"] == ""
 
 
