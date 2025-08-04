@@ -110,7 +110,7 @@ def test_analyze_card_image_with_set(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    content = '{"name": "Pikachu", "number": "001", "set": "Base"}'
+    content = '{"name": "Pikachu", "number": "001", "set": "swsh11"}'
     resp = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
     )
@@ -118,7 +118,7 @@ def test_analyze_card_image_with_set(monkeypatch):
     with patch("openai.chat.completions.create", return_value=resp):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "1", "set": "Base"}
+    assert result == {"name": "Pikachu", "number": "1", "set": "Lost Origin"}
 
 
 def test_analyze_card_image_includes_logo_labels(monkeypatch):
