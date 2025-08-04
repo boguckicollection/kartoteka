@@ -448,148 +448,6 @@ class CardEditorApp:
             command=self.upload_images_dialog,
         ).pack(side="left", padx=5)
 
-
-
-        # Display store statistics when Shoper credentials are available
-        stats_frame = tk.Frame(
-            self.start_frame, bg=self.root.cget("background")
-        )
-        # Keep the dashboard centered within the window
-        stats_frame.pack(pady=10, anchor="center")
-        stats_frame.grid_anchor("center")
-        for i in range(3):
-            stats_frame.columnconfigure(i, weight=1)
-
-        self.dashboard_stats = {}
-
-        stats = self.load_store_stats()
-        progress_ship = stats.get("shipment_progress")
-
-        key_map = {
-            "Nowe dzisiaj": "new_orders_today",
-            "Oczekujące wysyłki": "pending_shipments",
-            "Oczekujące płatności": "pending_payments",
-            "Otwarte zwroty": "open_returns",
-            "Sprzedaż dzisiaj": "sales_today",
-            "Sprzedaż tydzień": "sales_week",
-            "Sprzedaż miesiąc": "sales_month",
-            "Średnia wartość": "avg_order_value",
-            "Aktywne karty": "active_cards",
-        }
-
-        stats_map = [
-            (
-                "Nowe dzisiaj",
-                stats.get("new_orders_today", 0),
-                "🆕",
-                "Liczba nowych zamówień dzisiaj",
-                None,
-            ),
-            (
-                "Oczekujące wysyłki",
-                stats.get("pending_shipments", 0),
-                "📦",
-                "Zamówienia gotowe do wysyłki",
-                progress_ship,
-            ),
-            (
-                "Oczekujące płatności",
-                stats.get("pending_payments", 0),
-                "💸",
-                "Zamówienia bez opłaty",
-                None,
-            ),
-            (
-                "Otwarte zwroty",
-                stats.get("open_returns", 0),
-                "↩️",
-                "Zwroty w toku",
-                None,
-            ),
-            (
-                "Sprzedaż dzisiaj",
-                stats.get("sales_today", 0),
-                "💰",
-                "Łączna dzisiejsza sprzedaż",
-                None,
-            ),
-            (
-                "Sprzedaż tydzień",
-                stats.get("sales_week", 0),
-                "📈",
-                "Łączna sprzedaż z ostatniego tygodnia",
-                None,
-            ),
-            (
-                "Sprzedaż miesiąc",
-                stats.get("sales_month", 0),
-                "📊",
-                "Łączna sprzedaż z miesiąca",
-                None,
-            ),
-            (
-                "Średnia wartość",
-                stats.get("avg_order_value", 0),
-                "💵",
-                "Średnia wartość zamówienia",
-                None,
-            ),
-            (
-                "Aktywne karty",
-                stats.get("active_cards", 0),
-                "🃏",
-                "Produkty aktywne w sklepie",
-                None,
-            ),
-        ]
-
-        # Generate subtle variations of the background color so that the
-        # white text on the dashboard cards remains readable while the
-        # overall theme stays consistent.
-        def lighten(color: str, factor: float) -> str:
-            color = color.lstrip("#")
-            r = int(color[0:2], 16)
-            g = int(color[2:4], 16)
-            b = int(color[4:6], 16)
-            r = min(255, int(r + (255 - r) * factor))
-            g = min(255, int(g + (255 - g) * factor))
-            b = min(255, int(b + (255 - b) * factor))
-            return f"#{r:02x}{g:02x}{b:02x}"
-
-        colors = [lighten(BG_COLOR, 0.08 + 0.02 * i) for i in range(9)]
-
-        # Ensure rows expand evenly when the window is resized
-        rows = (len(stats_map) + 2) // 3
-        for r in range(rows):
-            stats_frame.rowconfigure(r, weight=1)
-
-        for i, (label, value, icon, info, prog) in enumerate(stats_map):
-            row = i // 3
-            col = i % 3
-            card, var = self.create_stat_card(
-                stats_frame,
-                label,
-                value,
-                icon,
-                colors[i % len(colors)],
-                info,
-                prog,
-            )
-            self.dashboard_stats[key_map.get(label, label)] = var
-            card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-
-        self.create_button(
-            stats_frame,
-            text="Pokaż szczegóły",
-            command=self.open_shoper_window,
-        ).grid(row=len(stats_map) // 3 + 1, column=0, columnspan=3, pady=5)
-
-        self.create_button(
-            stats_frame,
-            text="Odśwież statystyki",
-            command=self.refresh_store_stats,
-        ).grid(row=len(stats_map) // 3 + 2, column=0, columnspan=3, pady=5)
-
     def placeholder_btn(self, text: str, master=None):
         if master is None:
             master = self.start_frame
@@ -673,122 +531,6 @@ class CardEditorApp:
             corner_radius=10,
             **kwargs,
         )
-
-    def create_stat_card(self, parent, title, value, icon, color, info, progress=None):
-        """Create a dashboard card with optional progress bar."""
-        frame = tk.Frame(parent, width=200, height=100, bg=color, bd=1, relief="ridge")
-        # Keep the card size constant regardless of its contents
-        frame.pack_propagate(False)
-        frame.grid_propagate(False)
-        tk.Label(frame, text=icon, font=("Helvetica", 24), bg=color).pack()
-        tk.Label(frame, text=title, font=("Helvetica", 12, "bold"), bg=color).pack()
-
-        var = tk.StringVar(value=str(value))
-        tk.Label(frame, textvariable=var, font=("Helvetica", 24), bg=color).pack()
-
-        if progress is not None:
-            bar = ctk.CTkProgressBar(frame)
-            bar.set(max(0, min(1, progress)))
-            bar.pack(fill="x", padx=5, pady=(0, 5))
-        # Tooltip removed for cleaner display
-        return frame, var
-
-    def load_store_stats(self):
-        """Retrieve various store statistics from Shoper.
-
-        Numeric fields returned by the API are converted to integers when
-        possible so they can be used safely in calculations.
-        """
-        if not self.shoper_client:
-            return {}
-        from datetime import date
-
-        stats = {}
-        try:
-            today = date.today().isoformat()
-            orders_today = self.shoper_client.get_orders(
-                status="new",
-                filters={"filters[add_date][from]": today},
-            )
-            stats["new_orders_today"] = len(orders_today.get("list", orders_today))
-
-            pending_ship = self.shoper_client.get_orders(status="pending_shipment")
-            stats["pending_shipments"] = len(pending_ship.get("list", pending_ship))
-
-            # Attempt to retrieve total order count for progress calculations
-            try:
-                all_orders = self.shoper_client.get_orders()
-                total = (
-                    all_orders.get("records")
-                    or all_orders.get("count")
-                    or len(all_orders.get("list", all_orders))
-                )
-                try:
-                    total = int(float(total))
-                except (TypeError, ValueError):
-                    total = 0
-                stats["total_orders"] = total
-                if total:
-                    stats["shipment_progress"] = (
-                        total - stats["pending_shipments"]
-                    ) / float(total)
-            except Exception:
-                pass
-
-            pending_pay = self.shoper_client.get_orders(status="pending_payment")
-            stats["pending_payments"] = len(pending_pay.get("list", pending_pay))
-
-            open_ret = self.shoper_client.get_orders(status="return")
-            stats["open_returns"] = len(open_ret.get("list", open_ret))
-
-            sales = self.shoper_client.get_sales_stats()
-            if sales:
-                for key, default in {
-                    "today": 0,
-                    "week": 0,
-                    "month": 0,
-                    "avg_order_value": 0,
-                    "active_products": 0,
-                }.items():
-                    try:
-                        value = int(float(sales.get(key, default)))
-                    except (TypeError, ValueError):
-                        value = default
-                    stats_key = {
-                        "today": "sales_today",
-                        "week": "sales_week",
-                        "month": "sales_month",
-                        "avg_order_value": "avg_order_value",
-                        "active_products": "active_cards",
-                    }[key]
-                    stats[stats_key] = value
-
-            # If the statistics endpoint didn't provide the product count try
-            # to read it from the inventory list.
-            if not stats.get("active_cards"):
-                try:
-                    inv = self.shoper_client.get_inventory(page=1, per_page=1)
-                    total = (
-                        inv.get("records")
-                        or inv.get("count")
-                        or len(inv.get("list", inv))
-                    )
-                    try:
-                        total = int(float(total))
-                    except (TypeError, ValueError):
-                        total = 0
-                    stats["active_cards"] = total
-                except Exception:
-                    pass
-        except Exception as exc:  # pragma: no cover - network failure
-            print(f"[WARNING] store stats failed: {exc}")
-        return stats
-
-    def refresh_store_stats(self):
-        """Reload store statistics and update dashboard values."""
-        stats = self.load_store_stats()
-        for key, var in self.dashboard_stats.items():
-            var.set(str(stats.get(key, 0)))
 
     def _on_shoper_tab_changed(self):
         if (
@@ -3203,11 +2945,12 @@ class CardEditorApp:
         """Return PSA10 price for a card converted to PLN.
 
         The function queries the card API similarly to ``fetch_card_price`` and
-        looks up the PSA10 graded price from the Cardmarket section.  If the
-        nested structure or the value is missing at any point, an empty string is
-        returned.  The price is converted using the current EUR→PLN exchange
-        rate and the result is formatted as an integer when possible or a float
-        string otherwise.
+        looks up the PSA10 graded price under the
+        ``prices.cardmarket.graded.psa.psa10`` path. If the nested structure or
+        the value is missing at any point, an empty string is returned. The
+        price is converted using the current EUR→PLN exchange rate and the
+        result is formatted as an integer when possible or a float string
+        otherwise.
         """
 
         name_api = normalize(name, keep_spaces=True)
@@ -3263,6 +3006,7 @@ class CardEditorApp:
                         card.get("prices", {})
                         .get("cardmarket", {})
                         .get("graded", {})
+                        .get("psa", {})
                         .get("psa10")
                     )
                     try:
@@ -3479,6 +3223,9 @@ class CardEditorApp:
         if psa10_price:
             self.entries["psa10_price"].delete(0, tk.END)
             self.entries["psa10_price"].insert(0, psa10_price)
+            self.log(f"PSA10 price for {name} {number}: {psa10_price} zł")
+        else:
+            self.log(f"PSA10 price for {name} {number} not found")
 
     def show_variants(self):
         """Display a list of matching cards from the API."""
