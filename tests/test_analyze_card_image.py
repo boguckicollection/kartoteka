@@ -128,6 +128,25 @@ def test_analyze_card_image_with_set(monkeypatch):
     assert result == {"name": "Pikachu", "number": "1", "set": "Base", "suffix": ""}
 
 
+def test_analyze_card_image_includes_logo_labels(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    logos = {"ABC": "http://logo"}
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))]
+    )
+
+    with patch.object(ui, "load_set_logo_uris", return_value=logos), patch(
+        "openai.chat.completions.create", return_value=resp
+    ) as mock_create:
+        ui.analyze_card_image("http://example.com/img.jpg")
+
+    content = mock_create.call_args.kwargs["messages"][0]["content"]
+    assert content[2] == {"type": "text", "text": "Set ABC"}
+    assert content[3] == {"type": "image_url", "image_url": {"url": "http://logo"}}
+
+
 @pytest.mark.parametrize("letter", ["E", "F"])
 def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
