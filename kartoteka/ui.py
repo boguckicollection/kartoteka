@@ -382,7 +382,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         resp = client.responses.parse(
             model="gpt-4o",
             input=[{"role": "user", "content": content}],
-            response_format=CardData,
+            text_format=CardData,
             max_output_tokens=150,
         )
         if not resp.output or not getattr(resp.output[0], "parsed", None):
