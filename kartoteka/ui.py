@@ -2533,12 +2533,20 @@ class CardEditorApp:
         self.index = 0
         self.output_data = [None] * len(self.cards)
         self.card_counts = defaultdict(int)
+        self.failed_cards = []
         self.progress_var.set(f"0/{len(self.cards)}")
         self.log(f"Loaded {len(self.cards)} cards")
         self.show_card()
 
     def show_card(self):
         if self.index >= len(self.cards):
+            if getattr(self, "failed_cards", None):
+                msg = "Failed to load images:\n" + "\n".join(self.failed_cards)
+                print(msg, file=sys.stderr)
+                try:
+                    messagebox.showerror("Errors", msg)
+                except tk.TclError:
+                    pass
             messagebox.showinfo("Koniec", "Wszystkie karty zostały zapisane.")
             self.export_csv()
             return
@@ -2550,7 +2558,15 @@ class CardEditorApp:
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
-        image = Image.open(image_path)
+        try:
+            image = Image.open(image_path)
+        except Exception as e:
+            print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
+            if getattr(self, "failed_cards", None) is not None:
+                self.failed_cards.append(image_path)
+            self.index += 1
+            self.show_card()
+            return
         image.thumbnail((400, 560))
         self.current_card_image = image.copy()
         if hasattr(ctk, "CTkImage"):
