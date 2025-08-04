@@ -319,7 +319,7 @@ class CardEditorApp:
         self.root.title("KARTOTEKA")
         # improve default font for all widgets
         self.root.configure(bg=BG_COLOR, fg_color=BG_COLOR)
-        self.root.option_add("*Font", ("Segoe UI", 12))
+        self.root.option_add("*Font", ("Segoe UI", 16))
         self.root.option_add("*Foreground", TEXT_COLOR)
         self.index = 0
         self.cards = []
@@ -420,33 +420,39 @@ class CardEditorApp:
             button_frame,
             text="\U0001f50d Skanuj",
             command=self.show_location_frame,
+            fg_color="#6A6A6A",
         )
-        scan_btn.pack(side="left", padx=5)
+        scan_btn.pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
-        ).pack(side="left", padx=5)
+            fg_color="#636363",
+        ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
-        ).pack(side="left", padx=5)
+            fg_color="#5C5C5C",
+        ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f4e6 Magazyn",
             command=self.open_magazyn_window,
-        ).pack(side="left", padx=5)
+            fg_color="#555555",
+        ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
-        ).pack(side="left", padx=5)
+            fg_color="#4E4E4E",
+        ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f4f7 FTP Obrazy",
             command=self.upload_images_dialog,
-        ).pack(side="left", padx=5)
+            fg_color="#474747",
+        ).pack(side="left", padx=10, pady=5)
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
@@ -524,11 +530,18 @@ class CardEditorApp:
     def create_button(self, master=None, **kwargs):
         if master is None:
             master = self.root
+        fg_color = kwargs.pop("fg_color", ACCENT_COLOR)
+        width = kwargs.pop("width", 180)
+        height = kwargs.pop("height", 50)
+        font = kwargs.pop("font", ("Segoe UI", 16, "bold"))
         return ctk.CTkButton(
             master,
-            fg_color=ACCENT_COLOR,
+            fg_color=fg_color,
             hover_color=HOVER_COLOR,
             corner_radius=10,
+            width=width,
+            height=height,
+            font=font,
             **kwargs,
         )
 
