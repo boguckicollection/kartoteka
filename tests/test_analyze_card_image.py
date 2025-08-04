@@ -156,6 +156,21 @@ def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     assert result == {"name": "Pikachu", "number": "1", "set": ""}
 
 
+def test_analyze_card_image_unknown_set(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    content = '{"name": "Pikachu", "number": "001", "set": "unknown-set"}'
+    resp = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+    )
+
+    with patch("openai.chat.completions.create", return_value=resp):
+        result = ui.analyze_card_image("/tmp/img.jpg")
+
+    assert result == {"name": "Pikachu", "number": "1", "set": ""}
+
+
 def test_analyze_card_image_translate_name(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
