@@ -24,7 +24,9 @@ from ftp_client import FTPClient
 from . import csv_utils, storage
 import threading
 from urllib.parse import urlencode, urlparse
+from urllib.error import HTTPError
 import io
+import webbrowser
 
 load_dotenv()
 
@@ -3320,7 +3322,22 @@ class CardEditorApp:
 
         browser = HtmlFrame(top)
         browser.pack(fill="both", expand=True)
-        browser.load_website(url)
+        try:
+            browser.load_website(
+                url,
+                useragent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/115.0.0.0 Safari/537.36"
+                ),
+            )
+        except HTTPError as e:
+            messagebox.showerror(
+                "Błąd", f"Nie udało się wczytać Cardmarket ({e.code})."
+            )
+            top.destroy()
+            webbrowser.open(url)
+            return
 
         self.create_button(top, text="Close", command=top.destroy).pack(pady=5)
 
