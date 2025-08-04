@@ -52,3 +52,5 @@ def test_html_generated():
     assert data["short_description"].startswith("<p><strong>")
     assert "<li>" in data["short_description"]
     assert data["description"].count("<p>") >= 2
+    assert dummy.product_code_map == {}
+    assert dummy.next_product_code == 2

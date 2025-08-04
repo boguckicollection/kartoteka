@@ -130,20 +130,8 @@ def load_csv_data(app):
             combined[key] = new_row
 
     for row in combined.values():
-        map_key = (
-            f"{row.get('nazwa', '').strip()}|{row.get('numer', '').strip()}|{row.get('set', '').strip()}"
-        )
-        code_str = str(row.get("product_code", "")).strip()
-        if map_key not in app.product_code_map:
-            if code_str.isdigit():
-                code_int = int(code_str)
-                app.product_code_map[map_key] = code_int
-                if code_int >= app.next_product_code:
-                    app.next_product_code = code_int + 1
-            else:
-                app.product_code_map[map_key] = app.next_product_code
-                app.next_product_code += 1
-        row["product_code"] = app.product_code_map[map_key]
+        row["product_code"] = app.next_product_code
+        app.next_product_code += 1
 
     if qty_field is None:
         qty_field = "ilość"

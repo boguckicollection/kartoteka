@@ -39,7 +39,7 @@ def test_old_csv_location_pattern(tmp_path):
     row = rows[0]
     assert row["warehouse_code"] == "K1R1P1"
     assert row["product_code"] == "1"
-    assert dummy.product_code_map == {"Pikachu|1|Base": 1}
+    assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
 
 

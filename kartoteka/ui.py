@@ -3602,10 +3602,8 @@ class CardEditorApp:
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
-        if key not in self.product_code_map:
-            self.product_code_map[key] = self.next_product_code
-            self.next_product_code += 1
-        data["product_code"] = self.product_code_map[key]
+        data["product_code"] = self.next_product_code
+        self.next_product_code += 1
         data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['set']}"
         data["producer"] = "Pokémon"
