@@ -8,6 +8,8 @@ import csv
 import json
 import requests
 import openai
+import base64
+import mimetypes
 import re
 import asyncio
 import datetime
@@ -241,10 +243,37 @@ def translate_to_english(text: str) -> str:
         return text
 
 
+def load_set_logo_uris(limit: int = 20) -> dict:
+    """Return a mapping of set code to data URI for set logos."""
+    logos = {}
+    if not os.path.isdir(SET_LOGO_DIR):
+        return logos
+    files = sorted(os.listdir(SET_LOGO_DIR))
+    for file in files:
+        path = os.path.join(SET_LOGO_DIR, file)
+        if not os.path.isfile(path):
+            continue
+        if not file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+            continue
+        code = os.path.splitext(file)[0]
+        try:
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            mime, _ = mimetypes.guess_type(path)
+            if not mime:
+                mime = "image/png"
+            logos[code] = f"data:{mime};base64,{b64}"
+        except Exception:
+            continue
+        if limit and len(logos) >= limit:
+            break
+    return logos
+
+
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
     if not OPENAI_API_KEY:
-        return {"name": "", "number": "", "suffix": ""}
+        return {"name": "", "number": "", "set": "", "suffix": ""}
 
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
@@ -255,22 +284,21 @@ def analyze_card_image(path: str, translate_name: bool = False):
         url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
 
     try:
+        logos = load_set_logo_uris()
+        content = [
+            {
+                "type": "text",
+                "text": (
+                    "Extract Pokemon card name, number, suffix and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\",\"suffix\":\"\"} by comparing the set symbol on the card with the provided set logos."
+                ),
+            },
+            {"type": "image_url", "image_url": {"url": url}},
+        ]
+        for uri in logos.values():
+            content.append({"type": "image_url", "image_url": {"url": uri}})
         resp = openai.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                "Extract Pokemon card name, number and suffix (Shiny) as JSON {\"name\":\"\",\"number\":\"\",\"suffix\":\"\"}. Return empty suffix when not applicable."
-                            ),
-                        },
-                        {"type": "image_url", "image_url": {"url": url}},
-                    ],
-                }
-            ],
+            messages=[{"role": "user", "content": content}],
             max_tokens=80,
         )
         content = resp.choices[0].message.content
@@ -290,7 +318,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
                 data = json.loads(text)
             except json.JSONDecodeError as e:
                 print(f"[ERROR] analyze_card_image failed to decode JSON: {content!r} - {e}")
-                return {"name": "", "number": "", "suffix": ""}
+                return {"name": "", "number": "", "set": "", "suffix": ""}
 
         number = data.get("number", "")
         if isinstance(number, str):
@@ -300,6 +328,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
 
         name = data.get("name", "")
         suffix = data.get("suffix", "").upper() if isinstance(data.get("suffix"), str) else ""
+        set_code = data.get("set", "") if isinstance(data.get("set"), str) else ""
         if isinstance(name, str) and not suffix:
             parts = name.split()
             if parts and parts[-1].upper() in {"SHINY"}:
@@ -309,10 +338,11 @@ def analyze_card_image(path: str, translate_name: bool = False):
             name = translate_to_english(name)
         data["name"] = name
         data["suffix"] = suffix
-        return data
+        data["set"] = set_code
+        return {"name": name, "number": data.get("number", ""), "set": set_code, "suffix": suffix}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {"name": "", "number": "", "suffix": ""}
+        return {"name": "", "number": "", "set": "", "suffix": ""}
 
 
 class CardEditorApp:
