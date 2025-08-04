@@ -33,12 +33,8 @@ INVENTORY_FIELDNAMES = [
 
 def format_inventory_row(row):
     """Return a row formatted for the inventory CSV."""
-    suffix = row.get("suffix", "").strip()
-    name_parts = [row["nazwa"]]
-    if suffix:
-        name_parts.append(suffix)
-    name_parts.append(row["numer"])
-    formatted_name = " ".join(name_parts)
+    name_parts = [row["nazwa"], row["numer"]]
+    formatted_name = " ".join(part for part in name_parts if part)
 
     return {
         "product_code": row["product_code"],

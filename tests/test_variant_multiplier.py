@@ -18,17 +18,10 @@ class DummyVar:
 def test_get_set_code_additionals():
     assert ui.get_set_code("Prismatic Evolutions: Additionals") == "xpre"
 
-def test_apply_variant_multiplier_balls():
-    dummy = SimpleNamespace(type_vars={
-        "Pokeball": DummyVar(True),
-        "Masterball": DummyVar(False)
-    })
-    price = ui.CardEditorApp.apply_variant_multiplier(dummy, 10)
-    assert price == 10 * ui.POKEBALL_MULTIPLIER
+def test_apply_variant_multiplier_reverse_holo():
+    dummy = SimpleNamespace()
+    price = ui.CardEditorApp.apply_variant_multiplier(dummy, 10, is_reverse=True)
+    assert price == 10 * ui.HOLO_REVERSE_MULTIPLIER
 
-    dummy = SimpleNamespace(type_vars={
-        "Pokeball": DummyVar(False),
-        "Masterball": DummyVar(True)
-    })
-    price = ui.CardEditorApp.apply_variant_multiplier(dummy, 10)
-    assert price == 10 * ui.MASTERBALL_MULTIPLIER
+    price = ui.CardEditorApp.apply_variant_multiplier(dummy, 10, is_holo=True)
+    assert price == 10 * ui.HOLO_REVERSE_MULTIPLIER
