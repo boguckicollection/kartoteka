@@ -19,7 +19,7 @@ import unicodedata
 from itertools import combinations
 import html
 import sys
-from typing import Optional
+from typing import Iterable, Optional
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
@@ -54,6 +54,12 @@ HOLO_REVERSE_MULTIPLIER = 3.5
 POKEBALL_MULTIPLIER = 5
 MASTERBALL_MULTIPLIER = 10
 SET_LOGO_DIR = "set_logos"
+
+DEFAULT_LOGO_LIMIT = 20
+try:
+    DEFAULT_LOGO_LIMIT = int(os.getenv("SET_LOGO_LIMIT", DEFAULT_LOGO_LIMIT))
+except ValueError:
+    pass
 
 # custom theme colors in grayscale
 BG_COLOR = "#2E2E2E"
@@ -243,8 +249,24 @@ def translate_to_english(text: str) -> str:
         return text
 
 
-def load_set_logo_uris(limit: int = 20) -> dict:
-    """Return a mapping of set code to data URI for set logos."""
+def load_set_logo_uris(
+    limit: Optional[int] = DEFAULT_LOGO_LIMIT,
+    available_sets: Optional[Iterable[str]] = None,
+) -> dict:
+    """Return a mapping of set code to data URI for set logos.
+
+    Parameters
+    ----------
+    limit:
+        Maximum number of logos to load. ``None`` loads all available logos.
+    available_sets:
+        Optional iterable of set codes to include. When provided and ``limit``
+        is ``None``, the limit defaults to the number of available sets.
+    """
+    if available_sets is not None:
+        available_sets = set(available_sets)
+        if limit is None:
+            limit = len(available_sets)
     logos = {}
     if not os.path.isdir(SET_LOGO_DIR):
         return logos
@@ -256,6 +278,8 @@ def load_set_logo_uris(limit: int = 20) -> dict:
         if not file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
             continue
         code = os.path.splitext(file)[0]
+        if available_sets is not None and code not in available_sets:
+            continue
         try:
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode("ascii")
@@ -265,7 +289,7 @@ def load_set_logo_uris(limit: int = 20) -> dict:
             logos[code] = f"data:{mime};base64,{b64}"
         except Exception:
             continue
-        if limit and len(logos) >= limit:
+        if limit is not None and len(logos) >= limit:
             break
     return logos
 
