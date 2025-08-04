@@ -23,7 +23,6 @@ from shoper_client import ShoperClient
 from ftp_client import FTPClient
 from . import csv_utils, storage
 import threading
-import webbrowser
 from urllib.parse import urlencode, urlparse
 import io
 
@@ -3530,8 +3529,13 @@ class CardEditorApp:
 
         try:
             from tkinterweb import HtmlFrame
-        except Exception:
-            webbrowser.open(url)
+        except ModuleNotFoundError:
+            messagebox.showwarning(
+                "Brak modułu",
+                "Moduł 'tkinterweb' nie jest zainstalowany.\n"
+                "Aby korzystać z wbudowanej przeglądarki, zainstaluj go poleceniem:\n"
+                "pip install tkinterweb",
+            )
             return
 
         top = ctk.CTkToplevel(self.root)
