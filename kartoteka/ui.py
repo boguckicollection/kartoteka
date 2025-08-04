@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 import unicodedata
 from itertools import combinations
 import html
+import difflib
 import sys
 from typing import Iterable, Optional
 
@@ -314,6 +315,36 @@ def load_set_logo_uris(
     return logos
 
 
+def match_set_code(value: str) -> str:
+    """Return a set code that matches available logo filenames.
+
+    The function performs an exact match against filenames in ``SET_LOGO_DIR``.
+    When no exact match is found, a fuzzy match is attempted.  An empty string
+    is returned if no suitable match is identified or when the logo directory
+    is missing.
+    """
+
+    if not value:
+        return ""
+    value = value.strip().lower()
+    if not value or not os.path.isdir(SET_LOGO_DIR):
+        return ""
+
+    codes = {
+        os.path.splitext(f)[0].lower()
+        for f in os.listdir(SET_LOGO_DIR)
+        if os.path.isfile(os.path.join(SET_LOGO_DIR, f))
+    }
+
+    if value in codes:
+        return value
+
+    match = difflib.get_close_matches(value, list(codes), n=1, cutoff=0.6)
+    if match:
+        return match[0]
+    return ""
+
+
 def extract_json_block(text: str) -> Optional[dict]:
     """Return the first JSON object found in ``text``.
 
@@ -394,6 +425,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         stripped = set_code.strip()
         if len(stripped) == 1 and stripped.isalpha():
             set_code = ""
+        set_code = match_set_code(set_code)
         if translate_name and isinstance(name, str) and not name.isascii():
             name = translate_to_english(name)
         set_name = get_set_name(set_code)
