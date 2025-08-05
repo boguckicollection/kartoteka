@@ -98,6 +98,19 @@ def norm_header(name: str) -> str:
     return name.strip().lower()
 
 
+def sanitize_number(value: str) -> str:
+    """Remove leading zeros from a number string.
+
+    Returns
+    -------
+    str
+        ``value`` without leading zeros or ``"0"`` if the result is
+        empty.
+    """
+
+    return value.lstrip("0") or "0"
+
+
 
 
 # Wczytanie danych setów
@@ -2853,6 +2866,8 @@ class CardEditorApp:
             for field, value in cached.get("entries", {}).items():
                 entry = self.entries.get(field)
                 if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
+                    if field == "numer":
+                        value = sanitize_number(str(value))
                     entry.insert(0, value)
                 elif isinstance(entry, tk.StringVar):
                     entry.set(value)
@@ -2863,7 +2878,9 @@ class CardEditorApp:
 
         elif inv_entry:
             self.entries["nazwa"].insert(0, inv_entry.get("nazwa", ""))
-            self.entries["numer"].insert(0, inv_entry.get("numer", ""))
+            self.entries["numer"].insert(
+                0, sanitize_number(str(inv_entry.get("numer", "")))
+            )
             self.entries["set"].set(inv_entry.get("set", ""))
             self.update_set_options()
             skip_analysis = True
@@ -2983,6 +3000,7 @@ class CardEditorApp:
                 if m:
                     number, total = m.group(1), m.group(2)
             set_name = result.get("set", "")
+            number = sanitize_number(str(number))
             self.entries["nazwa"].delete(0, tk.END)
             self.entries["nazwa"].insert(0, name)
             self.entries["numer"].delete(0, tk.END)
@@ -3744,7 +3762,7 @@ class CardEditorApp:
 
     def fetch_card_data(self):
         name = self.entries["nazwa"].get()
-        number = self.entries["numer"].get()
+        number = sanitize_number(self.entries["numer"].get())
         set_name = self.entries["set"].get()
 
         is_reverse = self.type_vars["Reverse"].get()
@@ -3785,7 +3803,7 @@ class CardEditorApp:
     def show_variants(self):
         """Display a list of matching cards from the API."""
         name = self.entries["nazwa"].get()
-        number = self.entries["numer"].get()
+        number = sanitize_number(self.entries["numer"].get())
         set_name = self.entries["set"].get()
 
         is_reverse = self.type_vars["Reverse"].get()
@@ -3840,7 +3858,7 @@ class CardEditorApp:
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card inside the app."""
         name = self.entries["nazwa"].get()
-        number = self.entries["numer"].get()
+        number = sanitize_number(self.entries["numer"].get())
         search_terms = " ".join(t for t in [name, number] if t)
         params = urlencode({"searchString": search_terms})
         url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
