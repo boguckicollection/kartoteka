@@ -6,8 +6,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import tkinter as tk
 import pytest
+from PIL import Image
 
 sys.modules["customtkinter"] = SimpleNamespace(CTkEntry=tk.Entry, CTkImage=MagicMock())
+sys.modules["pytesseract"] = SimpleNamespace(image_to_string=MagicMock(return_value=""))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
 importlib.reload(ui)
@@ -60,6 +62,34 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with(SV01_NAME)
+
+
+def test_analyze_card_image_ocr(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    importlib.reload(ui)
+
+    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
+
+    with patch.object(ui, "extract_set_code_ocr", return_value=[(SV01_CODE, SV01_NAME)]) as mock_ocr, \
+        patch.object(ui, "identify_set_by_hash") as mock_hash, \
+        patch("openai.OpenAI") as mock_openai:
+        result = ui.analyze_card_image(str(logo_path))
+
+    assert result == {"name": "", "number": "", "set": SV01_NAME}
+    mock_ocr.assert_called_once()
+    mock_hash.assert_not_called()
+    mock_openai.assert_not_called()
+
+
+def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
+    img = Image.new("RGB", (10, 10), color="white")
+    path = tmp_path / "img.png"
+    img.save(path)
+
+    with patch("pytesseract.image_to_string", return_value="E\nSV01\n"):
+        result = ui.extract_set_code_ocr(str(path), (0, 0, 10, 10))
+
+    assert result == [(SV01_CODE, SV01_NAME)]
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
