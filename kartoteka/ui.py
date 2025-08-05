@@ -385,10 +385,15 @@ def analyze_card_image(path: str, translate_name: bool = False):
             text_format=CardData,
             max_output_tokens=150,
         )
-        if not resp.output or not getattr(resp.output[0], "parsed", None):
+        if (
+            not resp.output
+            or not getattr(resp.output[0], "content", None)
+            or not resp.output[0].content
+            or not getattr(resp.output[0].content[0], "parsed", None)
+        ):
             print(f"[ERROR] analyze_card_image failed to parse response: {resp}")
             return {"name": "", "number": "", "set": ""}
-        data: CardData = resp.output[0].parsed
+        data: CardData = resp.output[0].content[0].parsed
 
         number = data.number or ""
         if isinstance(number, str):
