@@ -264,7 +264,11 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         key = (set_code, set_name)
         scores[key] = scores.get(key, 0) + score
 
-    sorted_sets = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    sorted_sets = sorted(
+        ((key, sc) for key, sc in scores.items() if sc > 0),
+        key=lambda item: item[1],
+        reverse=True,
+    )
     return [key for key, _ in sorted_sets]
 
 

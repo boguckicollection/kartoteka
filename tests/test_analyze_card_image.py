@@ -5,7 +5,6 @@ import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import tkinter as tk
-import pytest
 from PIL import Image
 
 sys.modules["customtkinter"] = SimpleNamespace(CTkEntry=tk.Entry, CTkImage=MagicMock())
@@ -49,11 +48,19 @@ def test_show_card_uses_analyzer(tmp_path):
 
     dummy.start_scan_animation = lambda *a, **k: None
     dummy.stop_scan_animation = lambda *a, **k: None
-    dummy._analyze_and_fill = lambda url, idx: ui.CardEditorApp._apply_analysis_result(dummy, ui.analyze_card_image(url), idx)
+    dummy.prompt_set_selection_api = MagicMock()
+    dummy._analyze_and_fill = lambda url, idx: ui.CardEditorApp._apply_analysis_result(
+        dummy, ui.analyze_card_image(url), idx
+    )
 
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": SV01_NAME}) as mock_analyze:
+         patch.object(
+            ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": ""}
+         ) as mock_analyze, \
+         patch.object(
+            ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]
+         ):
         ui.CardEditorApp.show_card(dummy)
 
     folder = os.path.basename(img.parent)
@@ -62,6 +69,55 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
     set_var.set.assert_called_with(SV01_NAME)
+    dummy.prompt_set_selection_api.assert_not_called()
+
+
+def test_show_card_prompts_for_set_selection(tmp_path):
+    img = tmp_path / "card.jpg"
+    img.write_bytes(b"data")
+
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    name_entry.focus_set = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+
+    dummy = SimpleNamespace(
+        cards=[str(img)],
+        index=0,
+        image_objects=[],
+        image_label=MagicMock(),
+        progress_var=SimpleNamespace(set=lambda *a, **k: None),
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        type_vars={},
+        card_cache={},
+        file_to_key={},
+        _guess_key_from_filename=lambda *a, **k: None,
+        lookup_inventory_entry=lambda *a, **k: None,
+        update_set_options=lambda *a, **k: None,
+    )
+
+    dummy.start_scan_animation = lambda *a, **k: None
+    dummy.stop_scan_animation = lambda *a, **k: None
+    dummy.prompt_set_selection_api = MagicMock()
+    dummy._analyze_and_fill = lambda url, idx: ui.CardEditorApp._apply_analysis_result(
+        dummy, ui.analyze_card_image(url), idx
+    )
+
+    options = [("a", "Set A"), ("b", "Set B")]
+    with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
+         patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
+         patch.object(
+            ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": ""}
+         ), \
+         patch.object(ui, "lookup_sets_from_api", return_value=options):
+        ui.CardEditorApp.show_card(dummy)
+
+    dummy.prompt_set_selection_api.assert_called_once_with(options)
 
 
 def test_analyze_card_image_ocr(monkeypatch):
@@ -135,21 +191,6 @@ def test_analyze_card_image_leading_text(monkeypatch):
     assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
 
 
-def test_analyze_card_image_with_set(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
-
-    parsed = ui.CardData(name="Pikachu", number="001", set="swsh11")
-    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
-    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
-
-    with patch("openai.OpenAI", return_value=client):
-        result = ui.analyze_card_image("/tmp/img.jpg")
-
-    expected_name = ui.get_set_name("swsh11")
-    assert result == {"name": "Pikachu", "number": "001", "total": "", "set": expected_name}
-
-
 def test_analyze_card_image_includes_logo_labels(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
@@ -168,35 +209,6 @@ def test_analyze_card_image_includes_logo_labels(monkeypatch):
     content = mock_parse.call_args.kwargs["input"][0]["content"]
     assert content[2] == {"type": "input_text", "text": "Set ABC"}
     assert content[3] == {"type": "input_image", "image_url": "http://logo"}
-
-
-@pytest.mark.parametrize("letter", ["E", "F"])
-def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
-    monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
-
-    parsed = ui.CardData(name="Pikachu", number="001", set=letter)
-    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
-    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
-
-    with patch("openai.OpenAI", return_value=client):
-        result = ui.analyze_card_image("/tmp/img.jpg")
-
-    assert result == {"name": "Pikachu", "number": "001", "total": "", "set": ""}
-
-
-def test_analyze_card_image_unknown_set(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
-
-    parsed = ui.CardData(name="Pikachu", number="001", set="unknown-set")
-    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
-    client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
-
-    with patch("openai.OpenAI", return_value=client):
-        result = ui.analyze_card_image("/tmp/img.jpg")
-
-    assert result == {"name": "Pikachu", "number": "001", "total": "", "set": ""}
 
 
 def test_analyze_card_image_local_hash(monkeypatch):
