@@ -349,7 +349,7 @@ def match_set_code(value: str) -> str:
 
 def identify_set_by_hash(
     scan_path: str, rect: tuple[int, int, int, int]
-) -> tuple[str, int]:
+) -> list[tuple[str, int]]:
     """Identify the card set by comparing image hashes of the set symbol.
 
     Parameters
@@ -362,10 +362,10 @@ def identify_set_by_hash(
 
     Returns
     -------
-    tuple[str, int]
-        Tuple of the best matching set code (derived from filename) and the
-        hash difference.  When matching fails, ``("", float('inf'))`` is
-        returned.
+    list[tuple[str, int]]
+        List of up to three tuples containing the best matching set codes
+        (derived from filenames) and their hash differences, sorted in
+        ascending order.  When matching fails, an empty list is returned.
     """
 
     logos = {}
@@ -387,7 +387,7 @@ def identify_set_by_hash(
                 continue
 
     if not logos:
-        return "", float("inf")
+        return []
 
     try:
         with Image.open(scan_path) as im:
@@ -398,16 +398,15 @@ def identify_set_by_hash(
                 imagehash.average_hash(crop),
             )
     except Exception:
-        return "", float("inf")
+        return []
 
-    best_code = ""
-    best_diff = float("inf")
+    results: list[tuple[str, int]] = []
     for code, hashes in logos.items():
         diff = sum(h - c for h, c in zip(hashes, crop_hashes))
-        if diff < best_diff:
-            best_code, best_diff = code, diff
+        results.append((code, int(diff)))
 
-    return best_code, int(best_diff)
+    results.sort(key=lambda x: x[1])
+    return results[:3]
 
 
 class CardData(BaseModel):
@@ -524,6 +523,7 @@ class CardEditorApp:
         self.pool_total_label = None
         self.auction_queue = []
         self.in_scan = False
+        self.current_image_path = ""
         self.show_loading_screen()
         threading.Thread(target=self.startup_tasks, daemon=True).start()
 
@@ -2599,6 +2599,7 @@ class CardEditorApp:
         self.progress_var.set(f"{self.index + 1}/{len(self.cards)}")
 
         image_path = self.cards[self.index]
+        self.current_image_path = image_path
         cache_key = self.file_to_key.get(os.path.basename(image_path))
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
@@ -2671,6 +2672,9 @@ class CardEditorApp:
                 args=(remote_url, self.index),
                 daemon=True,
             ).start()
+        else:
+            if hasattr(self, "prompt_set_selection"):
+                self.prompt_set_selection(image_path)
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
@@ -2764,6 +2768,90 @@ class CardEditorApp:
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
             self.update_set_options()
+
+        # Allow the user to confirm the set using symbol hashes
+        if getattr(self, "current_image_path", "") and hasattr(self, "prompt_set_selection"):
+            self.prompt_set_selection(self.current_image_path)
+
+    def prompt_set_selection(self, scan_path: str):
+        """Display a dialog with candidate set logos for manual selection."""
+        try:
+            with Image.open(scan_path) as im:
+                w, h = im.size
+        except Exception:
+            return
+
+        matches = identify_set_by_hash(scan_path, (0, 0, w, h))
+        if not matches:
+            return
+
+        # Load logos if they haven't been loaded yet
+        if not getattr(self, "set_logos", None):
+            try:
+                self.load_set_logos()
+            except Exception:
+                pass
+
+        def apply_selection(code: str):
+            name = get_set_name(code) or code
+            if hasattr(self, "set_var"):
+                try:
+                    self.set_var.set(name)
+                except Exception:
+                    pass
+            if "set" in getattr(self, "entries", {}):
+                entry = self.entries["set"]
+                try:
+                    entry.set(name)
+                except Exception:
+                    try:
+                        entry.delete(0, tk.END)
+                        entry.insert(0, name)
+                    except Exception:
+                        pass
+            if hasattr(self, "update_set_options"):
+                try:
+                    self.update_set_options()
+                except Exception:
+                    pass
+
+        # In headless environments, avoid creating GUI windows
+        try:
+            top = tk.Toplevel(self.root)
+        except Exception:
+            apply_selection(matches[0][0])
+            return
+
+        top.title("Wybierz set")
+        images = []
+
+        for i, (code, _diff) in enumerate(matches):
+            img = self.set_logos.get(code)
+            if img is None:
+                path = os.path.join(SET_LOGO_DIR, f"{code}.png")
+                if os.path.exists(path):
+                    try:
+                        logo_img = Image.open(path)
+                        logo_img.thumbnail((40, 40))
+                        img = ImageTk.PhotoImage(logo_img)
+                        self.set_logos[code] = img
+                    except Exception:
+                        continue
+            if img is None:
+                continue
+            btn = tk.Button(top, image=img, command=lambda c=code: (apply_selection(c), top.destroy()))
+            btn.grid(row=0, column=i, padx=5, pady=5)
+            tk.Label(top, text=code).grid(row=1, column=i, padx=5, pady=2)
+            images.append(img)
+
+        # keep references to prevent garbage collection
+        top.images = images
+        try:
+            top.transient(self.root)
+            top.grab_set()
+            top.wait_window()
+        except Exception:
+            pass
 
     def generate_location(self, idx):
         return storage.generate_location(idx)
