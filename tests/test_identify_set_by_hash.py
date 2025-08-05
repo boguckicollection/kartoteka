@@ -16,6 +16,7 @@ def test_identify_set_by_hash_match():
     with Image.open(logo_path) as im:
         w, h = im.size
     matches = ui.identify_set_by_hash(str(logo_path), (0, 0, w, h))
+    assert len(matches) >= 4
     code, name, diff = matches[0]
     assert code == "sv01"
     assert name == expected_name
@@ -28,6 +29,7 @@ def test_identify_set_by_hash_maps_code_to_name():
     with Image.open(logo_path) as im:
         w, h = im.size
     matches = ui.identify_set_by_hash(str(logo_path), (0, 0, w, h))
+    assert len(matches) >= 4
     code, name, _ = matches[0]
     assert ui.get_set_name(code) == name
     assert name == expected_name

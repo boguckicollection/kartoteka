@@ -556,7 +556,7 @@ def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
 
 def identify_set_by_hash(
     scan_path: str, rect: tuple[int, int, int, int]
-) -> list[tuple[str, int]]:
+) -> list[tuple[str, str, int]]:
     """Identify the card set by comparing image hashes of the set symbol.
 
     Parameters
@@ -570,7 +570,7 @@ def identify_set_by_hash(
     Returns
     -------
     list[tuple[str, str, int]]
-        List of up to three tuples containing the best matching set codes,
+        List of up to four tuples containing the best matching set codes,
         their full set names and hash differences, sorted in ascending order.
         When matching fails, an empty list is returned.
     """
@@ -618,11 +618,11 @@ def identify_set_by_hash(
     results.sort(key=lambda x: x[1])
 
     symbol_hash = str(crop_hashes[0])
-    for best_code, diff in results[:3]:
+    for best_code, diff in results[:4]:
         print(f"Hash {symbol_hash} -> {best_code} ({diff})")
 
     mapped: list[tuple[str, str, int]] = []
-    for code, diff in results[:3]:
+    for code, diff in results[:4]:
         name = get_set_name(code)
         mapped.append((code, name, diff))
     return mapped
