@@ -2876,7 +2876,18 @@ class CardEditorApp:
             ).start()
         else:
             if hasattr(self, "prompt_set_selection"):
-                self.prompt_set_selection(image_path)
+                try:
+                    with Image.open(image_path) as im:
+                        rect = get_symbol_rect(*im.size)
+                    matches = identify_set_by_hash(image_path, rect)
+                except Exception:
+                    matches = []
+                options = [(c, n) for c, n, _ in matches]
+                if options:
+                    try:
+                        self.prompt_set_selection(options)
+                    except Exception:
+                        pass
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
@@ -2997,9 +3008,17 @@ class CardEditorApp:
         # Fallback to local hashing/OCR/AI
         if getattr(self, "current_image_path", "") and hasattr(self, "prompt_set_selection"):
             try:
-                self.prompt_set_selection(self.current_image_path)
+                with Image.open(self.current_image_path) as im:
+                    rect = get_symbol_rect(*im.size)
+                matches = identify_set_by_hash(self.current_image_path, rect)
             except Exception:
-                pass
+                matches = []
+            options = [(c, n) for c, n, _ in matches]
+            if options:
+                try:
+                    self.prompt_set_selection(options)
+                except Exception:
+                    pass
 
     def prompt_set_selection_api(self, options):
         """Display a simple selection dialog for API-provided sets."""
@@ -3051,17 +3070,9 @@ class CardEditorApp:
         except Exception:
             pass
 
-    def prompt_set_selection(self, scan_path: str):
+    def prompt_set_selection(self, options: list[tuple[str, str]]):
         """Display a dialog with candidate set logos for manual selection."""
-        try:
-            with Image.open(scan_path) as im:
-                w, h = im.size
-        except Exception:
-            return
-
-        rect = get_symbol_rect(w, h)
-        matches = identify_set_by_hash(scan_path, rect)
-        if not matches:
+        if not options:
             return
 
         # Load logos if they haven't been loaded yet
@@ -3098,13 +3109,13 @@ class CardEditorApp:
         try:
             top = ctk.CTkToplevel(self.root, fg_color=BG_COLOR)
         except Exception:
-            apply_selection(matches[0][0])
+            apply_selection(options[0][0])
             return
 
         top.title("Wybierz set")
         images = []
 
-        for i, (code, name, _diff) in enumerate(matches):
+        for i, (code, name) in enumerate(options):
             img = self.set_logos.get(code)
             if img is None:
                 path = os.path.join(SET_LOGO_DIR, f"{code}.png")
@@ -3115,28 +3126,36 @@ class CardEditorApp:
                         img = ImageTk.PhotoImage(logo_img)
                         self.set_logos[code] = img
                     except Exception:
-                        continue
-            if img is None:
-                continue
-            btn = ctk.CTkButton(
-                top,
-                image=img,
-                text="",
-                fg_color=ACCENT_COLOR,
-                text_color=TEXT_COLOR,
-                hover_color=HOVER_COLOR,
-                command=lambda c=code: (apply_selection(c), top.destroy()),
-            )
-            btn.grid(row=0, column=i, padx=5, pady=5)
-            ctk.CTkLabel(top, text=name, text_color=TEXT_COLOR).grid(
-                row=1, column=i, padx=5, pady=2
-            )
+                        img = None
+            if img is not None:
+                btn = ctk.CTkButton(
+                    top,
+                    image=img,
+                    text="",
+                    fg_color=ACCENT_COLOR,
+                    text_color=TEXT_COLOR,
+                    hover_color=HOVER_COLOR,
+                    command=lambda c=code: (apply_selection(c), top.destroy()),
+                )
+                btn.grid(row=0, column=i, padx=5, pady=5)
+                ctk.CTkLabel(top, text=name, text_color=TEXT_COLOR).grid(
+                    row=1, column=i, padx=5, pady=2
+                )
+            else:
+                btn = ctk.CTkButton(
+                    top,
+                    text=name,
+                    fg_color=ACCENT_COLOR,
+                    text_color=TEXT_COLOR,
+                    hover_color=HOVER_COLOR,
+                    command=lambda c=code: (apply_selection(c), top.destroy()),
+                )
+                btn.grid(row=0, column=i, padx=5, pady=5)
             images.append(img)
 
         # keep references to prevent garbage collection
         top.images = images
         try:
-            # ensure correct geometry before centering
             top.update_idletasks()
             w = top.winfo_width()
             h = top.winfo_height()

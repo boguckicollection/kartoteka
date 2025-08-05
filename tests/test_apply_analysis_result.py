@@ -56,6 +56,23 @@ def test_apply_analysis_result_multiple_sets(monkeypatch):
 def test_apply_analysis_result_fallback(monkeypatch):
     dummy, _n, _num, _set = make_dummy()
     monkeypatch.setattr(ui, "lookup_sets_from_api", lambda n, num, total: [])
+    class DummyImage:
+        size = (100, 100)
 
-    dummy._apply_analysis_result({"name": "Pikachu", "number": "037", "total": "159", "set": ""}, 0)
-    dummy.prompt_set_selection.assert_called_once_with("/tmp/img.jpg")
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(ui.Image, "open", lambda path: DummyImage())
+    monkeypatch.setattr(
+        ui,
+        "identify_set_by_hash",
+        lambda path, rect: [("x", "Set X", 0)],
+    )
+
+    dummy._apply_analysis_result(
+        {"name": "Pikachu", "number": "037", "total": "159", "set": ""}, 0
+    )
+    dummy.prompt_set_selection.assert_called_once_with([("x", "Set X")])
