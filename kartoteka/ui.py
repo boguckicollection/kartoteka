@@ -594,7 +594,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
             rect = get_symbol_rect(w, h)
             ocr_matches = extract_set_code_ocr(local_path, rect)
             if len(ocr_matches) == 1:
-                return {"name": "", "number": "", "set": ocr_matches[0][1]}
+                return {"name": "", "number": "", "total": "", "set": ocr_matches[0][1]}
         except Exception:
             ocr_matches = []
 
@@ -608,12 +608,12 @@ def analyze_card_image(path: str, translate_name: bool = False):
             if matches:
                 code, name, diff = matches[0]
                 if diff <= HASH_DIFF_THRESHOLD:
-                    return {"name": "", "number": "", "set": name}
+                    return {"name": "", "number": "", "total": "", "set": name}
         except Exception:
             pass
 
     if not OPENAI_API_KEY:
-        return {"name": "", "number": "", "set": ""}
+        return {"name": "", "number": "", "total": "", "set": ""}
 
     if parsed.scheme in ("http", "https"):
         url = path
@@ -650,14 +650,19 @@ def analyze_card_image(path: str, translate_name: bool = False):
             or not getattr(resp.output[0].content[0], "parsed", None)
         ):
             print(f"[ERROR] analyze_card_image failed to parse response: {resp}")
-            return {"name": "", "number": "", "set": ""}
+            return {"name": "", "number": "", "total": "", "set": ""}
         data: CardData = resp.output[0].content[0].parsed
 
-        number = data.number or ""
-        if isinstance(number, str):
-            m = re.match(r"\D*(\d+)", number)
+        raw_number = data.number or ""
+        number = ""
+        total = ""
+        if isinstance(raw_number, str):
+            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
             if m:
-                number = str(int(m.group(1)))
+                number = m.group(1)
+                total = m.group(2) or ""
+            else:
+                number = re.sub(r"\D+", "", raw_number)
 
         name = data.name or ""
         set_code = data.set or ""
@@ -668,10 +673,10 @@ def analyze_card_image(path: str, translate_name: bool = False):
         if translate_name and isinstance(name, str) and not name.isascii():
             name = translate_to_english(name)
         set_name = get_set_name(set_code)
-        return {"name": name, "number": number, "set": set_name}
+        return {"name": name, "number": number, "total": total, "set": set_name}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {"name": "", "number": "", "set": ""}
+        return {"name": "", "number": "", "total": "", "set": ""}
 
 
 class CardEditorApp:
@@ -2958,6 +2963,11 @@ class CardEditorApp:
         if result:
             name = result.get("name", "")
             number = result.get("number", "")
+            total = result.get("total") or ""
+            if not total and isinstance(number, str):
+                m = re.match(r"(\d+)\s*/\s*(\d+)", number)
+                if m:
+                    number, total = m.group(1), m.group(2)
             set_name = result.get("set", "")
             self.entries["nazwa"].delete(0, tk.END)
             self.entries["nazwa"].insert(0, name)
@@ -2966,9 +2976,80 @@ class CardEditorApp:
             self.entries["set"].set(set_name)
             self.update_set_options()
 
-        # Allow the user to confirm the set using symbol hashes
+            try:
+                api_sets = lookup_sets_from_api(name, number, total or None)
+            except Exception:
+                api_sets = []
+
+            if len(api_sets) == 1:
+                self.entries["set"].set(api_sets[0][1])
+                self.update_set_options()
+                return
+            if len(api_sets) > 1 and hasattr(self, "prompt_set_selection_api"):
+                try:
+                    self.prompt_set_selection_api(api_sets)
+                except Exception:
+                    pass
+                return
+            if api_sets:
+                return
+
+        # Fallback to local hashing/OCR/AI
         if getattr(self, "current_image_path", "") and hasattr(self, "prompt_set_selection"):
-            self.prompt_set_selection(self.current_image_path)
+            try:
+                self.prompt_set_selection(self.current_image_path)
+            except Exception:
+                pass
+
+    def prompt_set_selection_api(self, options):
+        """Display a simple selection dialog for API-provided sets."""
+        if not options:
+            return
+
+        def apply(name: str):
+            try:
+                self.entries["set"].set(name)
+            except Exception:
+                entry = self.entries.get("set")
+                if entry:
+                    try:
+                        entry.delete(0, tk.END)
+                        entry.insert(0, name)
+                    except Exception:
+                        pass
+            try:
+                self.update_set_options()
+            except Exception:
+                pass
+
+        try:
+            top = ctk.CTkToplevel(self.root, fg_color=BG_COLOR)
+        except Exception:
+            apply(options[0][1])
+            return
+
+        top.title("Wybierz set")
+        for code, name in options:
+            btn = ctk.CTkButton(
+                top,
+                text=name,
+                fg_color=ACCENT_COLOR,
+                hover_color=HOVER_COLOR,
+                command=lambda n=name: (apply(n), top.destroy()),
+            )
+            btn.pack(padx=10, pady=5, fill="x")
+
+        try:
+            top.update_idletasks()
+            w = top.winfo_width()
+            h = top.winfo_height()
+            x = int(top.winfo_screenwidth() / 2 - w / 2)
+            y = int(top.winfo_screenheight() / 2 - h / 2)
+            top.geometry(f"{w}x{h}+{x}+{y}")
+            top.focus_force()
+            top.grab_set()
+        except Exception:
+            pass
 
     def prompt_set_selection(self, scan_path: str):
         """Display a dialog with candidate set logos for manual selection."""

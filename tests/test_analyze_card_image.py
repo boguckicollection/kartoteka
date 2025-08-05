@@ -75,7 +75,7 @@ def test_analyze_card_image_ocr(monkeypatch):
         patch("openai.OpenAI") as mock_openai:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "set": SV01_NAME}
+    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
     mock_ocr.assert_called_once()
     mock_hash.assert_not_called()
     mock_openai.assert_not_called()
@@ -103,7 +103,7 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     output = capsys.readouterr().out
-    assert result == {"name": "", "number": "", "set": ""}
+    assert result == {"name": "", "number": "", "total": "", "set": ""}
     assert "analyze_card_image failed to parse response" in output
 
 
@@ -118,7 +118,7 @@ def test_analyze_card_image_truncated_code_block(monkeypatch):
     with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "37", "set": ""}
+    assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
 
 
 def test_analyze_card_image_leading_text(monkeypatch):
@@ -132,7 +132,7 @@ def test_analyze_card_image_leading_text(monkeypatch):
     with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "37", "set": ""}
+    assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
 
 
 def test_analyze_card_image_with_set(monkeypatch):
@@ -147,7 +147,7 @@ def test_analyze_card_image_with_set(monkeypatch):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     expected_name = ui.get_set_name("swsh11")
-    assert result == {"name": "Pikachu", "number": "1", "set": expected_name}
+    assert result == {"name": "Pikachu", "number": "001", "total": "", "set": expected_name}
 
 
 def test_analyze_card_image_includes_logo_labels(monkeypatch):
@@ -182,7 +182,7 @@ def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "1", "set": ""}
+    assert result == {"name": "Pikachu", "number": "001", "total": "", "set": ""}
 
 
 def test_analyze_card_image_unknown_set(monkeypatch):
@@ -196,7 +196,7 @@ def test_analyze_card_image_unknown_set(monkeypatch):
     with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "1", "set": ""}
+    assert result == {"name": "Pikachu", "number": "001", "total": "", "set": ""}
 
 
 def test_analyze_card_image_local_hash(monkeypatch):
@@ -207,7 +207,7 @@ def test_analyze_card_image_local_hash(monkeypatch):
     with patch("openai.OpenAI") as mock_openai:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "set": SV01_NAME}
+    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
     mock_openai.assert_not_called()
 
 
@@ -227,7 +227,7 @@ def test_analyze_card_image_translate_name(monkeypatch):
     ) as mock_create:
         result = ui.analyze_card_image("/tmp/img.jpg", translate_name=True)
 
-    assert result == {"name": "Pikachu", "number": "37", "set": ""}
+    assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
     mock_create.assert_called_once()
 
 
@@ -269,7 +269,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
 
     with patch("openai.OpenAI", return_value=client), patch(
         "openai.chat.completions.create", return_value=resp_translate
-    ):
+    ), patch.object(ui, "lookup_sets_from_api", return_value=[]):
         ui.CardEditorApp._analyze_and_fill(dummy, "http://x", 0)
 
     name_entry.insert.assert_called_with(0, "Pikachu")
