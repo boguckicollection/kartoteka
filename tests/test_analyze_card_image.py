@@ -12,6 +12,9 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
 importlib.reload(ui)
 
+SV01_CODE = "sv01"
+SV01_NAME = ui.get_set_name(SV01_CODE)
+
 
 def test_show_card_uses_analyzer(tmp_path):
     img = tmp_path / "card.jpg"
@@ -48,7 +51,7 @@ def test_show_card_uses_analyzer(tmp_path):
 
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": "Base"}) as mock_analyze:
+        patch.object(ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": SV01_NAME}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
     folder = os.path.basename(img.parent)
@@ -56,7 +59,7 @@ def test_show_card_uses_analyzer(tmp_path):
     mock_analyze.assert_called_once_with(expected_url)
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "001")
-    set_var.set.assert_called_with("Base")
+    set_var.set.assert_called_with(SV01_NAME)
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
@@ -113,7 +116,8 @@ def test_analyze_card_image_with_set(monkeypatch):
     with patch("openai.OpenAI", return_value=client):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "1", "set": "Lost Origin"}
+    expected_name = ui.get_set_name("swsh11")
+    assert result == {"name": "Pikachu", "number": "1", "set": expected_name}
 
 
 def test_analyze_card_image_includes_logo_labels(monkeypatch):
@@ -169,11 +173,11 @@ def test_analyze_card_image_local_hash(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     importlib.reload(ui)
 
-    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / "sv01.png"
+    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
     with patch("openai.OpenAI") as mock_openai:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "set": "Scarlet & Violet"}
+    assert result == {"name": "", "number": "", "set": SV01_NAME}
     mock_openai.assert_not_called()
 
 
@@ -244,7 +248,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;numer;set\nPikachu;001;Base\n",
+        f"name;numer;set\nPikachu;001;{SV01_NAME}\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("INVENTORY_CSV", str(csv_path))
@@ -276,7 +280,7 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
         type_vars={},
         card_cache={},
-        file_to_key={img.name: "Pikachu|001|Base"},
+        file_to_key={img.name: f"Pikachu|001|{SV01_NAME}"},
         _guess_key_from_filename=lambda *a, **k: None,
         update_set_options=lambda *a, **k: None,
     )
@@ -294,5 +298,5 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     mock_analyze.assert_not_called()
     name_entry.insert.assert_called_with(0, "Pikachu")
     num_entry.insert.assert_called_with(0, "001")
-    set_var.set.assert_called_with("Base")
+    set_var.set.assert_called_with(SV01_NAME)
 
