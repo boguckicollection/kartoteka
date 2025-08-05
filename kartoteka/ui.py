@@ -2950,6 +2950,15 @@ class CardEditorApp:
         # keep references to prevent garbage collection
         top.images = images
         try:
+            # ensure correct geometry before centering
+            top.update_idletasks()
+            w = top.winfo_width()
+            h = top.winfo_height()
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+            x = int(screen_w / 2 - w / 2)
+            y = int(screen_h / 2 - h / 2)
+            top.geometry(f"{w}x{h}+{x}+{y}")
             top.transient(self.root)
             top.grab_set()
             top.wait_window()
