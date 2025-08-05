@@ -301,6 +301,65 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     return result
 
 
+def prompt_set_selection_api(options):
+    """Prompt the user to choose a set from API results.
+
+    Parameters
+    ----------
+    options:
+        List of ``(set_code, set_name)`` tuples.
+
+    Returns
+    -------
+    str
+        The selected set name or the first option if no selection is made.
+    """
+
+    if not options:
+        return ""
+
+    selected = {"name": options[0][1]}
+    try:
+        root = tk._default_root or tk.Tk()
+        top = ctk.CTkToplevel(root, fg_color=BG_COLOR)
+    except Exception:
+        return selected["name"]
+
+    top.title("Wybierz set")
+
+    def choose(name: str):
+        selected["name"] = name
+        try:
+            top.destroy()
+        except Exception:
+            pass
+
+    for _code, name in options:
+        btn = ctk.CTkButton(
+            top,
+            text=name,
+            fg_color=ACCENT_COLOR,
+            hover_color=HOVER_COLOR,
+            command=lambda n=name: choose(n),
+        )
+        btn.pack(padx=10, pady=5, fill="x")
+
+    try:
+        top.update_idletasks()
+        w = top.winfo_width()
+        h = top.winfo_height()
+        x = int(top.winfo_screenwidth() / 2 - w / 2)
+        y = int(top.winfo_screenheight() / 2 - h / 2)
+        top.geometry(f"{w}x{h}+{x}+{y}")
+        top.focus_force()
+        top.grab_set()
+        top.wait_window()
+    except Exception:
+        pass
+
+    return selected["name"]
+
+
 def choose_nearest_locations(order_list, output_data):
     """Assign the nearest warehouse codes to order items.
 
@@ -633,22 +692,21 @@ def analyze_card_image(path: str, translate_name: bool = False):
                 return {"name": "", "number": "", "total": "", "set": ocr_matches[0][1]}
         except Exception:
             ocr_matches = []
-
-    # Try to identify the set using local logo hashes if OCR failed
-    if local_path and not ocr_matches:
-        try:
-            if w is None or h is None:
-                with Image.open(local_path) as im:
-                    w, h = im.size
-            matches = identify_set_by_hash(local_path, get_symbol_rect(w, h))
-            if matches:
-                code, name, diff = matches[0]
-                if diff <= HASH_DIFF_THRESHOLD:
-                    return {"name": "", "number": "", "total": "", "set": name}
-        except Exception:
-            pass
-
     if not OPENAI_API_KEY:
+        # Without the API key we can't recognize name/number, so fall back to
+        # local hashing if possible.
+        if local_path and not ocr_matches:
+            try:
+                if w is None or h is None:
+                    with Image.open(local_path) as im:
+                        w, h = im.size
+                matches = identify_set_by_hash(local_path, get_symbol_rect(w, h))
+                if matches:
+                    code, name, diff = matches[0]
+                    if diff <= HASH_DIFF_THRESHOLD:
+                        return {"name": "", "number": "", "total": "", "set": name}
+            except Exception:
+                pass
         return {"name": "", "number": "", "total": "", "set": ""}
 
     if parsed.scheme in ("http", "https"):
@@ -708,6 +766,44 @@ def analyze_card_image(path: str, translate_name: bool = False):
         set_code = match_set_code(set_code)
         if translate_name and isinstance(name, str) and not name.isascii():
             name = translate_to_english(name)
+
+        # Look up possible sets from external API
+        api_sets: list[tuple[str, str]] = []
+        if name and number:
+            try:
+                api_sets = lookup_sets_from_api(name, number, total or None)
+            except Exception:
+                api_sets = []
+
+        if len(api_sets) == 1:
+            set_name = api_sets[0][1]
+            return {"name": name, "number": number, "total": total, "set": set_name}
+        if len(api_sets) > 1:
+            try:
+                set_name = prompt_set_selection_api(api_sets)
+            except Exception:
+                set_name = api_sets[0][1]
+            return {"name": name, "number": number, "total": total, "set": set_name}
+
+        # Fallback to local hashing if API did not provide answers
+        if local_path and not ocr_matches:
+            try:
+                if w is None or h is None:
+                    with Image.open(local_path) as im:
+                        w, h = im.size
+                matches = identify_set_by_hash(local_path, get_symbol_rect(w, h))
+                if matches:
+                    code, name_match, diff = matches[0]
+                    if diff <= HASH_DIFF_THRESHOLD:
+                        return {
+                            "name": name,
+                            "number": number,
+                            "total": total,
+                            "set": name_match,
+                        }
+            except Exception:
+                pass
+
         set_name = get_set_name(set_code)
         return {"name": name, "number": number, "total": total, "set": set_name}
     except Exception as e:
@@ -2906,12 +3002,11 @@ class CardEditorApp:
             skip_analysis = True
 
         folder = os.path.basename(os.path.dirname(image_path))
-        remote_url = f"{BASE_IMAGE_URL}/{folder}/{os.path.basename(image_path)}"
         if not skip_analysis:
             self.start_scan_animation()
             threading.Thread(
                 target=self._analyze_and_fill,
-                args=(remote_url, self.index),
+                args=(image_path, self.index),
                 daemon=True,
             ).start()
         else:
@@ -2996,7 +3091,7 @@ class CardEditorApp:
         if hasattr(self, "current_card_photo"):
             self.image_label.configure(image=self.current_card_photo)
 
-    def _analyze_and_fill(self, url, idx):
+    def _analyze_and_fill(self, path, idx):
         lang_var = getattr(self, "lang_var", None)
         translate = False
         if lang_var is not None:
@@ -3004,7 +3099,7 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
-        result = analyze_card_image(url, translate_name=translate)
+        result = analyze_card_image(path, translate_name=translate)
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
@@ -3027,39 +3122,7 @@ class CardEditorApp:
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
             self.update_set_options()
-
-            try:
-                api_sets = lookup_sets_from_api(name, number, total or None)
-            except Exception:
-                api_sets = []
-
-            if len(api_sets) == 1:
-                self.entries["set"].set(api_sets[0][1])
-                self.update_set_options()
-                return
-            if len(api_sets) > 1 and hasattr(self, "prompt_set_selection_api"):
-                try:
-                    self.prompt_set_selection_api(api_sets)
-                except Exception:
-                    pass
-                return
-            if api_sets:
-                return
-
-        # Fallback to local hashing/OCR/AI
-        if getattr(self, "current_image_path", "") and hasattr(self, "prompt_set_selection"):
-            try:
-                with Image.open(self.current_image_path) as im:
-                    rect = get_symbol_rect(*im.size)
-                matches = identify_set_by_hash(self.current_image_path, rect)
-            except Exception:
-                matches = []
-            options = [(c, n) for c, n, _ in matches]
-            if options:
-                try:
-                    self.prompt_set_selection(options)
-                except Exception:
-                    pass
+        return
 
     def prompt_set_selection_api(self, options):
         """Display a simple selection dialog for API-provided sets."""
