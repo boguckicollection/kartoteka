@@ -145,7 +145,14 @@ def reload_sets():
 
 reload_sets()
 
-
+# Allowed eras and set codes used for logo operations
+ALLOWED_ERAS = {"Scarlet & Violet", "Sword & Shield", "Sun & Moon"}
+ALLOWED_SET_CODES = {
+    item["code"]
+    for era, sets in tcg_sets_eng_by_era.items()
+    if era in ALLOWED_ERAS
+    for item in sets
+}
 
 
 def get_set_code(name: str) -> str:
@@ -374,12 +381,15 @@ def identify_set_by_hash(
         for file in os.listdir(SET_LOGO_DIR):
             if not file.lower().endswith(".png"):
                 continue
+            code = os.path.splitext(file)[0]
+            if ALLOWED_SET_CODES and code not in ALLOWED_SET_CODES:
+                continue
             path = os.path.join(SET_LOGO_DIR, file)
             if not os.path.isfile(path):
                 continue
             try:
                 with Image.open(path) as im:
-                    logos[os.path.splitext(file)[0]] = (
+                    logos[code] = (
                         imagehash.phash(im),
                         imagehash.dhash(im),
                         imagehash.average_hash(im),
@@ -452,7 +462,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
 
     try:
-        logos = load_set_logo_uris()
+        logos = load_set_logo_uris(available_sets=ALLOWED_SET_CODES)
         content = [
             {
                 "type": "input_text",
@@ -2913,6 +2923,8 @@ class CardEditorApp:
             if not file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
                 continue
             code = os.path.splitext(file)[0]
+            if ALLOWED_SET_CODES and code not in ALLOWED_SET_CODES:
+                continue
             try:
                 img = Image.open(path)
                 img.thumbnail((40, 40))
