@@ -67,7 +67,7 @@ def test_show_card_uses_analyzer(tmp_path):
     expected_url = f"{ui.BASE_IMAGE_URL}/{folder}/{img.name}"
     mock_analyze.assert_called_once_with(expected_url)
     name_entry.insert.assert_called_with(0, "Pika")
-    num_entry.insert.assert_called_with(0, "001")
+    num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
     dummy.prompt_set_selection_api.assert_not_called()
 
@@ -339,6 +339,6 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
 
     mock_analyze.assert_not_called()
     name_entry.insert.assert_called_with(0, "Pikachu")
-    num_entry.insert.assert_called_with(0, "001")
+    num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
 

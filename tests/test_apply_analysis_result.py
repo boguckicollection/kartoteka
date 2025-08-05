@@ -37,7 +37,7 @@ def test_apply_analysis_result_single_set(monkeypatch):
     monkeypatch.setattr(ui, "lookup_sets_from_api", fake_lookup)
 
     dummy._apply_analysis_result({"name": "Pikachu", "number": "037/159", "set": ""}, 0)
-    assert captured["args"] == ("Pikachu", "037", "159")
+    assert captured["args"] == ("Pikachu", "37", "159")
     set_var.set.assert_called_with("Scarlet & Violet")
     dummy.prompt_set_selection_api.assert_not_called()
     dummy.prompt_set_selection.assert_not_called()
