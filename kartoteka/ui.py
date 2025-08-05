@@ -630,7 +630,7 @@ def identify_set_by_hash(
 
 def extract_set_code_ocr(
     scan_path: str, rect: tuple[int, int, int, int]
-) -> list[tuple[str, str]]:
+) -> list[str]:
     """Extract potential set codes from the scan using OCR.
 
     Parameters
@@ -643,9 +643,9 @@ def extract_set_code_ocr(
 
     Returns
     -------
-    list[tuple[str, str]]
-        List of tuples ``(code, set_name)`` recognized from the image. When no
-        codes are recognized the list is empty.
+    list[str]
+        List of unique set code strings recognized from the image. When no codes
+        are recognized the list is empty.
     """
 
     try:
@@ -658,15 +658,10 @@ def extract_set_code_ocr(
     candidates: set[str] = set()
     for token in re.split(r"\s+", raw.upper()):
         token = re.sub(r"[^A-Z0-9]", "", token).strip()
-        if len(token) > 1:
+        if len(token) > 1 and not token.isdigit():
             candidates.add(token.lower())
 
-    results: list[tuple[str, str]] = []
-    for code in candidates:
-        name = tcg_sets_eng_code_map.get(code)
-        if name:
-            results.append((code, name))
-    return results
+    return list(candidates)
 
 
 class CardData(BaseModel):
@@ -681,7 +676,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
     local_path = path if parsed.scheme not in ("http", "https") else None
 
     w = h = None
-    ocr_matches: list[tuple[str, str]] = []
+    ocr_matches: list[str] = []
     if local_path:
         try:
             with Image.open(local_path) as im:
@@ -689,7 +684,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
             rect = get_symbol_rect(w, h)
             ocr_matches = extract_set_code_ocr(local_path, rect)
             if len(ocr_matches) == 1:
-                return {"name": "", "number": "", "total": "", "set": ocr_matches[0][1]}
+                return {"name": "", "number": "", "total": "", "set": ocr_matches[0]}
         except Exception:
             ocr_matches = []
     if not OPENAI_API_KEY:

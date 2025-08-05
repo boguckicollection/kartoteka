@@ -60,14 +60,14 @@ def test_show_card_uses_analyzer(tmp_path):
     with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
          patch.object(
-            ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": SV01_NAME}
+            ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": SV01_CODE}
          ) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
     mock_analyze.assert_called_once_with(str(img))
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "1")
-    set_var.set.assert_called_with(SV01_NAME)
+    set_var.set.assert_called_with(SV01_CODE)
 
 
 def test_analyze_card_image_api_single_set(monkeypatch):
@@ -142,13 +142,13 @@ def test_analyze_card_image_ocr(monkeypatch):
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
-    with patch.object(ui, "extract_set_code_ocr", return_value=[(SV01_CODE, SV01_NAME)]) as mock_ocr, \
+    with patch.object(ui, "extract_set_code_ocr", return_value=[SV01_CODE]) as mock_ocr, \
         patch.object(ui, "identify_set_by_hash") as mock_hash, \
         patch("openai.OpenAI") as mock_openai, \
         patch.object(ui, "lookup_sets_from_api") as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
+    assert result == {"name": "", "number": "", "total": "", "set": SV01_CODE}
     mock_ocr.assert_called_once()
     mock_hash.assert_not_called()
     mock_openai.assert_not_called()
@@ -160,10 +160,10 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
     path = tmp_path / "img.png"
     img.save(path)
 
-    with patch("pytesseract.image_to_string", return_value="E\nSV01\n"):
+    with patch("pytesseract.image_to_string", return_value="E\n123\nSV01\n"):
         result = ui.extract_set_code_ocr(str(path), (0, 0, 10, 10))
 
-    assert result == [(SV01_CODE, SV01_NAME)]
+    assert result == [SV01_CODE]
 
 
 def test_analyze_card_image_bad_json(monkeypatch, capsys):
