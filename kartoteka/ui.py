@@ -178,6 +178,7 @@ def get_set_name(code: str) -> str:
         for key, name in mapping.items():
             if key.lower() == search:
                 return name
+    print(f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana.")
     return code
 
 
@@ -527,8 +528,6 @@ def identify_set_by_hash(
     mapped: list[tuple[str, str, int]] = []
     for code, diff in results[:3]:
         name = get_set_name(code)
-        if name == code:
-            print(f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana.")
         mapped.append((code, name, diff))
     return mapped
 
