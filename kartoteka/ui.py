@@ -480,7 +480,7 @@ def match_set_code(value: str) -> str:
 def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
     """Return a rectangle around the expected set symbol location.
 
-    The symbol is typically located near the bottom-right corner of a card.
+    The symbol is typically located near the bottom-left corner of a card.
     For very small images (e.g. stand-alone set logos) the entire image is
     returned to ensure matching still works in tests and for direct logo
     comparisons.
@@ -490,9 +490,9 @@ def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
     if w <= 100 and h <= 100:
         return (0, 0, w, h)
 
-    left = int(w * 0.7)
     upper = int(h * 0.8)
-    return (left, upper, w, h)
+    right = int(w * 0.3)
+    return (0, upper, right, h)
 
 
 def identify_set_by_hash(
