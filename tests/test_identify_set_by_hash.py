@@ -12,17 +12,22 @@ importlib.reload(ui)  # ensure globals use stubbed modules
 
 def test_identify_set_by_hash_match():
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / "sv01.png"
+    expected_name = ui.get_set_name("sv01")
     with Image.open(logo_path) as im:
         w, h = im.size
     matches = ui.identify_set_by_hash(str(logo_path), (0, 0, w, h))
-    code, _name, diff = matches[0]
+    code, name, diff = matches[0]
     assert code == "sv01"
+    assert name == expected_name
     assert diff == 0
 
 
 def test_identify_set_by_hash_maps_code_to_name():
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / "sv01.png"
+    expected_name = ui.get_set_name("sv01")
     with Image.open(logo_path) as im:
         w, h = im.size
     matches = ui.identify_set_by_hash(str(logo_path), (0, 0, w, h))
-    assert matches[0][1] == "Scarlet & Violet"
+    code, name, _ = matches[0]
+    assert ui.get_set_name(code) == name
+    assert name == expected_name
