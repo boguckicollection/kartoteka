@@ -24,6 +24,7 @@ import difflib
 import sys
 from typing import Iterable, Optional
 from pydantic import BaseModel
+import pytesseract
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
@@ -428,6 +429,47 @@ def identify_set_by_hash(
     return mapped
 
 
+def extract_set_code_ocr(
+    scan_path: str, rect: tuple[int, int, int, int]
+) -> list[tuple[str, str]]:
+    """Extract potential set codes from the scan using OCR.
+
+    Parameters
+    ----------
+    scan_path:
+        Path to the card scan image.
+    rect:
+        Bounding box ``(left, upper, right, lower)`` containing the expected
+        location of the set code.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        List of tuples ``(code, set_name)`` recognized from the image. When no
+        codes are recognized the list is empty.
+    """
+
+    try:
+        with Image.open(scan_path) as im:
+            crop = im.crop(rect)
+        raw = pytesseract.image_to_string(crop)
+    except Exception:
+        return []
+
+    candidates: set[str] = set()
+    for token in re.split(r"\s+", raw.upper()):
+        token = re.sub(r"[^A-Z0-9]", "", token).strip()
+        if len(token) > 1:
+            candidates.add(token.lower())
+
+    results: list[tuple[str, str]] = []
+    for code in candidates:
+        name = tcg_sets_eng_code_map.get(code)
+        if name:
+            results.append((code, name))
+    return results
+
+
 class CardData(BaseModel):
     """Structured card information returned by the model."""
     name: str = ""
@@ -439,11 +481,25 @@ def analyze_card_image(path: str, translate_name: bool = False):
     parsed = urlparse(path)
     local_path = path if parsed.scheme not in ("http", "https") else None
 
-    # Try to identify the set using local logo hashes first
+    w = h = None
+    ocr_matches: list[tuple[str, str]] = []
     if local_path:
         try:
             with Image.open(local_path) as im:
                 w, h = im.size
+            rect = (0, int(h * 0.8), int(w * 0.3), h)
+            ocr_matches = extract_set_code_ocr(local_path, rect)
+            if len(ocr_matches) == 1:
+                return {"name": "", "number": "", "set": ocr_matches[0][1]}
+        except Exception:
+            ocr_matches = []
+
+    # Try to identify the set using local logo hashes if OCR failed
+    if local_path and not ocr_matches:
+        try:
+            if w is None or h is None:
+                with Image.open(local_path) as im:
+                    w, h = im.size
             matches = identify_set_by_hash(local_path, (0, 0, w, h))
             if matches:
                 code, name, diff = matches[0]

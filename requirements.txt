@@ -5,3 +5,4 @@ customtkinter
 openai
 tkinterweb
 imagehash
+pytesseract
