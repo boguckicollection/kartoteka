@@ -55,6 +55,7 @@ PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
+HASH_DIFF_THRESHOLD = 7
 
 DEFAULT_LOGO_LIMIT = 20
 try:
@@ -421,12 +422,28 @@ class CardData(BaseModel):
     name: str = ""
     number: str = ""
     set: str = ""
+
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
+    parsed = urlparse(path)
+    local_path = path if parsed.scheme not in ("http", "https") else None
+
+    # Try to identify the set using local logo hashes first
+    if local_path:
+        try:
+            with Image.open(local_path) as im:
+                w, h = im.size
+            matches = identify_set_by_hash(local_path, (0, 0, w, h))
+            if matches:
+                code, name, diff = matches[0]
+                if diff <= HASH_DIFF_THRESHOLD:
+                    return {"name": "", "number": "", "set": name}
+        except Exception:
+            pass
+
     if not OPENAI_API_KEY:
         return {"name": "", "number": "", "set": ""}
 
-    parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
         url = path
     else:
