@@ -79,7 +79,7 @@ def test_analyze_card_image_truncated_code_block(monkeypatch):
     importlib.reload(ui)
 
     parsed = ui.CardData(name="Pikachu", number="037/159", set="")
-    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
     with patch("openai.OpenAI", return_value=client):
@@ -93,7 +93,7 @@ def test_analyze_card_image_leading_text(monkeypatch):
     importlib.reload(ui)
 
     parsed = ui.CardData(name="Pikachu", number="037/159", set="")
-    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
     with patch("openai.OpenAI", return_value=client):
@@ -107,7 +107,7 @@ def test_analyze_card_image_with_set(monkeypatch):
     importlib.reload(ui)
 
     parsed = ui.CardData(name="Pikachu", number="001", set="swsh11")
-    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
     with patch("openai.OpenAI", return_value=client):
@@ -122,7 +122,7 @@ def test_analyze_card_image_includes_logo_labels(monkeypatch):
 
     logos = {"ABC": "http://logo"}
     parsed = ui.CardData(name="", number="", set="")
-    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     mock_parse = MagicMock(return_value=resp)
     client = SimpleNamespace(responses=SimpleNamespace(parse=mock_parse))
 
@@ -142,7 +142,7 @@ def test_analyze_card_image_sanitizes_single_letter_set(monkeypatch, letter):
     importlib.reload(ui)
 
     parsed = ui.CardData(name="Pikachu", number="001", set=letter)
-    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
     with patch("openai.OpenAI", return_value=client):
@@ -156,7 +156,7 @@ def test_analyze_card_image_unknown_set(monkeypatch):
     importlib.reload(ui)
 
     parsed = ui.CardData(name="Pikachu", number="001", set="unknown-set")
-    resp = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
     with patch("openai.OpenAI", return_value=client):
@@ -170,7 +170,7 @@ def test_analyze_card_image_translate_name(monkeypatch):
     importlib.reload(ui)
 
     parsed = ui.CardData(name="\u30d4\u30ab\u30c1\u30e5\u30a6", number="037/159", set="")
-    resp_parse = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp_parse = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp_parse)))
     resp_translate = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
@@ -215,7 +215,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
 
     parsed = ui.CardData(name="\u30d4\u30ab\u30c1\u30e5\u30a6", number="001", set="")
-    resp_parse = SimpleNamespace(output=[SimpleNamespace(parsed=parsed)])
+    resp_parse = SimpleNamespace(output=[SimpleNamespace(content=[SimpleNamespace(parsed=parsed)])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp_parse)))
     resp_translate = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
