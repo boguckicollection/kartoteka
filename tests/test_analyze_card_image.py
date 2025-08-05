@@ -63,7 +63,7 @@ def test_analyze_card_image_bad_json(monkeypatch, capsys):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
 
-    resp = SimpleNamespace(output=[])
+    resp = SimpleNamespace(output=[SimpleNamespace(content=[])])
     client = SimpleNamespace(responses=SimpleNamespace(parse=MagicMock(return_value=resp)))
 
     with patch("openai.OpenAI", return_value=client):
