@@ -4,3 +4,4 @@ python-dotenv
 customtkinter
 openai
 tkinterweb
+imagehash
