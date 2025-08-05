@@ -15,5 +15,14 @@ def test_identify_set_by_hash_match():
     with Image.open(logo_path) as im:
         w, h = im.size
     matches = ui.identify_set_by_hash(str(logo_path), (0, 0, w, h))
-    assert matches[0][0] == "base1"
-    assert matches[0][1] == 0
+    code, _name, diff = matches[0]
+    assert code == "base1"
+    assert diff == 0
+
+
+def test_identify_set_by_hash_maps_code_to_name():
+    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / "base1.png"
+    with Image.open(logo_path) as im:
+        w, h = im.size
+    matches = ui.identify_set_by_hash(str(logo_path), (0, 0, w, h))
+    assert matches[0][1] == "Base Set"

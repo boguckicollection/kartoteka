@@ -362,10 +362,10 @@ def identify_set_by_hash(
 
     Returns
     -------
-    list[tuple[str, int]]
-        List of up to three tuples containing the best matching set codes
-        (derived from filenames) and their hash differences, sorted in
-        ascending order.  When matching fails, an empty list is returned.
+    list[tuple[str, str, int]]
+        List of up to three tuples containing the best matching set codes,
+        their full set names and hash differences, sorted in ascending order.
+        When matching fails, an empty list is returned.
     """
 
     logos = {}
@@ -406,7 +406,14 @@ def identify_set_by_hash(
         results.append((code, int(diff)))
 
     results.sort(key=lambda x: x[1])
-    return results[:3]
+
+    mapped: list[tuple[str, str, int]] = []
+    for code, diff in results[:3]:
+        name = get_set_name(code)
+        if name == code:
+            print(f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana.")
+        mapped.append((code, name, diff))
+    return mapped
 
 
 class CardData(BaseModel):
@@ -2825,7 +2832,7 @@ class CardEditorApp:
         top.title("Wybierz set")
         images = []
 
-        for i, (code, _diff) in enumerate(matches):
+        for i, (code, name, _diff) in enumerate(matches):
             img = self.set_logos.get(code)
             if img is None:
                 path = os.path.join(SET_LOGO_DIR, f"{code}.png")
@@ -2841,7 +2848,7 @@ class CardEditorApp:
                 continue
             btn = tk.Button(top, image=img, command=lambda c=code: (apply_selection(c), top.destroy()))
             btn.grid(row=0, column=i, padx=5, pady=5)
-            tk.Label(top, text=code).grid(row=1, column=i, padx=5, pady=2)
+            tk.Label(top, text=name).grid(row=1, column=i, padx=5, pady=2)
             images.append(img)
 
         # keep references to prevent garbage collection
