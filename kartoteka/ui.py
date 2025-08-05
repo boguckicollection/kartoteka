@@ -181,6 +181,92 @@ def get_set_name(code: str) -> str:
     return code
 
 
+def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
+    """Return possible set codes and names for the given card info.
+
+    Parameters
+    ----------
+    name:
+        Card name.
+    number:
+        Card number within the set.
+    total:
+        Optional total number of cards in the set (e.g. ``102`` for
+        ``25/102``). When provided it is included in the API query.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        A list of ``(set_code, set_name)`` tuples sorted by relevance.
+    """
+
+    name_api = normalize(name, keep_spaces=True)
+    params = {"name": name_api, "number": number}
+    if total:
+        params["total"] = total
+
+    try:
+        response = requests.get(
+            "https://www.tcggo.com/api/cards/", params=params, timeout=10
+        )
+        if response.status_code != 200:
+            print(f"[ERROR] API error: {response.status_code}")
+            return []
+        data = response.json()
+    except requests.Timeout:
+        print("[ERROR] Request timed out")
+        return []
+    except Exception as e:  # pragma: no cover - network/JSON errors
+        print(f"[ERROR] Fetching sets from TCGGO failed: {e}")
+        return []
+
+    if isinstance(data, dict):
+        if "cards" in data:
+            cards = data["cards"]
+        elif "data" in data:
+            cards = data["data"]
+        else:
+            cards = []
+    else:
+        cards = data
+
+    name_norm = normalize(name)
+    number_norm = str(number).strip().lower()
+    total_norm = str(total).strip().lower() if total else None
+
+    scores = {}
+    for card in cards:
+        episode = card.get("episode") or {}
+        set_name = episode.get("name")
+        set_code = episode.get("code")
+        if not (set_name and set_code):
+            continue
+
+        card_name_norm = normalize(card.get("name", ""))
+        card_number_norm = str(card.get("card_number", "")).strip().lower()
+        card_total_norm = str(card.get("total_prints", "")).strip().lower()
+
+        score = 0
+        if name_norm:
+            if card_name_norm == name_norm:
+                score += 2
+            elif name_norm in card_name_norm:
+                score += 1
+        if number_norm:
+            if card_number_norm == number_norm:
+                score += 2
+            elif number_norm in card_number_norm:
+                score += 1
+        if total_norm and card_total_norm == total_norm:
+            score += 1
+
+        key = (set_code, set_name)
+        scores[key] = scores.get(key, 0) + score
+
+    sorted_sets = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    return [key for key, _ in sorted_sets]
+
+
 def choose_nearest_locations(order_list, output_data):
     """Assign the nearest warehouse codes to order items.
 
