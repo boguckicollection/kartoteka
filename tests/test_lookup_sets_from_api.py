@@ -58,3 +58,28 @@ def test_lookup_sets_from_api_omits_total(monkeypatch):
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25", None)
     assert "total" not in captured["params"]
+
+
+def test_lookup_sets_from_api_filters_results(monkeypatch):
+    data = {
+        "cards": [
+            {
+                "name": "Pikachu",
+                "card_number": "25",
+                "total_prints": "102",
+                "episode": {"name": "Base Set", "code": "BS"},
+            },
+            {
+                "name": "Charmander",
+                "card_number": "4",
+                "total_prints": "99",
+                "episode": {"name": "Jungle", "code": "JU"},
+            },
+        ]
+    }
+
+    monkeypatch.setattr(
+        ui.requests, "get", lambda url, params=None, timeout=None: DummyResp(data)
+    )
+    result = ui.lookup_sets_from_api("Pikachu", "25", "102")
+    assert result == [("BS", "Base Set")]
