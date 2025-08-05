@@ -219,6 +219,11 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     if total:
         params["total"] = total
 
+    # log input data
+    print(
+        f"[lookup_sets_from_api] name={name!r}, number={number!r}, total={total!r}"
+    )
+
     try:
         response = requests.get(
             "https://www.tcggo.com/api/cards/", params=params, timeout=10
@@ -282,7 +287,18 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         key=lambda item: item[1],
         reverse=True,
     )
-    return [key for key, _ in sorted_sets]
+
+    result = [key for key, _ in sorted_sets]
+    # log the results
+    if result:
+        details = ", ".join(f"{c} ({n})" for c, n in result)
+    else:
+        details = "none"
+    print(
+        f"[lookup_sets_from_api] found {len(result)} set(s): {details}"
+    )
+
+    return result
 
 
 def choose_nearest_locations(order_list, output_data):
@@ -541,6 +557,10 @@ def identify_set_by_hash(
         results.append((code, int(diff)))
 
     results.sort(key=lambda x: x[1])
+
+    symbol_hash = str(crop_hashes[0])
+    for best_code, diff in results[:3]:
+        print(f"Hash {symbol_hash} -> {best_code} ({diff})")
 
     mapped: list[tuple[str, str, int]] = []
     for code, diff in results[:3]:
