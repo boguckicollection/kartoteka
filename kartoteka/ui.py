@@ -2841,7 +2841,7 @@ class CardEditorApp:
 
         # In headless environments, avoid creating GUI windows
         try:
-            top = tk.Toplevel(self.root)
+            top = ctk.CTkToplevel(self.root, fg_color=BG_COLOR)
         except Exception:
             apply_selection(matches[0][0])
             return
@@ -2863,9 +2863,19 @@ class CardEditorApp:
                         continue
             if img is None:
                 continue
-            btn = tk.Button(top, image=img, command=lambda c=code: (apply_selection(c), top.destroy()))
+            btn = ctk.CTkButton(
+                top,
+                image=img,
+                text="",
+                fg_color=ACCENT_COLOR,
+                text_color=TEXT_COLOR,
+                hover_color=HOVER_COLOR,
+                command=lambda c=code: (apply_selection(c), top.destroy()),
+            )
             btn.grid(row=0, column=i, padx=5, pady=5)
-            tk.Label(top, text=name).grid(row=1, column=i, padx=5, pady=2)
+            ctk.CTkLabel(top, text=name, text_color=TEXT_COLOR).grid(
+                row=1, column=i, padx=5, pady=2
+            )
             images.append(img)
 
         # keep references to prevent garbage collection
