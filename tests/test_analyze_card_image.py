@@ -165,6 +165,18 @@ def test_analyze_card_image_unknown_set(monkeypatch):
     assert result == {"name": "Pikachu", "number": "1", "set": ""}
 
 
+def test_analyze_card_image_local_hash(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    importlib.reload(ui)
+
+    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / "base1.png"
+    with patch("openai.OpenAI") as mock_openai:
+        result = ui.analyze_card_image(str(logo_path))
+
+    assert result == {"name": "", "number": "", "set": "Base Set"}
+    mock_openai.assert_not_called()
+
+
 def test_analyze_card_image_translate_name(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
