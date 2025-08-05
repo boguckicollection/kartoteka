@@ -14,6 +14,7 @@ import mimetypes
 import re
 import asyncio
 import datetime
+import time
 from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
@@ -514,6 +515,8 @@ def analyze_card_image(path: str, translate_name: bool = False):
 
 
 class CardEditorApp:
+    API_TIMEOUT = 10
+
     def __init__(self, root):
         self.root = root
         self.root.title("KARTOTEKA")
@@ -3062,13 +3065,24 @@ class CardEditorApp:
         except Exception:
             current_sets = {}
 
-        try:
-            resp = requests.get("https://api.pokemontcg.io/v2/sets", timeout=10)
-            resp.raise_for_status()
-            remote = resp.json().get("data", [])
-        except Exception as exc:
-            print(f"[WARN] Unable to fetch sets: {exc}")
-            return
+        timeout = getattr(self, "API_TIMEOUT", 10)
+        for attempt in range(3):
+            try:
+                resp = requests.get(
+                    "https://api.pokemontcg.io/v2/sets", timeout=timeout
+                )
+                resp.raise_for_status()
+                remote = resp.json().get("data", [])
+                break
+            except Exception as exc:
+                if attempt < 2:
+                    time.sleep(2**attempt)
+                    continue
+                self.log(
+                    "Nie udało się odświeżyć listy setów. Użyte zostaną dane offline."
+                )
+                print(f"[WARN] Unable to fetch sets: {exc}")
+                return
 
         added = 0
         new_items = []
