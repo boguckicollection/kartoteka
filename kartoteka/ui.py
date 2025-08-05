@@ -3,6 +3,7 @@ from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk, ImageFilter
+import imagehash
 import os
 import csv
 import json
@@ -344,6 +345,69 @@ def match_set_code(value: str) -> str:
     if match:
         return match[0]
     return ""
+
+
+def identify_set_by_hash(
+    scan_path: str, rect: tuple[int, int, int, int]
+) -> tuple[str, int]:
+    """Identify the card set by comparing image hashes of the set symbol.
+
+    Parameters
+    ----------
+    scan_path:
+        Path to the card scan image.
+    rect:
+        Bounding box ``(left, upper, right, lower)`` containing the set symbol
+        within the scan.
+
+    Returns
+    -------
+    tuple[str, int]
+        Tuple of the best matching set code (derived from filename) and the
+        hash difference.  When matching fails, ``("", float('inf'))`` is
+        returned.
+    """
+
+    logos = {}
+    if os.path.isdir(SET_LOGO_DIR):
+        for file in os.listdir(SET_LOGO_DIR):
+            if not file.lower().endswith(".png"):
+                continue
+            path = os.path.join(SET_LOGO_DIR, file)
+            if not os.path.isfile(path):
+                continue
+            try:
+                with Image.open(path) as im:
+                    logos[os.path.splitext(file)[0]] = (
+                        imagehash.phash(im),
+                        imagehash.dhash(im),
+                        imagehash.average_hash(im),
+                    )
+            except Exception:
+                continue
+
+    if not logos:
+        return "", float("inf")
+
+    try:
+        with Image.open(scan_path) as im:
+            crop = im.crop(rect)
+            crop_hashes = (
+                imagehash.phash(crop),
+                imagehash.dhash(crop),
+                imagehash.average_hash(crop),
+            )
+    except Exception:
+        return "", float("inf")
+
+    best_code = ""
+    best_diff = float("inf")
+    for code, hashes in logos.items():
+        diff = sum(h - c for h, c in zip(hashes, crop_hashes))
+        if diff < best_diff:
+            best_code, best_diff = code, diff
+
+    return best_code, int(best_diff)
 
 
 class CardData(BaseModel):
