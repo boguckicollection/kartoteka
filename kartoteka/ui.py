@@ -3173,6 +3173,7 @@ class CardEditorApp:
                 )
                 btn.grid(row=0, column=i, padx=5, pady=5)
             images.append(img)
+            top.grid_columnconfigure(i, weight=1, minsize=100)
 
         # keep references to prevent garbage collection
         top.images = images
@@ -3180,6 +3181,8 @@ class CardEditorApp:
             top.update_idletasks()
             w = top.winfo_width()
             h = top.winfo_height()
+            min_width = len(options) * 120
+            w = max(w, min_width)
             screen_w = self.root.winfo_screenwidth()
             screen_h = self.root.winfo_screenheight()
             x = int(screen_w / 2 - w / 2)
