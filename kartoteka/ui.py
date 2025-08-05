@@ -357,6 +357,24 @@ def match_set_code(value: str) -> str:
     return ""
 
 
+def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
+    """Return a rectangle around the expected set symbol location.
+
+    The symbol is typically located near the bottom-right corner of a card.
+    For very small images (e.g. stand-alone set logos) the entire image is
+    returned to ensure matching still works in tests and for direct logo
+    comparisons.
+    """
+
+    # Use the full image for tiny logos
+    if w <= 100 and h <= 100:
+        return (0, 0, w, h)
+
+    left = int(w * 0.7)
+    upper = int(h * 0.8)
+    return (left, upper, w, h)
+
+
 def identify_set_by_hash(
     scan_path: str, rect: tuple[int, int, int, int]
 ) -> list[tuple[str, int]]:
@@ -487,7 +505,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
         try:
             with Image.open(local_path) as im:
                 w, h = im.size
-            rect = (0, int(h * 0.8), int(w * 0.3), h)
+            rect = get_symbol_rect(w, h)
             ocr_matches = extract_set_code_ocr(local_path, rect)
             if len(ocr_matches) == 1:
                 return {"name": "", "number": "", "set": ocr_matches[0][1]}
@@ -500,7 +518,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
             if w is None or h is None:
                 with Image.open(local_path) as im:
                     w, h = im.size
-            matches = identify_set_by_hash(local_path, (0, 0, w, h))
+            matches = identify_set_by_hash(local_path, get_symbol_rect(w, h))
             if matches:
                 code, name, diff = matches[0]
                 if diff <= HASH_DIFF_THRESHOLD:
@@ -2874,7 +2892,8 @@ class CardEditorApp:
         except Exception:
             return
 
-        matches = identify_set_by_hash(scan_path, (0, 0, w, h))
+        rect = get_symbol_rect(w, h)
+        matches = identify_set_by_hash(scan_path, rect)
         if not matches:
             return
 
