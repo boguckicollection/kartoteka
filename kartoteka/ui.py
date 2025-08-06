@@ -473,10 +473,12 @@ def extract_cardmarket_price(card):
 
 def translate_to_english(text: str) -> str:
     """Return an English translation of ``text`` using OpenAI."""
-    if not OPENAI_API_KEY:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
         return text
 
     try:
+        openai.api_key = api_key
         resp = openai.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": f"Translate to English: {text}"}],
@@ -771,7 +773,8 @@ def analyze_card_image(path: str, translate_name: bool = False):
         except Exception:
             ocr_matches = []
 
-    if not OPENAI_API_KEY:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
         # Without the API key we can't recognize name/number, so fall back to
         # local hashing if possible.
         if local_path and not ocr_matches:
