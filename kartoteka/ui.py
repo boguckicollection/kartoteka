@@ -769,7 +769,12 @@ def analyze_card_image(path: str, translate_name: bool = False):
             rect = get_symbol_rect(w, h)
             ocr_matches = extract_set_code_ocr(local_path, rect)
             if len(ocr_matches) == 1:
-                return {"name": "", "number": "", "total": "", "set": ocr_matches[0]}
+                return {
+                    "name": "",
+                    "number": "",
+                    "total": "",
+                    "set": get_set_name(ocr_matches[0]),
+                }
         except Exception:
             ocr_matches = []
 
