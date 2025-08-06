@@ -213,6 +213,10 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     list[tuple[str, str]]
         A list of ``(set_code, set_name)`` tuples sorted by relevance.
     """
+    if not total:
+        number_str = str(number)
+        if "/" in number_str:
+            number, total = number_str.split("/", 1)
 
     name_api = normalize(name, keep_spaces=True)
     params = {"name": name_api, "number": number}

@@ -60,6 +60,20 @@ def test_lookup_sets_from_api_omits_total(monkeypatch):
     assert "total" not in captured["params"]
 
 
+def test_lookup_sets_from_api_splits_number(monkeypatch):
+    data = {"cards": []}
+    captured = {}
+
+    def fake_get(url, params=None, timeout=None):
+        captured["params"] = params
+        return DummyResp(data)
+
+    monkeypatch.setattr(ui.requests, "get", fake_get)
+    ui.lookup_sets_from_api("Pikachu", "25/102")
+    assert captured["params"]["number"] == "25"
+    assert captured["params"]["total"] == "102"
+
+
 def test_lookup_sets_from_api_filters_results(monkeypatch):
     data = {
         "cards": [
