@@ -681,7 +681,8 @@ def extract_card_text_openai(path: str) -> tuple[str, str, str]:
         url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
 
     try:
-        client = openai.OpenAI()
+        api_key = os.getenv("OPENAI_API_KEY")
+        client = openai.OpenAI(api_key=api_key) if api_key else openai.OpenAI()
         resp = client.responses.parse(
             model="gpt-4o",
             input=[
