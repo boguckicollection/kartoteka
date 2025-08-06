@@ -345,3 +345,60 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
 
+
+def test_fetch_card_data_auto_set(monkeypatch):
+    class DummyEntry:
+        def __init__(self, value=""):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def delete(self, *args, **kwargs):
+            self.value = ""
+
+        def insert(self, index, val):
+            self.value = str(val)
+
+    class DummyVar:
+        def __init__(self, value=""):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    entries = {
+        "nazwa": DummyEntry("Pikachu"),
+        "numer": DummyEntry("037/102"),
+        "set": DummyVar(""),
+        "cena": DummyEntry(),
+        "psa10_price": DummyEntry(),
+    }
+
+    dummy = SimpleNamespace(
+        entries=entries,
+        type_vars={
+            "Reverse": SimpleNamespace(get=lambda: False),
+            "Holo": SimpleNamespace(get=lambda: False),
+        },
+        get_price_from_db=lambda *a, **k: None,
+        fetch_card_price=lambda *a, **k: None,
+        fetch_psa10_price=lambda *a, **k: None,
+        apply_variant_multiplier=lambda price, **kw: price,
+        log=lambda *a, **k: None,
+        prompt_set_selection=MagicMock(),
+        update_set_options=lambda *a, **k: None,
+    )
+
+    with patch.object(
+        ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]
+    ) as mock_lookup, patch.object(ui.messagebox, "showinfo"):
+        ui.CardEditorApp.fetch_card_data(dummy)
+
+    assert entries["set"].get() == SV01_NAME
+    mock_lookup.assert_called_once_with("Pikachu", "37", "102")
+    dummy.prompt_set_selection.assert_not_called()
+

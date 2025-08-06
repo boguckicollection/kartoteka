@@ -3890,8 +3890,35 @@ class CardEditorApp:
 
     def fetch_card_data(self):
         name = self.entries["nazwa"].get()
-        number = sanitize_number(self.entries["numer"].get())
+        number_raw = self.entries["numer"].get()
         set_name = self.entries["set"].get()
+
+        total = None
+        if "/" in str(number_raw):
+            num_part, total_part = str(number_raw).split("/", 1)
+            number = sanitize_number(num_part)
+            total = sanitize_number(total_part)
+        else:
+            number = sanitize_number(number_raw)
+
+        if not set_name:
+            api_sets = lookup_sets_from_api(name, number, total)
+            if len(api_sets) == 1:
+                self.entries["set"].set(api_sets[0][1])
+                set_name = api_sets[0][1]
+                if hasattr(self, "update_set_options"):
+                    self.update_set_options()
+            elif len(api_sets) > 1 and hasattr(self, "prompt_set_selection"):
+                try:
+                    selected_code = self.prompt_set_selection(api_sets)
+                except Exception:
+                    selected_code = api_sets[0][0]
+                set_name = get_set_name(selected_code) or next(
+                    (n for c, n in api_sets if c == selected_code), ""
+                )
+                self.entries["set"].set(set_name)
+                if hasattr(self, "update_set_options"):
+                    self.update_set_options()
 
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
