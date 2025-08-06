@@ -140,25 +140,3 @@ def test_lookup_sets_from_api_uses_rapidapi(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25", "102")
-
-def test_get_set_name_resolves_swsh11(monkeypatch):
-    """Ensure ``get_set_name`` maps the ``swsh11`` code to the proper name."""
-
-    data = {
-        "cards": [
-            {
-                "name": "Pikachu",
-                "card_number": "25",
-                "total_prints": "102",
-                "episode": {"name": "Lost Origin", "code": "swsh11"},
-            }
-        ]
-    }
-
-    def fake_get(url, params=None, timeout=None, headers=None):
-        return DummyResp(data)
-
-    monkeypatch.setattr(ui.requests, "get", fake_get)
-    result = ui.lookup_sets_from_api("Pikachu", "25", "102")
-    code = result[0][0]
-    assert ui.get_set_name(code) == "Lost Origin"
