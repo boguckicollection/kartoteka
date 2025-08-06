@@ -781,17 +781,36 @@ def analyze_card_image(path: str, translate_name: bool = False):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         # Without the API key we can't recognize name/number, so fall back to
-        # local hashing if possible.
-        if local_path and not ocr_matches:
+        # local hashing if possible and use OCR hints when available.
+        if local_path:
             try:
                 if w is None or h is None:
                     with Image.open(local_path) as im:
                         w, h = im.size
-                matches = identify_set_by_hash(local_path, get_symbol_rect(w, h))
-                if matches:
-                    code, name, diff = matches[0]
-                    if diff <= HASH_DIFF_THRESHOLD:
-                        return {"name": "", "number": "", "total": "", "set": name}
+                rect = get_symbol_rect(w, h)
+                if len(ocr_matches) > 1:
+                    matches = identify_set_by_hash(local_path, rect)
+                    if matches:
+                        code, name, diff = matches[0]
+                        if diff <= HASH_DIFF_THRESHOLD and code in ocr_matches:
+                            return {"name": "", "number": "", "total": "", "set": name}
+                    return {
+                        "name": "",
+                        "number": "",
+                        "total": "",
+                        "set": get_set_name(ocr_matches[0]),
+                    }
+                if not ocr_matches:
+                    matches = identify_set_by_hash(local_path, rect)
+                    if matches:
+                        code, name, diff = matches[0]
+                        if diff <= HASH_DIFF_THRESHOLD:
+                            return {
+                                "name": "",
+                                "number": "",
+                                "total": "",
+                                "set": name,
+                            }
             except Exception:
                 pass
         return {"name": "", "number": "", "total": "", "set": ""}
