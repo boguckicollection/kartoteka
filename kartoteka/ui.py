@@ -691,8 +691,14 @@ def extract_set_code_ocr(
 
     try:
         with Image.open(scan_path) as im:
-            crop = im.crop(rect)
-        raw = pytesseract.image_to_string(crop)
+            crop = im.crop(rect).convert("L")
+            w, h = crop.size
+            crop = crop.resize((w * 3, h * 3), Image.LANCZOS)
+            crop = crop.point(lambda x: 0 if x < 128 else 255, "1").convert("L")
+        raw = pytesseract.image_to_string(
+            crop,
+            config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        )
     except Exception:
         return []
 
