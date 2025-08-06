@@ -184,10 +184,18 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
     path = tmp_path / "img.png"
     img.save(path)
 
-    with patch("pytesseract.image_to_string", return_value="E\n123\nSV01\n"):
+    with patch("pytesseract.image_to_string", return_value="E\n123\nSV01\n") as ocr:
         result = ui.extract_set_code_ocr(str(path), (0, 0, 10, 10))
 
     assert result == [SV01_CODE]
+    ocr.assert_called_once()
+    processed = ocr.call_args.args[0]
+    assert processed.mode == "L"
+    assert processed.size == (30, 30)
+    assert (
+        ocr.call_args.kwargs.get("config")
+        == "--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    )
 
 
 def test_analyze_card_image_bad_json(monkeypatch):
