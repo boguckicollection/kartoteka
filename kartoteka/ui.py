@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk, ImageFilter, ImageOps
+from PIL import Image, ImageTk, ImageFilter, ImageOps, ImageDraw
 import imagehash
 import os
 import csv
@@ -15,7 +15,6 @@ import re
 import asyncio
 import datetime
 import time
-import tempfile
 from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
@@ -828,7 +827,6 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
     w = h = None
     rect = None
     ocr_matches: list[str] = []
-    debug_files: list[str] = []
     orientation = 0
     local_image: Image.Image | None = None
 
@@ -839,14 +837,15 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 local_image, orientation = normalize_orientation(local_path)
             w, h = local_image.size
             rect = get_symbol_rect(w, h)
-            if debug:
-                tmp = tempfile.NamedTemporaryFile(
-                    prefix="symbol_", suffix=".png", delete=False
-                )
-                local_image.crop(rect).save(tmp.name)
-                debug_files.append(tmp.name)
-                tmp.close()
         return rect
+
+    def _ret(data: dict):
+        if debug:
+            try:
+                data["rect"] = rect or _ensure_rect()
+            except Exception:
+                data["rect"] = None
+        return data
 
     try:
         if local_path:
@@ -854,13 +853,13 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 rect = _ensure_rect()
                 ocr_matches = extract_set_code_ocr(local_image, rect)
                 if len(ocr_matches) == 1:
-                    return {
+                    return _ret({
                         "name": "",
                         "number": "",
                         "total": "",
                         "set": get_set_name(ocr_matches[0]),
                         "orientation": orientation,
-                    }
+                    })
             except Exception:
                 ocr_matches = []
 
@@ -876,41 +875,41 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                         if matches:
                             code, name, diff = matches[0]
                             if diff <= HASH_DIFF_THRESHOLD and code in ocr_matches:
-                                return {
+                                return _ret({
                                     "name": "",
                                     "number": "",
                                     "total": "",
                                     "set": name,
                                     "orientation": orientation,
-                                }
-                        return {
+                                })
+                        return _ret({
                             "name": "",
                             "number": "",
                             "total": "",
                             "set": get_set_name(ocr_matches[0]),
                             "orientation": orientation,
-                        }
+                        })
                     if not ocr_matches:
                         matches = identify_set_by_hash(local_image, rect)
                         if matches:
                             code, name, diff = matches[0]
                             if diff <= HASH_DIFF_THRESHOLD:
-                                return {
+                                return _ret({
                                     "name": "",
                                     "number": "",
                                     "total": "",
                                     "set": name,
                                     "orientation": orientation,
-                                }
+                                })
                 except Exception:
                     pass
-            return {
+            return _ret({
                 "name": "",
                 "number": "",
                 "total": "",
                 "set": "",
                 "orientation": orientation,
-            }
+            })
 
         name, number, total = extract_card_text_openai(path)
         if translate_name and name and not name.isascii():
@@ -927,13 +926,13 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
         if len(api_sets) == 1:
             set_code = api_sets[0][0]
             set_name = get_set_name(set_code) or api_sets[0][1]
-            return {
+            return _ret({
                 "name": name,
                 "number": number,
                 "total": total,
                 "set": set_name,
                 "orientation": orientation,
-            }
+            })
         if len(api_sets) > 1:
             try:
                 selected_code = prompt_set_selection(api_sets)
@@ -946,13 +945,13 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 selected_name = next(
                     (n for c, n in api_sets if c == selected_code), selected_code
                 )
-            return {
+            return _ret({
                 "name": name,
                 "number": number,
                 "total": total,
                 "set": selected_name,
                 "orientation": orientation,
-            }
+            })
 
         # Fallback to local hashing if API did not provide answers
         if local_path and not ocr_matches:
@@ -962,37 +961,32 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 if matches:
                     code, name_match, diff = matches[0]
                     if diff <= HASH_DIFF_THRESHOLD:
-                        return {
+                        return _ret({
                             "name": name,
                             "number": number,
                             "total": total,
                             "set": name_match,
                             "orientation": orientation,
-                        }
+                        })
             except Exception:
                 pass
-        return {
+        return _ret({
             "name": name,
             "number": number,
             "total": total,
             "set": "",
             "orientation": orientation,
-        }
+        })
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {
+        return _ret({
             "name": "",
             "number": "",
             "total": "",
             "set": "",
             "orientation": orientation,
-        }
+        })
     finally:
-        for fp in debug_files:
-            try:
-                os.remove(fp)
-            except OSError:
-                pass
         if local_image is not None:
             try:
                 local_image.close()
@@ -1047,6 +1041,8 @@ class CardEditorApp:
         self.auction_queue = []
         self.in_scan = False
         self.current_image_path = ""
+        self.set_area_rect = None
+        self.current_card_scale = (1.0, 1.0)
         self.show_loading_screen()
         threading.Thread(target=self.startup_tasks, daemon=True).start()
 
@@ -2742,6 +2738,13 @@ class CardEditorApp:
         # Display only a textual progress indicator below the card image
         self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
+        self.show_set_area_var = tk.BooleanVar(value=False)
+        self.show_set_area_var.trace_add(
+            "write", lambda *a: self.update_set_area_preview()
+        )
+        ctk.CTkCheckBox(
+            self.frame, text="Pokaż obszar seta", variable=self.show_set_area_var
+        ).grid(row=14, column=1, pady=5, sticky="w")
 
         # Container for card information fields
         self.info_frame = ctk.CTkFrame(self.frame)
@@ -3123,12 +3126,13 @@ class CardEditorApp:
 
         image_path = self.cards[self.index]
         self.current_image_path = image_path
+        self.set_area_rect = None
         cache_key = self.file_to_key.get(os.path.basename(image_path))
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
         try:
-            image = Image.open(image_path)
+            image, _ = normalize_orientation(image_path)
         except Exception as e:
             print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
             if getattr(self, "failed_cards", None) is not None:
@@ -3136,7 +3140,13 @@ class CardEditorApp:
             self.index += 1
             self.show_card()
             return
+        w0, h0 = image.size
         image.thumbnail((400, 560))
+        w1, h1 = image.size
+        self.current_card_scale = (
+            w1 / w0 if w0 else 1.0,
+            h1 / h0 if h0 else 1.0,
+        )
         self.current_card_image = image.copy()
         if hasattr(ctk, "CTkImage"):
             img = ctk.CTkImage(light_image=image, size=image.size)
@@ -3288,7 +3298,7 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
-        result = analyze_card_image(path, translate_name=translate)
+        result = analyze_card_image(path, translate_name=translate, debug=True)
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
@@ -3311,7 +3321,32 @@ class CardEditorApp:
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
             self.update_set_options()
+            self.set_area_rect = result.get("rect")
+            self.update_set_area_preview()
         return
+
+    def update_set_area_preview(self, *args):
+        if not getattr(self, "current_card_image", None) or not hasattr(self, "image_label"):
+            return
+        show_var = getattr(self, "show_set_area_var", None)
+        show = show_var.get() if show_var else False
+        if show and getattr(self, "set_area_rect", None):
+            x1, y1, x2, y2 = self.set_area_rect
+            sx, sy = getattr(self, "current_card_scale", (1.0, 1.0))
+            rect = (x1 * sx, y1 * sy, x2 * sx, y2 * sy)
+            img = self.current_card_image.copy()
+            draw = ImageDraw.Draw(img)
+            draw.rectangle(rect, outline="red", width=3)
+        else:
+            img = self.current_card_image.copy()
+        if hasattr(ctk, "CTkImage"):
+            photo = ctk.CTkImage(light_image=img, size=img.size)
+        else:
+            photo = ImageTk.PhotoImage(img)
+        self.image_objects.append(photo)
+        self.image_objects = self.image_objects[-2:]
+        self.current_card_photo = photo
+        self.image_label.configure(image=photo)
 
     def prompt_set_selection(self, options: list[tuple[str, str]]):
         """Display a dialog with candidate set logos for manual selection.

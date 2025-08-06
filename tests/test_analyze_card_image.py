@@ -53,18 +53,28 @@ def test_show_card_uses_analyzer(tmp_path):
 
     dummy.start_scan_animation = lambda *a, **k: None
     dummy.stop_scan_animation = lambda *a, **k: None
+    dummy.update_set_area_preview = lambda *a, **k: None
     dummy._analyze_and_fill = lambda url, idx: ui.CardEditorApp._apply_analysis_result(
-        dummy, ui.analyze_card_image(url), idx
+        dummy, ui.analyze_card_image(url, debug=True), idx
     )
 
-    with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
+    class DummyImage:
+        size = (100, 100)
+
+        def thumbnail(self, *a, **k):
+            pass
+
+        def copy(self):
+            return self
+
+    with patch.object(ui, "normalize_orientation", return_value=(DummyImage(), 0)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
-        patch.object(
+         patch.object(
             ui, "analyze_card_image", return_value={"name": "Pika", "number": "001", "set": SV01_NAME}
         ) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
 
-    mock_analyze.assert_called_once_with(str(img))
+    mock_analyze.assert_called_once_with(str(img), debug=True)
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
@@ -320,42 +330,15 @@ def test_analyze_card_image_translate_name(monkeypatch):
     mock_create.assert_called_once()
 
 
-def test_analyze_card_image_debug_crop(tmp_path, monkeypatch):
+def test_analyze_card_image_debug_rect(tmp_path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     img_path = Path(__file__).resolve().parents[1] / "simple_pokeball.gif"
-    debug_path = tmp_path / "crop.png"
-
-    class DummyTmp:
-        def __init__(self, *a, **k):
-            self.name = str(debug_path)
-
-        def close(self):
-            pass
-
-    monkeypatch.setattr(ui.tempfile, "NamedTemporaryFile", lambda *a, **k: DummyTmp())
     monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
     monkeypatch.setattr(ui, "identify_set_by_hash", lambda *a, **k: [])
-
-    removed = {}
-
-    def fake_remove(path):
-        removed["path"] = path
-        if os.path.exists(path):
-            os.unlink(path)
-
-    monkeypatch.setattr(ui.os, "remove", fake_remove)
-
     result = ui.analyze_card_image(str(img_path), debug=True)
-
-    assert result == {
-        "name": "",
-        "number": "",
-        "total": "",
-        "set": "",
-        "orientation": 90,
-    }
-    assert removed.get("path") == str(debug_path)
-    assert not debug_path.exists()
+    assert result["orientation"] == 90
+    rect = result.get("rect")
+    assert isinstance(rect, tuple) and len(rect) == 4
 
 
 def test_analyze_card_image_orientation(tmp_path, monkeypatch):
@@ -397,6 +380,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
         index=0,
         stop_scan_animation=lambda: None,
         update_set_options=lambda: None,
+        update_set_area_preview=lambda *a, **k: None,
     )
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
 
@@ -459,7 +443,16 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     dummy.start_scan_animation = lambda *a, **k: None
     dummy.stop_scan_animation = lambda *a, **k: None
 
-    with patch.object(ui.Image, "open", return_value=MagicMock(thumbnail=lambda *a, **k: None)), \
+    class DummyImage:
+        size = (100, 100)
+
+        def thumbnail(self, *a, **k):
+            pass
+
+        def copy(self):
+            return self
+
+    with patch.object(ui, "normalize_orientation", return_value=(DummyImage(), 0)), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
          patch.object(ui, "analyze_card_image", return_value={}) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)

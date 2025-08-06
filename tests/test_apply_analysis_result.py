@@ -22,6 +22,7 @@ def make_dummy():
         index=0,
         stop_scan_animation=lambda: None,
         update_set_options=lambda: None,
+        update_set_area_preview=lambda *a, **k: None,
     )
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
     return dummy, name_entry, num_entry, set_var
