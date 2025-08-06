@@ -38,7 +38,7 @@ def test_lookup_sets_from_api_sorts_results(monkeypatch):
     def fake_get(url, params=None, timeout=None, headers=None):
         assert url == "https://www.tcggo.com/api/cards/"
         assert params["name"] == ui.normalize("Pikachu", keep_spaces=True)
-        assert params["number"] == "25"
+        assert params["card_number"] == "25"
         assert params["total"] == "102"
         assert headers == {"User-Agent": "kartoteka/1.0"}
         return DummyResp(data)
@@ -59,6 +59,7 @@ def test_lookup_sets_from_api_omits_total(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25", None)
+    assert captured["params"]["card_number"] == "25"
     assert "total" not in captured["params"]
     assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
@@ -74,7 +75,7 @@ def test_lookup_sets_from_api_splits_number(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25/102")
-    assert captured["params"]["number"] == "25"
+    assert captured["params"]["card_number"] == "25"
     assert captured["params"]["total"] == "102"
     assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
@@ -90,7 +91,7 @@ def test_lookup_sets_from_api_sanitizes_number(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "037")
-    assert captured["params"]["number"] == "37"
+    assert captured["params"]["card_number"] == "37"
     assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
@@ -101,7 +102,7 @@ def test_lookup_sets_from_api_filters_results(monkeypatch):
                 "name": "Pikachu",
                 "card_number": "25",
                 "total_prints": "102",
-                "episode": {"name": "Base Set", "code": "BS"},
+                "episode": {"name": "Base Set", "slug": "base-set"},
             },
             {
                 "name": "Charmander",
@@ -118,7 +119,7 @@ def test_lookup_sets_from_api_filters_results(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     result = ui.lookup_sets_from_api("Pikachu", "25", "102")
-    assert result == [("BS", "Base Set")]
+    assert result == [("base-set", "Base Set")]
 
 
 def test_lookup_sets_from_api_uses_rapidapi(monkeypatch):
