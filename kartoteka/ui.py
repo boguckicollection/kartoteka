@@ -222,7 +222,7 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         total = sanitize_number(str(total))
 
     name_api = normalize(name, keep_spaces=True)
-    params = {"name": name_api, "number": number}
+    params = {"name": name_api, "card_number": number}
     if total:
         params["total"] = total
 
@@ -269,7 +269,7 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     for card in cards:
         episode = card.get("episode") or {}
         set_name = episode.get("name")
-        set_code = episode.get("code")
+        set_code = episode.get("code") or episode.get("slug")
         if not (set_name and set_code):
             continue
 
