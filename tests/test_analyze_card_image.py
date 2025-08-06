@@ -78,7 +78,13 @@ def test_analyze_card_image_api_single_set(monkeypatch):
          patch.object(ui, "identify_set_by_hash") as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "037", "total": "", "set": SV01_NAME}
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "",
+        "set": SV01_NAME,
+        "orientation": 0,
+    }
     mock_prompt.assert_not_called()
     mock_hash.assert_not_called()
 
@@ -93,7 +99,13 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
          patch.object(ui, "identify_set_by_hash") as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "037", "total": "", "set": "Set B"}
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "",
+        "set": "Set B",
+        "orientation": 0,
+    }
     mock_prompt.assert_called_once_with(options)
     mock_hash.assert_not_called()
 
@@ -103,19 +115,23 @@ def test_analyze_card_image_api_fallback_hash(monkeypatch):
     class DummyImage:
         size = (100, 100)
 
-        def __enter__(self):
+        def crop(self, *args, **kwargs):
             return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
 
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "")), \
          patch.object(ui, "lookup_sets_from_api", return_value=[]), \
          patch.object(ui, "identify_set_by_hash", return_value=[("x", "Set X", 0)]) as mock_hash, \
-         patch.object(ui.Image, "open", return_value=DummyImage()):
+         patch.object(ui, "extract_set_code_ocr", return_value=[]), \
+         patch.object(ui, "normalize_orientation", return_value=(DummyImage(), 0)):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "037", "total": "", "set": "Set X"}
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "",
+        "set": "Set X",
+        "orientation": 0,
+    }
     mock_hash.assert_called_once()
 
 
@@ -130,7 +146,13 @@ def test_analyze_card_image_ocr(monkeypatch):
         patch.object(ui, "lookup_sets_from_api") as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": SV01_NAME,
+        "orientation": 0,
+    }
     mock_ocr.assert_called_once()
     mock_hash.assert_not_called()
     mock_extract.assert_not_called()
@@ -151,7 +173,13 @@ def test_analyze_card_image_ocr_multiple(monkeypatch):
     ) as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": SV01_NAME,
+        "orientation": 0,
+    }
     mock_ocr.assert_called_once()
     mock_hash.assert_called_once()
     mock_extract.assert_not_called()
@@ -172,7 +200,13 @@ def test_analyze_card_image_ocr_multiple_ambiguous(monkeypatch):
     ) as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": SV01_NAME,
+        "orientation": 0,
+    }
     mock_ocr.assert_called_once()
     mock_hash.assert_called_once()
     mock_extract.assert_not_called()
@@ -204,7 +238,13 @@ def test_analyze_card_image_bad_json(monkeypatch):
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "", "number": "", "total": "", "set": ""}
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": "",
+        "orientation": 0,
+    }
 
 
 def test_analyze_card_image_truncated_code_block(monkeypatch):
@@ -213,7 +253,13 @@ def test_analyze_card_image_truncated_code_block(monkeypatch):
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "159",
+        "set": "",
+        "orientation": 0,
+    }
 
 
 def test_analyze_card_image_leading_text(monkeypatch):
@@ -222,7 +268,13 @@ def test_analyze_card_image_leading_text(monkeypatch):
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
-    assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "159",
+        "set": "",
+        "orientation": 0,
+    }
 
 
 def test_analyze_card_image_local_hash(monkeypatch):
@@ -234,7 +286,13 @@ def test_analyze_card_image_local_hash(monkeypatch):
     ) as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
-    assert result == {"name": "", "number": "", "total": "", "set": SV01_NAME}
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": SV01_NAME,
+        "orientation": 0,
+    }
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
 
@@ -252,7 +310,13 @@ def test_analyze_card_image_translate_name(monkeypatch):
     ) as mock_create, patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg", translate_name=True)
 
-    assert result == {"name": "Pikachu", "number": "037", "total": "159", "set": ""}
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "159",
+        "set": "",
+        "orientation": 0,
+    }
     mock_create.assert_called_once()
 
 
@@ -283,9 +347,29 @@ def test_analyze_card_image_debug_crop(tmp_path, monkeypatch):
 
     result = ui.analyze_card_image(str(img_path), debug=True)
 
-    assert result == {"name": "", "number": "", "total": "", "set": ""}
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": "",
+        "orientation": 90,
+    }
     assert removed.get("path") == str(debug_path)
     assert not debug_path.exists()
+
+
+def test_analyze_card_image_orientation(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    img_path = tmp_path / "wide.jpg"
+    Image.new("RGB", (200, 100), color="white").save(img_path)
+
+    with patch.object(ui, "extract_set_code_ocr", return_value=[]), \
+         patch.object(ui, "identify_set_by_hash", return_value=[]), \
+         patch.object(ui, "extract_card_text_openai", return_value=("", "", "")), \
+         patch.object(ui, "lookup_sets_from_api", return_value=[]):
+        result = ui.analyze_card_image(str(img_path))
+
+    assert result["orientation"] == 90
 
 
 def test_analyze_and_fill_translates_for_jp(monkeypatch):

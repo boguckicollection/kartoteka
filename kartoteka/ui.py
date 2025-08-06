@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk, ImageFilter
+from PIL import Image, ImageTk, ImageFilter, ImageOps
 import imagehash
 import os
 import csv
@@ -577,6 +577,30 @@ def match_set_code(value: str) -> str:
     return ""
 
 
+def normalize_orientation(path: str) -> tuple[Image.Image, int]:
+    """Open ``path`` and return an image rotated to portrait orientation.
+
+    The image is first transposed according to its EXIF data.  When the result
+    is wider than tall it is rotated by 90 degrees so that subsequent
+    operations may assume a portrait layout.
+
+    Returns
+    -------
+    tuple[Image.Image, int]
+        The normalized :class:`PIL.Image.Image` instance and the rotation angle
+        applied in degrees (``0`` or ``90``).
+    """
+
+    im = Image.open(path)
+    im = ImageOps.exif_transpose(im)
+    orientation = 0
+    w, h = im.size
+    if w > h:
+        im = im.rotate(90, expand=True)
+        orientation = 90
+    return im, orientation
+
+
 def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
     """Return a rectangle around the expected set symbol location.
 
@@ -590,23 +614,28 @@ def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
     if w <= 100 and h <= 100:
         return (0, 0, w, h)
 
-    upper = int(h * 0.8)
-    right = int(w * 0.3)
+    upper = int(h * 0.75)
+    right = int(w * 0.35)
     return (0, upper, right, h)
 
 
 def identify_set_by_hash(
-    scan_path: str, rect: tuple[int, int, int, int]
+    scan: str | Image.Image,
+    rect: tuple[int, int, int, int],
+    orientation: int = 0,
 ) -> list[tuple[str, str, int]]:
     """Identify the card set by comparing image hashes of the set symbol.
 
     Parameters
     ----------
-    scan_path:
-        Path to the card scan image.
+    scan:
+        Either a path to the card scan image or a pre-loaded image object.
     rect:
         Bounding box ``(left, upper, right, lower)`` containing the set symbol
         within the scan.
+    orientation:
+        Additional rotation applied when ``scan`` is a path. Ignored when
+        ``scan`` is already an :class:`~PIL.Image.Image` instance.
 
     Returns
     -------
@@ -641,13 +670,19 @@ def identify_set_by_hash(
         return []
 
     try:
-        with Image.open(scan_path) as im:
-            crop = im.crop(rect)
-            crop_hashes = (
-                imagehash.phash(crop),
-                imagehash.dhash(crop),
-                imagehash.average_hash(crop),
-            )
+        if isinstance(scan, Image.Image):
+            crop = scan.crop(rect)
+        else:
+            with Image.open(scan) as im:
+                im = ImageOps.exif_transpose(im)
+                if orientation:
+                    im = im.rotate(orientation, expand=True)
+                crop = im.crop(rect)
+        crop_hashes = (
+            imagehash.phash(crop),
+            imagehash.dhash(crop),
+            imagehash.average_hash(crop),
+        )
     except Exception:
         return []
 
@@ -670,17 +705,22 @@ def identify_set_by_hash(
 
 
 def extract_set_code_ocr(
-    scan_path: str, rect: tuple[int, int, int, int]
+    scan: str | Image.Image,
+    rect: tuple[int, int, int, int],
+    orientation: int = 0,
 ) -> list[str]:
     """Extract potential set codes from the scan using OCR.
 
     Parameters
     ----------
-    scan_path:
-        Path to the card scan image.
+    scan:
+        Either a path to the card scan image or a pre-loaded image object.
     rect:
         Bounding box ``(left, upper, right, lower)`` containing the expected
         location of the set code.
+    orientation:
+        Additional rotation applied when ``scan`` is a path. Ignored when an
+        image object is supplied.
 
     Returns
     -------
@@ -690,11 +730,17 @@ def extract_set_code_ocr(
     """
 
     try:
-        with Image.open(scan_path) as im:
-            crop = im.crop(rect).convert("L")
-            w, h = crop.size
-            crop = crop.resize((w * 3, h * 3), Image.LANCZOS)
-            crop = crop.point(lambda x: 0 if x < 128 else 255, "1").convert("L")
+        if isinstance(scan, Image.Image):
+            crop = scan.crop(rect).convert("L")
+        else:
+            with Image.open(scan) as im:
+                im = ImageOps.exif_transpose(im)
+                if orientation:
+                    im = im.rotate(orientation, expand=True)
+                crop = im.crop(rect).convert("L")
+        w, h = crop.size
+        crop = crop.resize((w * 3, h * 3), Image.LANCZOS)
+        crop = crop.point(lambda x: 0 if x < 128 else 255, "1").convert("L")
         raw = pytesseract.image_to_string(
             crop,
             config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -783,31 +829,37 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
     rect = None
     ocr_matches: list[str] = []
     debug_files: list[str] = []
+    orientation = 0
+    local_image: Image.Image | None = None
 
     def _ensure_rect():
-        nonlocal w, h, rect
+        nonlocal w, h, rect, local_image, orientation
         if rect is None and local_path:
-            with Image.open(local_path) as im:
-                w, h = im.size
-                rect = get_symbol_rect(w, h)
-                if debug:
-                    tmp = tempfile.NamedTemporaryFile(prefix="symbol_", suffix=".png", delete=False)
-                    im.crop(rect).save(tmp.name)
-                    debug_files.append(tmp.name)
-                    tmp.close()
+            if local_image is None:
+                local_image, orientation = normalize_orientation(local_path)
+            w, h = local_image.size
+            rect = get_symbol_rect(w, h)
+            if debug:
+                tmp = tempfile.NamedTemporaryFile(
+                    prefix="symbol_", suffix=".png", delete=False
+                )
+                local_image.crop(rect).save(tmp.name)
+                debug_files.append(tmp.name)
+                tmp.close()
         return rect
 
     try:
         if local_path:
             try:
                 rect = _ensure_rect()
-                ocr_matches = extract_set_code_ocr(local_path, rect)
+                ocr_matches = extract_set_code_ocr(local_image, rect)
                 if len(ocr_matches) == 1:
                     return {
                         "name": "",
                         "number": "",
                         "total": "",
                         "set": get_set_name(ocr_matches[0]),
+                        "orientation": orientation,
                     }
             except Exception:
                 ocr_matches = []
@@ -820,19 +872,26 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 try:
                     rect = _ensure_rect()
                     if len(ocr_matches) > 1:
-                        matches = identify_set_by_hash(local_path, rect)
+                        matches = identify_set_by_hash(local_image, rect)
                         if matches:
                             code, name, diff = matches[0]
                             if diff <= HASH_DIFF_THRESHOLD and code in ocr_matches:
-                                return {"name": "", "number": "", "total": "", "set": name}
+                                return {
+                                    "name": "",
+                                    "number": "",
+                                    "total": "",
+                                    "set": name,
+                                    "orientation": orientation,
+                                }
                         return {
                             "name": "",
                             "number": "",
                             "total": "",
                             "set": get_set_name(ocr_matches[0]),
+                            "orientation": orientation,
                         }
                     if not ocr_matches:
-                        matches = identify_set_by_hash(local_path, rect)
+                        matches = identify_set_by_hash(local_image, rect)
                         if matches:
                             code, name, diff = matches[0]
                             if diff <= HASH_DIFF_THRESHOLD:
@@ -841,10 +900,17 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                                     "number": "",
                                     "total": "",
                                     "set": name,
+                                    "orientation": orientation,
                                 }
                 except Exception:
                     pass
-            return {"name": "", "number": "", "total": "", "set": ""}
+            return {
+                "name": "",
+                "number": "",
+                "total": "",
+                "set": "",
+                "orientation": orientation,
+            }
 
         name, number, total = extract_card_text_openai(path)
         if translate_name and name and not name.isascii():
@@ -861,7 +927,13 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
         if len(api_sets) == 1:
             set_code = api_sets[0][0]
             set_name = get_set_name(set_code) or api_sets[0][1]
-            return {"name": name, "number": number, "total": total, "set": set_name}
+            return {
+                "name": name,
+                "number": number,
+                "total": total,
+                "set": set_name,
+                "orientation": orientation,
+            }
         if len(api_sets) > 1:
             try:
                 selected_code = prompt_set_selection(api_sets)
@@ -879,13 +951,14 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 "number": number,
                 "total": total,
                 "set": selected_name,
+                "orientation": orientation,
             }
 
         # Fallback to local hashing if API did not provide answers
         if local_path and not ocr_matches:
             try:
                 rect = _ensure_rect()
-                matches = identify_set_by_hash(local_path, rect)
+                matches = identify_set_by_hash(local_image, rect)
                 if matches:
                     code, name_match, diff = matches[0]
                     if diff <= HASH_DIFF_THRESHOLD:
@@ -894,19 +967,36 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                             "number": number,
                             "total": total,
                             "set": name_match,
+                            "orientation": orientation,
                         }
             except Exception:
                 pass
-
-        return {"name": name, "number": number, "total": total, "set": ""}
+        return {
+            "name": name,
+            "number": number,
+            "total": total,
+            "set": "",
+            "orientation": orientation,
+        }
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
-        return {"name": "", "number": "", "total": "", "set": ""}
+        return {
+            "name": "",
+            "number": "",
+            "total": "",
+            "set": "",
+            "orientation": orientation,
+        }
     finally:
         for fp in debug_files:
             try:
                 os.remove(fp)
             except OSError:
+                pass
+        if local_image is not None:
+            try:
+                local_image.close()
+            except Exception:
                 pass
 
 

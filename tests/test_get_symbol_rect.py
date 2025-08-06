@@ -11,4 +11,4 @@ importlib.reload(ui)
 
 def test_get_symbol_rect_bottom_left():
     w, h = 1000, 1400
-    assert ui.get_symbol_rect(w, h) == (0, int(h * 0.8), int(w * 0.3), h)
+    assert ui.get_symbol_rect(w, h) == (0, int(h * 0.75), int(w * 0.35), h)
