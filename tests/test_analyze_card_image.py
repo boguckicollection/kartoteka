@@ -75,7 +75,7 @@ def test_analyze_card_image_api_single_set(monkeypatch):
     importlib.reload(ui)
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "")), \
          patch.object(ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]), \
-         patch.object(ui, "prompt_set_selection_api") as mock_prompt, \
+         patch.object(ui, "prompt_set_selection") as mock_prompt, \
          patch.object(ui, "identify_set_by_hash") as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
@@ -91,7 +91,7 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
 
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "")), \
          patch.object(ui, "lookup_sets_from_api", return_value=options), \
-         patch.object(ui, "prompt_set_selection_api", return_value="Set B") as mock_prompt, \
+         patch.object(ui, "prompt_set_selection", return_value="b") as mock_prompt, \
          patch.object(ui, "identify_set_by_hash") as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
