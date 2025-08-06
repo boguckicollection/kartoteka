@@ -141,8 +141,9 @@ def test_lookup_sets_from_api_uses_rapidapi(monkeypatch):
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25", "102")
 
+def test_get_set_name_resolves_swsh11(monkeypatch):
+    """Ensure ``get_set_name`` maps the ``swsh11`` code to the proper name."""
 
-def test_get_set_name_swsh11(monkeypatch):
     data = {
         "cards": [
             {

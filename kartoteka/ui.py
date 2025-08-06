@@ -3908,14 +3908,18 @@ class CardEditorApp:
 
         api_sets = lookup_sets_from_api(name, number, total)
         if api_sets:
-            first_code = api_sets[0][0]
-            resolved = get_set_name(first_code) or api_sets[0][1]
-            current = self.entries["set"].get()
-            if not current or current != resolved:
-                self.entries["set"].set(resolved)
-                set_name = resolved
+            # ``lookup_sets_from_api`` returns tuples ``(code, name)``; the code
+            # corresponds to ``episode.code`` from the API response.
+            first_code, _ = api_sets[0]
+            resolved_name = get_set_name(first_code) or api_sets[0][1]
+
+            current_set = self.entries["set"].get()
+            if not current_set or current_set != resolved_name:
+                self.entries["set"].set(resolved_name)
+                set_name = resolved_name
                 if hasattr(self, "update_set_options"):
                     self.update_set_options()
+
             if len(api_sets) > 1 and hasattr(self, "prompt_set_selection"):
                 try:
                     selected_code = self.prompt_set_selection(api_sets)
