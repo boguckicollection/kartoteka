@@ -72,7 +72,6 @@ def test_show_card_uses_analyzer(tmp_path):
 
 def test_analyze_card_image_api_single_set(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "")), \
          patch.object(ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]), \
          patch.object(ui, "prompt_set_selection") as mock_prompt, \
@@ -86,7 +85,6 @@ def test_analyze_card_image_api_single_set(monkeypatch):
 
 def test_analyze_card_image_api_multiple_sets(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     options = [("a", "Set A"), ("b", "Set B")]
 
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "")), \
@@ -102,7 +100,6 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
 
 def test_analyze_card_image_api_fallback_hash(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     class DummyImage:
         size = (100, 100)
 
@@ -124,7 +121,6 @@ def test_analyze_card_image_api_fallback_hash(monkeypatch):
 
 def test_analyze_card_image_ocr(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    importlib.reload(ui)
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
@@ -154,7 +150,6 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
 
 def test_analyze_card_image_bad_json(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     with patch.object(ui, "extract_card_text_openai", return_value=("", "", "")), \
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
@@ -164,7 +159,6 @@ def test_analyze_card_image_bad_json(monkeypatch):
 
 def test_analyze_card_image_truncated_code_block(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "159")), \
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
@@ -174,7 +168,6 @@ def test_analyze_card_image_truncated_code_block(monkeypatch):
 
 def test_analyze_card_image_leading_text(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     with patch.object(ui, "extract_card_text_openai", return_value=("Pikachu", "037", "159")), \
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
@@ -184,7 +177,6 @@ def test_analyze_card_image_leading_text(monkeypatch):
 
 def test_analyze_card_image_local_hash(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    importlib.reload(ui)
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
     with patch.object(ui, "extract_card_text_openai") as mock_extract, patch.object(
@@ -199,7 +191,6 @@ def test_analyze_card_image_local_hash(monkeypatch):
 
 def test_analyze_card_image_translate_name(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
     resp_translate = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="Pikachu"))]
     )
@@ -217,7 +208,6 @@ def test_analyze_card_image_translate_name(monkeypatch):
 
 def test_analyze_and_fill_translates_for_jp(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    importlib.reload(ui)
 
     name_entry = MagicMock()
     num_entry = MagicMock()
