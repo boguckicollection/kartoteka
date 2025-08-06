@@ -664,11 +664,67 @@ def extract_set_code_ocr(
     return list(candidates)
 
 
-class CardData(BaseModel):
-    """Structured card information returned by the model."""
+class CardText(BaseModel):
+    """Structured card text returned by the model."""
     name: str = ""
     number: str = ""
-    set: str = ""
+
+
+def extract_card_text_openai(path: str) -> tuple[str, str, str]:
+    """Recognize card name and number using OpenAI Vision."""
+    parsed = urlparse(path)
+    if parsed.scheme in ("http", "https"):
+        url = path
+    else:
+        folder = os.path.basename(os.path.dirname(path))
+        filename = os.path.basename(path)
+        url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
+
+    try:
+        client = openai.OpenAI()
+        resp = client.responses.parse(
+            model="gpt-4o",
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "Extract Pokemon card name and number as JSON {\"name\":\"\",\"number\":\"\"}.",
+                        },
+                        {"type": "input_image", "image_url": url},
+                    ],
+                }
+            ],
+            text_format=CardText,
+            max_output_tokens=100,
+        )
+        if (
+            not resp.output
+            or not getattr(resp.output[0], "content", None)
+            or not resp.output[0].content
+            or not getattr(resp.output[0].content[0], "parsed", None)
+        ):
+            print(f"[ERROR] extract_card_text_openai failed to parse response: {resp}")
+            return "", "", ""
+        data: CardText = resp.output[0].content[0].parsed
+
+        raw_number = data.number or ""
+        number = ""
+        total = ""
+        if isinstance(raw_number, str):
+            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
+            if m:
+                number = m.group(1)
+                total = m.group(2) or ""
+            else:
+                number = re.sub(r"\D+", "", raw_number)
+
+        name = data.name or ""
+        return name, number, total
+    except Exception as e:
+        print(f"[ERROR] extract_card_text_openai failed: {e}")
+        return "", "", ""
 
 def analyze_card_image(path: str, translate_name: bool = False):
     """Return card details recognized from the image using OpenAI."""
@@ -687,6 +743,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
                 return {"name": "", "number": "", "total": "", "set": ocr_matches[0]}
         except Exception:
             ocr_matches = []
+
     if not OPENAI_API_KEY:
         # Without the API key we can't recognize name/number, so fall back to
         # local hashing if possible.
@@ -704,62 +761,9 @@ def analyze_card_image(path: str, translate_name: bool = False):
                 pass
         return {"name": "", "number": "", "total": "", "set": ""}
 
-    if parsed.scheme in ("http", "https"):
-        url = path
-    else:
-        folder = os.path.basename(os.path.dirname(path))
-        filename = os.path.basename(path)
-        url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
-
     try:
-        logos = load_set_logo_uris(available_sets=ALLOWED_SET_CODES)
-        content = [
-            {
-                "type": "input_text",
-                "text": (
-                    "Extract Pokemon card name, number and set code as JSON {\"name\":\"\",\"number\":\"\",\"set\":\"\"} by comparing the set symbol on the card with the provided set logos."
-                ),
-            },
-            {"type": "input_image", "image_url": url},
-        ]
-        for code, uri in logos.items():
-            content.append({"type": "input_text", "text": f"Set {code}"})
-            content.append({"type": "input_image", "image_url": uri})
-        client = openai.OpenAI()
-        resp = client.responses.parse(
-            model="gpt-4o",
-            input=[{"role": "user", "content": content}],
-            text_format=CardData,
-            max_output_tokens=150,
-        )
-        if (
-            not resp.output
-            or not getattr(resp.output[0], "content", None)
-            or not resp.output[0].content
-            or not getattr(resp.output[0].content[0], "parsed", None)
-        ):
-            print(f"[ERROR] analyze_card_image failed to parse response: {resp}")
-            return {"name": "", "number": "", "total": "", "set": ""}
-        data: CardData = resp.output[0].content[0].parsed
-
-        raw_number = data.number or ""
-        number = ""
-        total = ""
-        if isinstance(raw_number, str):
-            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
-            if m:
-                number = m.group(1)
-                total = m.group(2) or ""
-            else:
-                number = re.sub(r"\D+", "", raw_number)
-
-        name = data.name or ""
-        set_code = data.set or ""
-        stripped = set_code.strip()
-        if len(stripped) == 1 and stripped.isalpha():
-            set_code = ""
-        set_code = match_set_code(set_code)
-        if translate_name and isinstance(name, str) and not name.isascii():
+        name, number, total = extract_card_text_openai(path)
+        if translate_name and name and not name.isascii():
             name = translate_to_english(name)
 
         # Look up possible sets from external API
@@ -799,8 +803,7 @@ def analyze_card_image(path: str, translate_name: bool = False):
             except Exception:
                 pass
 
-        set_name = get_set_name(set_code)
-        return {"name": name, "number": number, "total": total, "set": set_name}
+        return {"name": name, "number": number, "total": total, "set": ""}
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
         return {"name": "", "number": "", "total": "", "set": ""}
