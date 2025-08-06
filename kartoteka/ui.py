@@ -3906,24 +3906,32 @@ class CardEditorApp:
         else:
             number = sanitize_number(number_raw)
 
-        if not set_name:
-            api_sets = lookup_sets_from_api(name, number, total)
-            if len(api_sets) == 1:
-                self.entries["set"].set(api_sets[0][1])
-                set_name = api_sets[0][1]
+        api_sets = lookup_sets_from_api(name, number, total)
+        if api_sets:
+            # ``lookup_sets_from_api`` returns tuples ``(code, name)``; the code
+            # corresponds to ``episode.code`` from the API response.
+            first_code, _ = api_sets[0]
+            resolved_name = get_set_name(first_code) or api_sets[0][1]
+
+            current_set = self.entries["set"].get()
+            if not current_set or current_set != resolved_name:
+                self.entries["set"].set(resolved_name)
+                set_name = resolved_name
                 if hasattr(self, "update_set_options"):
                     self.update_set_options()
-            elif len(api_sets) > 1 and hasattr(self, "prompt_set_selection"):
+
+            if len(api_sets) > 1 and hasattr(self, "prompt_set_selection"):
                 try:
                     selected_code = self.prompt_set_selection(api_sets)
                 except Exception:
-                    selected_code = api_sets[0][0]
+                    selected_code = first_code
                 set_name = get_set_name(selected_code) or next(
-                    (n for c, n in api_sets if c == selected_code), ""
+                    (n for c, n in api_sets if c == selected_code), "",
                 )
-                self.entries["set"].set(set_name)
-                if hasattr(self, "update_set_options"):
-                    self.update_set_options()
+                if self.entries["set"].get() != set_name:
+                    self.entries["set"].set(set_name)
+                    if hasattr(self, "update_set_options"):
+                        self.update_set_options()
 
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
