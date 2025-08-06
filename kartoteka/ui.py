@@ -222,9 +222,7 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         total = sanitize_number(str(total))
 
     name_api = normalize(name, keep_spaces=True)
-    params = {"name": name_api, "card_number": number}
-    if total:
-        params["total"] = total
+    params = {"name": name_api, "number": number}
 
     # log input data
     print(
@@ -238,28 +236,35 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         headers["X-RapidAPI-Key"] = RAPIDAPI_KEY
         headers["X-RapidAPI-Host"] = RAPIDAPI_HOST
 
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        if response.status_code != 200:
-            print(f"[ERROR] API error: {response.status_code}")
+    def _request(params):
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"[ERROR] API error: {response.status_code}")
+                return []
+            data = response.json()
+        except requests.Timeout:
+            print("[ERROR] Request timed out")
             return []
-        data = response.json()
-    except requests.Timeout:
-        print("[ERROR] Request timed out")
-        return []
-    except Exception as e:  # pragma: no cover - network/JSON errors
-        print(f"[ERROR] Fetching sets from TCGGO failed: {e}")
-        return []
+        except Exception as e:  # pragma: no cover - network/JSON errors
+            print(f"[ERROR] Fetching sets from TCGGO failed: {e}")
+            return []
 
-    if isinstance(data, dict):
-        if "cards" in data:
-            cards = data["cards"]
-        elif "data" in data:
-            cards = data["data"]
-        else:
-            cards = []
+        if isinstance(data, dict):
+            if "cards" in data:
+                return data["cards"]
+            if "data" in data:
+                return data["data"]
+            return []
+        return data
+
+    cards = []
+    if total:
+        cards = _request({**params, "total": total})
+        if not cards:
+            cards = _request(params)
     else:
-        cards = data
+        cards = _request(params)
 
     name_norm = normalize(name)
     number_norm = sanitize_number(str(number).strip().lower())

@@ -38,7 +38,7 @@ def test_lookup_sets_from_api_sorts_results(monkeypatch):
     def fake_get(url, params=None, timeout=None, headers=None):
         assert url == "https://www.tcggo.com/api/cards/"
         assert params["name"] == ui.normalize("Pikachu", keep_spaces=True)
-        assert params["card_number"] == "25"
+        assert params["number"] == "25"
         assert params["total"] == "102"
         assert headers == {"User-Agent": "kartoteka/1.0"}
         return DummyResp(data)
@@ -59,25 +59,28 @@ def test_lookup_sets_from_api_omits_total(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25", None)
-    assert captured["params"]["card_number"] == "25"
+    assert captured["params"]["number"] == "25"
     assert "total" not in captured["params"]
     assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
 def test_lookup_sets_from_api_splits_number(monkeypatch):
     data = {"cards": []}
-    captured = {}
+    calls = []
 
     def fake_get(url, params=None, timeout=None, headers=None):
-        captured["params"] = params
-        captured["headers"] = headers
+        calls.append({"params": params, "headers": headers})
         return DummyResp(data)
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25/102")
-    assert captured["params"]["card_number"] == "25"
-    assert captured["params"]["total"] == "102"
-    assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
+    assert len(calls) == 2
+    assert calls[0]["params"]["number"] == "25"
+    assert calls[0]["params"]["total"] == "102"
+    assert calls[0]["headers"] == {"User-Agent": "kartoteka/1.0"}
+    assert calls[1]["params"]["number"] == "25"
+    assert "total" not in calls[1]["params"]
+    assert calls[1]["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
 def test_lookup_sets_from_api_sanitizes_number(monkeypatch):
@@ -91,7 +94,7 @@ def test_lookup_sets_from_api_sanitizes_number(monkeypatch):
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "037")
-    assert captured["params"]["card_number"] == "37"
+    assert captured["params"]["number"] == "37"
     assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
