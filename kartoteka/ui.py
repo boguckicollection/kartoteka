@@ -217,6 +217,9 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         number_str = str(number)
         if "/" in number_str:
             number, total = number_str.split("/", 1)
+    number = sanitize_number(str(number))
+    if total is not None:
+        total = sanitize_number(str(total))
 
     name_api = normalize(name, keep_spaces=True)
     params = {"name": name_api, "number": number}
@@ -254,8 +257,8 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         cards = data
 
     name_norm = normalize(name)
-    number_norm = str(number).strip().lower()
-    total_norm = str(total).strip().lower() if total else None
+    number_norm = sanitize_number(str(number).strip().lower())
+    total_norm = sanitize_number(str(total).strip().lower()) if total else None
 
     scores = {}
     for card in cards:
