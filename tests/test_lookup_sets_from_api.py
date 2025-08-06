@@ -35,11 +35,12 @@ def test_lookup_sets_from_api_sorts_results(monkeypatch):
         ]
     }
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, headers=None):
         assert url == "https://www.tcggo.com/api/cards/"
         assert params["name"] == ui.normalize("Pikachu", keep_spaces=True)
         assert params["number"] == "25"
         assert params["total"] == "102"
+        assert headers == {"User-Agent": "kartoteka/1.0"}
         return DummyResp(data)
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
@@ -51,40 +52,46 @@ def test_lookup_sets_from_api_omits_total(monkeypatch):
     data = {"cards": []}
     captured = {}
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, headers=None):
         captured["params"] = params
+        captured["headers"] = headers
         return DummyResp(data)
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25", None)
     assert "total" not in captured["params"]
+    assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
 def test_lookup_sets_from_api_splits_number(monkeypatch):
     data = {"cards": []}
     captured = {}
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, headers=None):
         captured["params"] = params
+        captured["headers"] = headers
         return DummyResp(data)
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "25/102")
     assert captured["params"]["number"] == "25"
     assert captured["params"]["total"] == "102"
+    assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
 def test_lookup_sets_from_api_sanitizes_number(monkeypatch):
     data = {"cards": []}
     captured = {}
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, headers=None):
         captured["params"] = params
+        captured["headers"] = headers
         return DummyResp(data)
 
     monkeypatch.setattr(ui.requests, "get", fake_get)
     ui.lookup_sets_from_api("Pikachu", "037")
     assert captured["params"]["number"] == "37"
+    assert captured["headers"] == {"User-Agent": "kartoteka/1.0"}
 
 
 def test_lookup_sets_from_api_filters_results(monkeypatch):
@@ -105,8 +112,31 @@ def test_lookup_sets_from_api_filters_results(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(
-        ui.requests, "get", lambda url, params=None, timeout=None: DummyResp(data)
-    )
+    def fake_get(url, params=None, timeout=None, headers=None):
+        assert headers == {"User-Agent": "kartoteka/1.0"}
+        return DummyResp(data)
+
+    monkeypatch.setattr(ui.requests, "get", fake_get)
     result = ui.lookup_sets_from_api("Pikachu", "25", "102")
     assert result == [("BS", "Base Set")]
+
+
+def test_lookup_sets_from_api_uses_rapidapi(monkeypatch):
+    data = {"cards": []}
+    host = "example.p.rapidapi.com"
+    key = "secret"
+
+    monkeypatch.setattr(ui, "RAPIDAPI_HOST", host)
+    monkeypatch.setattr(ui, "RAPIDAPI_KEY", key)
+
+    def fake_get(url, params=None, timeout=None, headers=None):
+        assert url == f"https://{host}/cards/search"
+        assert headers == {
+            "User-Agent": "kartoteka/1.0",
+            "X-RapidAPI-Key": key,
+            "X-RapidAPI-Host": host,
+        }
+        return DummyResp(data)
+
+    monkeypatch.setattr(ui.requests, "get", fake_get)
+    ui.lookup_sets_from_api("Pikachu", "25", "102")

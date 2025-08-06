@@ -231,10 +231,15 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         f"[lookup_sets_from_api] name={name!r}, number={number!r}, total={total!r}"
     )
 
+    headers = {"User-Agent": "kartoteka/1.0"}
+    url = "https://www.tcggo.com/api/cards/"
+    if RAPIDAPI_KEY and RAPIDAPI_HOST:
+        url = f"https://{RAPIDAPI_HOST}/cards/search"
+        headers["X-RapidAPI-Key"] = RAPIDAPI_KEY
+        headers["X-RapidAPI-Host"] = RAPIDAPI_HOST
+
     try:
-        response = requests.get(
-            "https://www.tcggo.com/api/cards/", params=params, timeout=10
-        )
+        response = requests.get(url, params=params, headers=headers, timeout=10)
         if response.status_code != 200:
             print(f"[ERROR] API error: {response.status_code}")
             return []
