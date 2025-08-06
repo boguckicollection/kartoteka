@@ -15,6 +15,7 @@ import re
 import asyncio
 import datetime
 import time
+import tempfile
 from collections import defaultdict
 from dotenv import load_dotenv
 import unicodedata
@@ -767,67 +768,78 @@ def extract_card_text_openai(path: str) -> tuple[str, str, str]:
         print(f"[ERROR] extract_card_text_openai failed: {e}")
         return "", "", ""
 
-def analyze_card_image(path: str, translate_name: bool = False):
+def analyze_card_image(path: str, translate_name: bool = False, debug: bool = False):
     """Return card details recognized from the image using OpenAI."""
     parsed = urlparse(path)
     local_path = path if parsed.scheme not in ("http", "https") else None
 
     w = h = None
+    rect = None
     ocr_matches: list[str] = []
-    if local_path:
-        try:
+    debug_files: list[str] = []
+
+    def _ensure_rect():
+        nonlocal w, h, rect
+        if rect is None and local_path:
             with Image.open(local_path) as im:
                 w, h = im.size
-            rect = get_symbol_rect(w, h)
-            ocr_matches = extract_set_code_ocr(local_path, rect)
-            if len(ocr_matches) == 1:
-                return {
-                    "name": "",
-                    "number": "",
-                    "total": "",
-                    "set": get_set_name(ocr_matches[0]),
-                }
-        except Exception:
-            ocr_matches = []
+                rect = get_symbol_rect(w, h)
+                if debug:
+                    tmp = tempfile.NamedTemporaryFile(prefix="symbol_", suffix=".png", delete=False)
+                    im.crop(rect).save(tmp.name)
+                    debug_files.append(tmp.name)
+                    tmp.close()
+        return rect
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        # Without the API key we can't recognize name/number, so fall back to
-        # local hashing if possible and use OCR hints when available.
+    try:
         if local_path:
             try:
-                if w is None or h is None:
-                    with Image.open(local_path) as im:
-                        w, h = im.size
-                rect = get_symbol_rect(w, h)
-                if len(ocr_matches) > 1:
-                    matches = identify_set_by_hash(local_path, rect)
-                    if matches:
-                        code, name, diff = matches[0]
-                        if diff <= HASH_DIFF_THRESHOLD and code in ocr_matches:
-                            return {"name": "", "number": "", "total": "", "set": name}
+                rect = _ensure_rect()
+                ocr_matches = extract_set_code_ocr(local_path, rect)
+                if len(ocr_matches) == 1:
                     return {
                         "name": "",
                         "number": "",
                         "total": "",
                         "set": get_set_name(ocr_matches[0]),
                     }
-                if not ocr_matches:
-                    matches = identify_set_by_hash(local_path, rect)
-                    if matches:
-                        code, name, diff = matches[0]
-                        if diff <= HASH_DIFF_THRESHOLD:
-                            return {
-                                "name": "",
-                                "number": "",
-                                "total": "",
-                                "set": name,
-                            }
             except Exception:
-                pass
-        return {"name": "", "number": "", "total": "", "set": ""}
+                ocr_matches = []
 
-    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            # Without the API key we can't recognize name/number, so fall back to
+            # local hashing if possible and use OCR hints when available.
+            if local_path:
+                try:
+                    rect = _ensure_rect()
+                    if len(ocr_matches) > 1:
+                        matches = identify_set_by_hash(local_path, rect)
+                        if matches:
+                            code, name, diff = matches[0]
+                            if diff <= HASH_DIFF_THRESHOLD and code in ocr_matches:
+                                return {"name": "", "number": "", "total": "", "set": name}
+                        return {
+                            "name": "",
+                            "number": "",
+                            "total": "",
+                            "set": get_set_name(ocr_matches[0]),
+                        }
+                    if not ocr_matches:
+                        matches = identify_set_by_hash(local_path, rect)
+                        if matches:
+                            code, name, diff = matches[0]
+                            if diff <= HASH_DIFF_THRESHOLD:
+                                return {
+                                    "name": "",
+                                    "number": "",
+                                    "total": "",
+                                    "set": name,
+                                }
+                except Exception:
+                    pass
+            return {"name": "", "number": "", "total": "", "set": ""}
+
         name, number, total = extract_card_text_openai(path)
         if translate_name and name and not name.isascii():
             name = translate_to_english(name)
@@ -866,10 +878,8 @@ def analyze_card_image(path: str, translate_name: bool = False):
         # Fallback to local hashing if API did not provide answers
         if local_path and not ocr_matches:
             try:
-                if w is None or h is None:
-                    with Image.open(local_path) as im:
-                        w, h = im.size
-                matches = identify_set_by_hash(local_path, get_symbol_rect(w, h))
+                rect = _ensure_rect()
+                matches = identify_set_by_hash(local_path, rect)
                 if matches:
                     code, name_match, diff = matches[0]
                     if diff <= HASH_DIFF_THRESHOLD:
@@ -886,6 +896,12 @@ def analyze_card_image(path: str, translate_name: bool = False):
     except Exception as e:
         print(f"[ERROR] analyze_card_image failed: {e}")
         return {"name": "", "number": "", "total": "", "set": ""}
+    finally:
+        for fp in debug_files:
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
 
 
 class CardEditorApp:

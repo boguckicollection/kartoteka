@@ -248,6 +248,38 @@ def test_analyze_card_image_translate_name(monkeypatch):
     mock_create.assert_called_once()
 
 
+def test_analyze_card_image_debug_crop(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    img_path = Path(__file__).resolve().parents[1] / "simple_pokeball.gif"
+    debug_path = tmp_path / "crop.png"
+
+    class DummyTmp:
+        def __init__(self, *a, **k):
+            self.name = str(debug_path)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ui.tempfile, "NamedTemporaryFile", lambda *a, **k: DummyTmp())
+    monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
+    monkeypatch.setattr(ui, "identify_set_by_hash", lambda *a, **k: [])
+
+    removed = {}
+
+    def fake_remove(path):
+        removed["path"] = path
+        if os.path.exists(path):
+            os.unlink(path)
+
+    monkeypatch.setattr(ui.os, "remove", fake_remove)
+
+    result = ui.analyze_card_image(str(img_path), debug=True)
+
+    assert result == {"name": "", "number": "", "total": "", "set": ""}
+    assert removed.get("path") == str(debug_path)
+    assert not debug_path.exists()
+
+
 def test_analyze_and_fill_translates_for_jp(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
 
