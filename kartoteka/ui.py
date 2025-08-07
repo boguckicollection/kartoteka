@@ -34,8 +34,11 @@ from urllib.parse import urlencode, urlparse
 from urllib.error import HTTPError
 import io
 import webbrowser
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/upload/images")
 SCANS_DIR = os.getenv("SCANS_DIR", "scans")
@@ -670,11 +673,11 @@ def identify_set_by_hash(
     results.sort(key=lambda x: x[1])
 
     # ZMIANA: Logowanie najlepszych wyników do debugowania
-    print(f"[DEBUG] Top 5 hash matches (code, difference): {results[:5]}")
+    logger.debug("Top 5 hash matches (code, difference): %s", results[:5])
 
     symbol_hash = str(crop_hashes[0])
     for best_code, diff in results[:4]:
-        print(f"Hash {symbol_hash} -> {best_code} ({diff})")
+        logger.debug("Hash %s -> %s (%s)", symbol_hash, best_code, diff)
 
     mapped: list[tuple[str, str, int]] = []
     for code, diff in results[:4]:
