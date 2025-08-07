@@ -1498,7 +1498,7 @@ class CardEditorApp:
             self._load_auction_queue()
         except FileNotFoundError:
             messagebox.showerror(
-                "Błąd", f"Nie znaleziono pliku {csv_utils.INVENTORY_CSV}"
+                "Błąd", f"Nie znaleziono pliku {csv_utils.WAREHOUSE_CSV}"
             )
             self.auction_queue = []
         except ValueError as exc:
@@ -1746,7 +1746,7 @@ class CardEditorApp:
                 codes = [treeview.item(i, "values")[0] for i in treeview.selection()]
                 if codes:
                     try:
-                        rows = self.read_inventory_rows(codes, csv_utils.INVENTORY_CSV)
+                        rows = self.read_inventory_rows(codes, csv_utils.WAREHOUSE_CSV)
                     except Exception as exc:
                         messagebox.showerror("Błąd", str(exc))
                         return
@@ -1863,10 +1863,10 @@ class CardEditorApp:
 
     def _load_auction_queue(self):
         """Load auction queue from ``magazyn.csv`` into ``self.auction_queue``."""
-        path = csv_utils.INVENTORY_CSV
+        path = csv_utils.WAREHOUSE_CSV
         self.auction_queue = self.read_inventory_rows([], path)
 
-    def read_inventory_rows(self, codes, path=csv_utils.INVENTORY_CSV):
+    def read_inventory_rows(self, codes, path=csv_utils.WAREHOUSE_CSV):
         """Return rows from ``path`` filtered by ``codes``."""
         with open(path, newline="", encoding="utf-8") as f:
             sample = f.read(2048)
@@ -1904,14 +1904,14 @@ class CardEditorApp:
         return rows
 
     def lookup_inventory_entry(self, key):
-        """Return first row from ``INVENTORY_CSV`` matching ``key``."""
+        """Return first row from ``WAREHOUSE_CSV`` matching ``key``."""
         try:
             name, number, set_name = key.split("|", 2)
         except ValueError:
             return None
 
         try:
-            with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
+            with open(csv_utils.WAREHOUSE_CSV, newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
                 for raw in reader:
                     row = {norm_header(k): v for k, v in raw.items() if k is not None}
@@ -2110,7 +2110,7 @@ class CardEditorApp:
     def load_inventory_csv(self, widget):
         """Load local inventory data from the CSV file."""
         try:
-            path = csv_utils.INVENTORY_CSV
+            path = csv_utils.WAREHOUSE_CSV
             if isinstance(widget, ttk.Treeview):
                 style = ttk.Style(widget)
                 style.configure(
@@ -3054,7 +3054,7 @@ class CardEditorApp:
             self.session_csv_path = csv_path
             with open(csv_path, "w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(
-                    f, fieldnames=csv_utils.INVENTORY_FIELDNAMES, delimiter=";"
+                    f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";"
                 )
                 writer.writeheader()
         self.in_scan = True
@@ -4274,10 +4274,10 @@ class CardEditorApp:
             with open(self.session_csv_path, "a", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(
                     f,
-                    fieldnames=csv_utils.INVENTORY_FIELDNAMES,
+                    fieldnames=csv_utils.STORE_FIELDNAMES,
                     delimiter=";",
                 )
-                writer.writerow(csv_utils.format_inventory_row(data))
+                writer.writerow(csv_utils.format_store_row(data))
 
     def save_and_next(self):
         """Save the current card data and display the next scan."""

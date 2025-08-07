@@ -41,7 +41,7 @@ OPENAI_API_KEY=sk-...
 FTP_HOST=example.com
 FTP_USER=username
 FTP_PASSWORD=secret
-INVENTORY_CSV=magazyn.csv
+WAREHOUSE_CSV=magazyn.csv
 BASE_IMAGE_URL=https://your-store.shop/upload/images
 SET_HASH_THRESHOLD=128
 ```
@@ -53,7 +53,7 @@ SET_HASH_THRESHOLD=128
 from version control via `.gitignore` and should never be shared publicly.
 
 The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `SHOPER_DELIVERY_ID` sets the default shipping method id for exported CSV files. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads. `OPENAI_API_KEY` supplies the key for OpenAI Vision to recognise card details from scans. `BASE_IMAGE_URL` should point to the public directory where scans are uploaded so OpenAI can fetch them during analysis and the exported CSV contains correct links. Leading or trailing spaces in `SHOPER_API_URL` and `SHOPER_API_TOKEN` are ignored.
-`INVENTORY_CSV` controls where the local inventory CSV is written.
+`WAREHOUSE_CSV` controls where the local warehouse CSV is written.
 
 ## Running the App
 Execute the main script with Python 3:
@@ -116,7 +116,7 @@ empty. Missing bidding step and duration values default to `1` and `60` seconds
 respectively.
 
 ### CSV and image upload
-After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to FTP using the credentials from `.env`. The exported CSV includes `images 1` and `warehouse_code` columns with the remote image path and storage location. A copy of every row is also appended to the file specified in `INVENTORY_CSV` so the full stock list remains in one place. Use the **FTP Obrazy** button on the welcome screen to upload a folder of images to the configured FTP server.
+After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to FTP using the credentials from `.env`. A copy of every row is also appended to the file specified in `WAREHOUSE_CSV` so the full stock list remains in one place. Use the **FTP Obrazy** button on the welcome screen to upload a folder of images to the configured FTP server.
 
 ## License
 This project is licensed under the terms of the [MIT License](LICENSE).

@@ -1,4 +1,5 @@
 import csv
+import csv
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
@@ -37,18 +38,19 @@ def test_export_includes_new_fields(tmp_path):
     with open(out_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
-        assert reader.fieldnames == csv_utils.INVENTORY_FIELDNAMES
+        assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
         row = rows[0]
         assert row["currency"] == "PLN"
         assert row["producer_code"] == "1"
-        assert row["psa10_price"] == ""
+        assert row["stock"] == "1"
+        assert "psa10_price" not in reader.fieldnames
         assert "vat" not in reader.fieldnames
 
 
-def test_export_appends_inventory(tmp_path, monkeypatch):
+def test_export_appends_warehouse(tmp_path, monkeypatch):
     out_path = tmp_path / "out.csv"
     inv_path = tmp_path / "inv.csv"
-    monkeypatch.setenv("INVENTORY_CSV", str(inv_path))
+    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
@@ -77,8 +79,8 @@ def test_export_appends_inventory(tmp_path, monkeypatch):
     with open(inv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
-        assert rows[0]["producer_code"] == "1"
-        assert rows[0]["currency"] == "PLN"
-        assert rows[0]["psa10_price"] == ""
+        assert reader.fieldnames == csv_utils.WAREHOUSE_FIELDNAMES
+        assert rows[0]["name"] == "Pikachu 1"
+        assert rows[0]["image"] == "img.jpg"
 
 

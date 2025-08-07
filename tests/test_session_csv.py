@@ -62,8 +62,8 @@ def test_session_csv_created(tmp_path):
     assert dummy.session_csv_path == str(session_path)
     with open(session_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
-        assert reader.fieldnames == csv_utils.INVENTORY_FIELDNAMES
-        assert "psa10_price" in reader.fieldnames
+        assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
+        assert "stock" in reader.fieldnames
 
 
 def test_save_current_appends_session(tmp_path):
@@ -71,7 +71,7 @@ def test_save_current_appends_session(tmp_path):
     dummy = make_dummy()
     dummy.session_csv_path = str(session_path)
     with open(session_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=csv_utils.INVENTORY_FIELDNAMES, delimiter=";")
+        writer = csv.DictWriter(f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";")
         writer.writeheader()
 
     ui.CardEditorApp.save_current_data(dummy)
@@ -83,5 +83,5 @@ def test_save_current_appends_session(tmp_path):
         assert rows[0]["name"]
         assert rows[0]["currency"] == "PLN"
         assert rows[0]["producer_code"] == "4"
-        assert rows[0]["psa10_price"] == ""
+        assert rows[0]["stock"] == "1"
 
