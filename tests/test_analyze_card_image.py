@@ -447,7 +447,7 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         f"name;numer;set\nPikachu;001;{SV01_NAME}\n",
         encoding="utf-8",
     )
-    monkeypatch.setenv("INVENTORY_CSV", str(csv_path))
+    monkeypatch.setenv("WAREHOUSE_CSV", str(csv_path))
     import importlib
     import kartoteka.csv_utils as csv_utils
     importlib.reload(csv_utils)

@@ -7,10 +7,10 @@ from ftp_client import FTPClient
 FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
-INVENTORY_CSV = os.getenv("INVENTORY_CSV", "magazyn.csv")
+WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 
-# column order for inventory CSV files
-INVENTORY_FIELDNAMES = [
+# column order for exported CSV files
+STORE_FIELDNAMES = [
     "product_code",
     "name",
     "producer_code",
@@ -19,20 +19,19 @@ INVENTORY_FIELDNAMES = [
     "short_description",
     "description",
     "price",
-    "psa10_price",
     "currency",
     "availability",
     "unit",
     "delivery",
-    "images 1",
+    "stock",
     "seo_title",
-    "seo_description",
-    "seo_keywords",
 ]
 
+WAREHOUSE_FIELDNAMES = ["name", "warehouse_code", "image"]
 
-def format_inventory_row(row):
-    """Return a row formatted for the inventory CSV."""
+
+def format_store_row(row):
+    """Return a row formatted for the store CSV."""
     name_parts = [row["nazwa"], row["numer"]]
     formatted_name = " ".join(part for part in name_parts if part)
 
@@ -45,15 +44,24 @@ def format_inventory_row(row):
         "short_description": row["short_description"],
         "description": row["description"],
         "price": row["cena"],
-        "psa10_price": row.get("psa10_price", ""),
         "currency": row.get("currency", "PLN"),
         "availability": row.get("availability", 1),
         "unit": row.get("unit", "szt."),
         "delivery": row.get("delivery", ""),
-        "images 1": row.get("image1", row.get("images", "")),
+        "stock": row.get("stock", 1),
         "seo_title": row.get("seo_title", ""),
-        "seo_description": row.get("seo_description", ""),
-        "seo_keywords": row.get("seo_keywords", ""),
+    }
+
+
+def format_warehouse_row(row):
+    """Return a row formatted for the warehouse CSV."""
+    name_parts = [row.get("nazwa"), row.get("numer")]
+    formatted_name = " ".join(part for part in name_parts if part)
+
+    return {
+        "name": formatted_name,
+        "warehouse_code": row.get("warehouse_code", ""),
+        "image": row.get("image1", row.get("images", "")),
     }
 
 
@@ -181,23 +189,23 @@ def export_csv(app):
             combined[key] = row.copy()
             combined[key]["stock"] = 1
 
-    fieldnames = INVENTORY_FIELDNAMES
+    fieldnames = STORE_FIELDNAMES
 
     with open(file_path, mode="w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
         writer.writeheader()
         for row in combined.values():
-            writer.writerow(format_inventory_row(row))
-    append_inventory_csv(app)
+            writer.writerow(format_store_row(row))
+    append_warehouse_csv(app)
     messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
     if messagebox.askyesno("Wysyłka", "Czy wysłać plik do Shoper?"):
         send_csv_to_shoper(app, file_path)
     app.back_to_welcome()
 
 
-def append_inventory_csv(app, path: str = INVENTORY_CSV):
-    """Append all collected rows to the inventory CSV."""
-    fieldnames = INVENTORY_FIELDNAMES
+def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
+    """Append all collected rows to the warehouse CSV."""
+    fieldnames = WAREHOUSE_FIELDNAMES
 
     file_exists = os.path.exists(path)
     with open(path, "a", encoding="utf-8", newline="") as f:
@@ -207,7 +215,7 @@ def append_inventory_csv(app, path: str = INVENTORY_CSV):
         for row in app.output_data:
             if row is None:
                 continue
-            writer.writerow(format_inventory_row(row))
+            writer.writerow(format_warehouse_row(row))
 
 
 def send_csv_to_shoper(app, file_path: str):
