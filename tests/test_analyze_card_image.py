@@ -183,8 +183,8 @@ def test_analyze_card_image_ocr(monkeypatch):
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
-    with patch.object(ui, "extract_set_code_ocr", return_value=[SV01_CODE]) as mock_ocr, \
-        patch.object(ui, "identify_set_by_hash") as mock_hash, \
+    with patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash, \
+        patch.object(ui, "extract_set_code_ocr", return_value=[SV01_CODE]) as mock_ocr, \
         patch.object(ui, "extract_card_info_openai") as mock_extract, \
         patch.object(ui, "lookup_sets_from_api") as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
@@ -197,24 +197,22 @@ def test_analyze_card_image_ocr(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
     }
+    mock_hash.assert_called_once()
     mock_ocr.assert_called_once()
-    mock_hash.assert_not_called()
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
 
 
-def test_analyze_card_image_ocr_multiple(monkeypatch):
+def test_analyze_card_image_hash_short_circuits_ocr(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
     with patch.object(
-        ui, "extract_set_code_ocr", return_value=[SV01_CODE, "other"]
-    ) as mock_ocr, patch.object(
         ui, "identify_set_by_hash", return_value=[(SV01_CODE, SV01_NAME, 0)]
-    ) as mock_hash, patch.object(ui, "extract_card_info_openai") as mock_extract, patch.object(
-        ui, "lookup_sets_from_api"
-    ) as mock_lookup:
+    ) as mock_hash, patch.object(ui, "extract_set_code_ocr") as mock_ocr, patch.object(
+        ui, "extract_card_info_openai"
+    ) as mock_extract, patch.object(ui, "lookup_sets_from_api") as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
     assert result == {
@@ -225,22 +223,22 @@ def test_analyze_card_image_ocr_multiple(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
     }
-    mock_ocr.assert_called_once()
     mock_hash.assert_called_once()
+    mock_ocr.assert_not_called()
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
 
 
-def test_analyze_card_image_ocr_multiple_ambiguous(monkeypatch):
+def test_analyze_card_image_hash_falls_back_to_ocr(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
     with patch.object(
+        ui, "identify_set_by_hash", return_value=[("x", "Set X", ui.HASH_DIFF_THRESHOLD + 1)]
+    ) as mock_hash, patch.object(
         ui, "extract_set_code_ocr", return_value=[SV01_CODE, "other"]
-    ) as mock_ocr, patch.object(
-        ui, "identify_set_by_hash", return_value=[("x", "Set X", 0)]
-    ) as mock_hash, patch.object(ui, "extract_card_info_openai") as mock_extract, patch.object(
+    ) as mock_ocr, patch.object(ui, "extract_card_info_openai") as mock_extract, patch.object(
         ui, "lookup_sets_from_api"
     ) as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
@@ -253,8 +251,8 @@ def test_analyze_card_image_ocr_multiple_ambiguous(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
     }
-    mock_ocr.assert_called_once()
     mock_hash.assert_called_once()
+    mock_ocr.assert_called_once()
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
 

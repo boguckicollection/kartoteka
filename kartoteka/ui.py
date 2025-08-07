@@ -904,65 +904,6 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
             if rect is None:
                 rect = (0, 0, 0, 0)
 
-            # Try OCR first
-            ocr_codes = extract_set_code_ocr(local_path, rect)
-            if ocr_codes:
-                if len(ocr_codes) == 1:
-                    code = ocr_codes[0]
-                    name_lookup = get_set_name(code)
-                    if name_lookup:
-                        set_code = code
-                        set_name = name_lookup
-                        print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                        result = {
-                            "name": name,
-                            "number": number,
-                            "total": total,
-                            "set": set_name,
-                            "set_code": set_code,
-                            "orientation": orientation,
-                        }
-                        if debug and rect:
-                            result["rect"] = rect
-                        return result
-                else:
-                    matches = identify_set_by_hash(local_path, rect)
-                    if matches:
-                        code, name_match, diff = matches[0]
-                        if code in ocr_codes and diff <= HASH_DIFF_THRESHOLD:
-                            set_code = code
-                            set_name = name_match
-                            print(
-                                f"[SUCCESS] Local hash analysis disambiguated OCR: {name_match}"
-                            )
-                            result = {
-                                "name": name,
-                                "number": number,
-                                "total": total,
-                                "set": set_name,
-                                "set_code": set_code,
-                                "orientation": orientation,
-                            }
-                            if debug and rect:
-                                result["rect"] = rect
-                            return result
-                    name_lookup = get_set_name(ocr_codes[0])
-                    if name_lookup:
-                        set_code = ocr_codes[0]
-                        set_name = name_lookup
-                        print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                        result = {
-                            "name": name,
-                            "number": number,
-                            "total": total,
-                            "set": set_name,
-                            "set_code": set_code,
-                            "orientation": orientation,
-                        }
-                        if debug and rect:
-                            result["rect"] = rect
-                        return result
-
             matches = identify_set_by_hash(local_path, rect)
             if matches:
                 code, name_match, diff = matches[0]
@@ -982,7 +923,28 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                         result["rect"] = rect
                     return result
 
-            print("[INFO] Hash analysis did not yield a confident result.")
+            print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
+
+            ocr_codes = extract_set_code_ocr(local_path, rect)
+            for code in ocr_codes:
+                name_lookup = get_set_name(code)
+                if name_lookup:
+                    set_code = code
+                    set_name = name_lookup
+                    print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
+                    result = {
+                        "name": name,
+                        "number": number,
+                        "total": total,
+                        "set": set_name,
+                        "set_code": set_code,
+                        "orientation": orientation,
+                    }
+                    if debug and rect:
+                        result["rect"] = rect
+                    return result
+
+            print("[INFO] OCR analysis did not find a valid set code.")
         except Exception as e:
             print(f"[ERROR] Local analysis failed: {e}")
 
