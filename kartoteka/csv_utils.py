@@ -7,7 +7,10 @@ from ftp_client import FTPClient
 FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
-WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", "magazyn.csv")
+INVENTORY_CSV = os.getenv(
+    "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
+)
+WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", INVENTORY_CSV)
 
 # column order for exported CSV files
 STORE_FIELDNAMES = [
