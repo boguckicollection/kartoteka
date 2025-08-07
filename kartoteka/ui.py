@@ -62,6 +62,12 @@ HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 10 # ZMIANA: Lekko zwiększony próg dla większej elastyczności
 
+SET_HASH_THRESHOLD = 128
+try:
+    SET_HASH_THRESHOLD = int(os.getenv("SET_HASH_THRESHOLD", SET_HASH_THRESHOLD))
+except ValueError:
+    pass
+
 DEFAULT_LOGO_LIMIT = 20
 try:
     DEFAULT_LOGO_LIMIT = int(os.getenv("SET_LOGO_LIMIT", DEFAULT_LOGO_LIMIT))
@@ -640,7 +646,10 @@ def identify_set_by_hash(
                 continue
             try:
                 with Image.open(path) as im:
-                    im = im.convert("L").point(lambda x: 0 if x < 128 else 255, "1")
+                    im = im.convert("L").point(
+                        lambda x, t=SET_HASH_THRESHOLD: 0 if x < t else 255,
+                        "1",
+                    )
                     logos[code] = (
                         imagehash.phash(im),
                         imagehash.dhash(im),
@@ -656,7 +665,10 @@ def identify_set_by_hash(
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
             # ZMIANA: Przetwarzanie obrazu w celu usunięcia szumu tła przed haszowaniem
-            crop = crop.convert("L").point(lambda x: 0 if x < 128 else 255, '1')
+            crop = crop.convert("L").point(
+                lambda x, t=SET_HASH_THRESHOLD: 0 if x < t else 255,
+                "1",
+            )
             crop_hashes = (
                 imagehash.phash(crop),
                 imagehash.dhash(crop),
