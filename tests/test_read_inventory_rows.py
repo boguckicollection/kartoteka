@@ -67,5 +67,16 @@ def test_read_inventory_rows_extra_values_ignored(tmp_path):
     )
     dummy = SimpleNamespace()
     rows = ui.CardEditorApp.read_inventory_rows(dummy, [], str(csv_path))
-    assert rows == [{"product_code": "1", "nazwa_karty": "A"}]
+    assert rows == [{"product_code": "1", "nazwa_karty": "A", "price": "0"}]
+
+
+def test_read_inventory_rows_image_and_defaults(tmp_path):
+    csv_path = tmp_path / "inv.csv"
+    csv_path.write_text("name;image\nTest 1;img.png\n", encoding="utf-8")
+    dummy = SimpleNamespace()
+    rows = ui.CardEditorApp.read_inventory_rows(dummy, [], str(csv_path))
+    assert rows[0]["images 1"] == "img.png"
+    assert rows[0]["price"] == "0"
+    assert rows[0]["product_code"] == ""
+    assert rows[0]["cena_początkowa"] == "0"
 

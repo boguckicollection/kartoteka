@@ -1862,12 +1862,22 @@ class CardEditorApp:
         return refresh_tree
 
     def _load_auction_queue(self):
-        """Load auction queue from ``magazyn.csv`` into ``self.auction_queue``."""
-        path = csv_utils.WAREHOUSE_CSV
+        """Load auction queue from inventory CSV into ``self.auction_queue``."""
+        path = getattr(
+            csv_utils,
+            "WAREHOUSE_CSV",
+            getattr(csv_utils, "INVENTORY_CSV", "magazyn.csv"),
+        )
         self.auction_queue = self.read_inventory_rows([], path)
 
-    def read_inventory_rows(self, codes, path=csv_utils.WAREHOUSE_CSV):
+    def read_inventory_rows(self, codes, path=None):
         """Return rows from ``path`` filtered by ``codes``."""
+        if path is None:
+            path = getattr(
+                csv_utils,
+                "WAREHOUSE_CSV",
+                getattr(csv_utils, "INVENTORY_CSV", "magazyn.csv"),
+            )
         with open(path, newline="", encoding="utf-8") as f:
             sample = f.read(2048)
             f.seek(0)
@@ -1898,6 +1908,11 @@ class CardEditorApp:
                     row.setdefault("czas_trwania", "60")
             else:
                 raise ValueError("Nie rozpoznano formatu pliku CSV")
+        for row in rows:
+            row.setdefault("price", "0")
+            row.setdefault("product_code", "")
+            if "image" in row and "images 1" not in row:
+                row["images 1"] = row.pop("image")
         if codes:
             wanted = {str(c) for c in codes}
             rows = [r for r in rows if str(r.get("product_code")) in wanted]
