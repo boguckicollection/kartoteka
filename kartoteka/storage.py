@@ -1,4 +1,6 @@
+import csv
 import re
+from . import csv_utils
 
 
 def location_from_code(code: str) -> str:
@@ -38,31 +40,47 @@ def next_free_location(app):
     return generate_location(idx)
 
 
-def compute_column_occupancy(app):
+def compute_column_occupancy():
     occ = {b: {c: 0 for c in range(1, 5)} for b in range(1, 9)}
-    for row in getattr(app, "output_data", []):
-        codes = str(row.get("warehouse_code") or "").split(";")
-        for code in codes:
-            code = code.strip()
-            if not code:
-                continue
-            m = re.match(r"K(\d+)R(\d)P(\d+)", code)
-            if not m:
-                continue
-            box = int(m.group(1))
-            c = int(m.group(2))
-            if box in occ and c in occ[box]:
-                occ[box][c] += 1
+    try:
+        with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                codes = str(row.get("warehouse_code") or "").split(";")
+                for code in codes:
+                    code = code.strip()
+                    if not code:
+                        continue
+                    m = re.match(r"K(\d+)R(\d)P(\d+)", code)
+                    if not m:
+                        continue
+                    box = int(m.group(1))
+                    c = int(m.group(2))
+                    if box in occ and c in occ[box]:
+                        occ[box][c] += 1
+    except FileNotFoundError:
+        pass
     return occ
 
 
-def repack_column(app, box: int, column: int):
+def repack_column(box: int, column: int):
+    path = csv_utils.INVENTORY_CSV
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            fieldnames = reader.fieldnames or []
+            rows = list(reader)
+    except FileNotFoundError:
+        return
+
     pattern = re.compile(r"K(\d+)R(\d)P(\d+)")
     entries = []
-    for row in getattr(app, "output_data", []):
-        if not row:
-            continue
-        codes = [c.strip() for c in str(row.get("warehouse_code") or "").split(";") if c.strip()]
+    for row in rows:
+        codes = [
+            c.strip()
+            for c in str(row.get("warehouse_code") or "").split(";")
+            if c.strip()
+        ]
         for idx, code in enumerate(codes):
             m = pattern.fullmatch(code)
             if m and int(m.group(1)) == box and int(m.group(2)) == column:
@@ -74,6 +92,9 @@ def repack_column(app, box: int, column: int):
         codes[idx] = f"K{box:02d}R{column}P{new_pos:04d}"
         row["warehouse_code"] = ";".join(codes)
 
-    if entries and hasattr(app, "refresh_magazyn"):
-        app.refresh_magazyn()
+    if entries:
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
 

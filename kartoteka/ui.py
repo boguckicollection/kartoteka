@@ -2296,11 +2296,12 @@ class CardEditorApp:
 
     def compute_column_occupancy(self):
         """Return dictionary of used slots per box column."""
-        return storage.compute_column_occupancy(self)
+        return storage.compute_column_occupancy()
 
     def repack_column(self, box: int, column: int):
         """Renumber codes in the given column so there are no gaps."""
-        storage.repack_column(self, box, column)
+        storage.repack_column(box, column)
+        self.refresh_magazyn()
 
     def refresh_magazyn(self):
         """Refresh storage view and color code capacity usage.

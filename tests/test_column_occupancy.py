@@ -6,11 +6,18 @@ from unittest.mock import MagicMock
 
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-import kartoteka.ui as ui
 
 
-def test_split_codes_counted():
+def test_split_codes_counted(tmp_path, monkeypatch):
+    from kartoteka import csv_utils
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        'name;warehouse_code\nA;"K1R1P1;K1R1P2"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(csv_utils, "INVENTORY_CSV", str(csv_path))
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(csv_path))
+    import kartoteka.ui as ui
     importlib.reload(ui)
-    dummy = SimpleNamespace(output_data=[{"warehouse_code": "K1R1P1;K1R1P2"}])
+    dummy = SimpleNamespace()
     occ = ui.CardEditorApp.compute_column_occupancy(dummy)
     assert occ[1][1] == 2
