@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk, ImageFilter, ImageOps, ImageDraw
+from PIL import Image, ImageTk, ImageFilter
 import imagehash
 import os
 import csv
@@ -57,7 +57,7 @@ PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
-HASH_DIFF_THRESHOLD = 7
+HASH_DIFF_THRESHOLD = 10 # ZMIANA: Lekko zwiększony próg dla większej elastyczności
 
 DEFAULT_LOGO_LIMIT = 20
 try:
@@ -223,6 +223,8 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
 
     name_api = normalize(name, keep_spaces=True)
     params = {"name": name_api, "number": number}
+    if total:
+        params["total"] = total
 
     # log input data
     print(
@@ -236,35 +238,28 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
         headers["X-RapidAPI-Key"] = RAPIDAPI_KEY
         headers["X-RapidAPI-Host"] = RAPIDAPI_HOST
 
-    def _request(params):
-        try:
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            if response.status_code != 200:
-                print(f"[ERROR] API error: {response.status_code}")
-                return []
-            data = response.json()
-        except requests.Timeout:
-            print("[ERROR] Request timed out")
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"[ERROR] API error: {response.status_code}")
             return []
-        except Exception as e:  # pragma: no cover - network/JSON errors
-            print(f"[ERROR] Fetching sets from TCGGO failed: {e}")
-            return []
+        data = response.json()
+    except requests.Timeout:
+        print("[ERROR] Request timed out")
+        return []
+    except Exception as e:  # pragma: no cover - network/JSON errors
+        print(f"[ERROR] Fetching sets from TCGGO failed: {e}")
+        return []
 
-        if isinstance(data, dict):
-            if "cards" in data:
-                return data["cards"]
-            if "data" in data:
-                return data["data"]
-            return []
-        return data
-
-    cards = []
-    if total:
-        cards = _request({**params, "total": total})
-        if not cards:
-            cards = _request(params)
+    if isinstance(data, dict):
+        if "cards" in data:
+            cards = data["cards"]
+        elif "data" in data:
+            cards = data["data"]
+        else:
+            cards = []
     else:
-        cards = _request(params)
+        cards = data
 
     name_norm = normalize(name)
     number_norm = sanitize_number(str(number).strip().lower())
@@ -274,7 +269,7 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     for card in cards:
         episode = card.get("episode") or {}
         set_name = episode.get("name")
-        set_code = episode.get("code") or episode.get("slug")
+        set_code = episode.get("code")
         if not (set_name and set_code):
             continue
 
@@ -581,30 +576,6 @@ def match_set_code(value: str) -> str:
     return ""
 
 
-def normalize_orientation(path: str) -> tuple[Image.Image, int]:
-    """Open ``path`` and return an image rotated to portrait orientation.
-
-    The image is first transposed according to its EXIF data.  When the result
-    is wider than tall it is rotated by 90 degrees so that subsequent
-    operations may assume a portrait layout.
-
-    Returns
-    -------
-    tuple[Image.Image, int]
-        The normalized :class:`PIL.Image.Image` instance and the rotation angle
-        applied in degrees (``0`` or ``90``).
-    """
-
-    im = Image.open(path)
-    im = ImageOps.exif_transpose(im)
-    orientation = 0
-    w, h = im.size
-    if w > h:
-        im = im.rotate(90, expand=True)
-        orientation = 90
-    return im, orientation
-
-
 def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
     """Return a rectangle around the expected set symbol location.
 
@@ -618,28 +589,23 @@ def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
     if w <= 100 and h <= 100:
         return (0, 0, w, h)
 
-    upper = int(h * 0.75)
-    right = int(w * 0.35)
+    upper = int(h * 0.8)
+    right = int(w * 0.3)
     return (0, upper, right, h)
 
 
 def identify_set_by_hash(
-    scan: str | Image.Image,
-    rect: tuple[int, int, int, int],
-    orientation: int = 0,
+    scan_path: str, rect: tuple[int, int, int, int]
 ) -> list[tuple[str, str, int]]:
     """Identify the card set by comparing image hashes of the set symbol.
 
     Parameters
     ----------
-    scan:
-        Either a path to the card scan image or a pre-loaded image object.
+    scan_path:
+        Path to the card scan image.
     rect:
         Bounding box ``(left, upper, right, lower)`` containing the set symbol
         within the scan.
-    orientation:
-        Additional rotation applied when ``scan`` is a path. Ignored when
-        ``scan`` is already an :class:`~PIL.Image.Image` instance.
 
     Returns
     -------
@@ -674,19 +640,15 @@ def identify_set_by_hash(
         return []
 
     try:
-        if isinstance(scan, Image.Image):
-            crop = scan.crop(rect)
-        else:
-            with Image.open(scan) as im:
-                im = ImageOps.exif_transpose(im)
-                if orientation:
-                    im = im.rotate(orientation, expand=True)
-                crop = im.crop(rect)
-        crop_hashes = (
-            imagehash.phash(crop),
-            imagehash.dhash(crop),
-            imagehash.average_hash(crop),
-        )
+        with Image.open(scan_path) as im:
+            crop = im.crop(rect)
+            # ZMIANA: Przetwarzanie obrazu w celu usunięcia szumu tła przed haszowaniem
+            crop = crop.convert("L").point(lambda x: 0 if x < 128 else 255, '1')
+            crop_hashes = (
+                imagehash.phash(crop),
+                imagehash.dhash(crop),
+                imagehash.average_hash(crop),
+            )
     except Exception:
         return []
 
@@ -697,34 +659,34 @@ def identify_set_by_hash(
 
     results.sort(key=lambda x: x[1])
 
+    # ZMIANA: Logowanie najlepszych wyników do debugowania
+    print(f"[DEBUG] Top 5 hash matches (code, difference): {results[:5]}")
+
+    passing_results = [r for r in results if r[1] <= HASH_DIFF_THRESHOLD]
+
     symbol_hash = str(crop_hashes[0])
-    for best_code, diff in results[:4]:
+    for best_code, diff in passing_results[:4]:
         print(f"Hash {symbol_hash} -> {best_code} ({diff})")
 
     mapped: list[tuple[str, str, int]] = []
-    for code, diff in results[:4]:
+    for code, diff in passing_results[:4]:
         name = get_set_name(code)
         mapped.append((code, name, diff))
     return mapped
 
 
 def extract_set_code_ocr(
-    scan: str | Image.Image,
-    rect: tuple[int, int, int, int],
-    orientation: int = 0,
+    scan_path: str, rect: tuple[int, int, int, int]
 ) -> list[str]:
     """Extract potential set codes from the scan using OCR.
 
     Parameters
     ----------
-    scan:
-        Either a path to the card scan image or a pre-loaded image object.
+    scan_path:
+        Path to the card scan image.
     rect:
         Bounding box ``(left, upper, right, lower)`` containing the expected
         location of the set code.
-    orientation:
-        Additional rotation applied when ``scan`` is a path. Ignored when an
-        image object is supplied.
 
     Returns
     -------
@@ -734,21 +696,9 @@ def extract_set_code_ocr(
     """
 
     try:
-        if isinstance(scan, Image.Image):
-            crop = scan.crop(rect).convert("L")
-        else:
-            with Image.open(scan) as im:
-                im = ImageOps.exif_transpose(im)
-                if orientation:
-                    im = im.rotate(orientation, expand=True)
-                crop = im.crop(rect).convert("L")
-        w, h = crop.size
-        crop = crop.resize((w * 3, h * 3), Image.LANCZOS)
-        crop = crop.point(lambda x: 0 if x < 128 else 255, "1").convert("L")
-        raw = pytesseract.image_to_string(
-            crop,
-            config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-        )
+        with Image.open(scan_path) as im:
+            crop = im.crop(rect)
+        raw = pytesseract.image_to_string(crop)
     except Exception:
         return []
 
@@ -761,14 +711,17 @@ def extract_set_code_ocr(
     return list(candidates)
 
 
-class CardText(BaseModel):
-    """Structured card text returned by the model."""
+# ZMIANA: Model Pydantic prosi teraz również o `set_name`
+class CardInfo(BaseModel):
+    """Structured card data returned by the model."""
     name: str = ""
     number: str = ""
+    set_name: str = ""
 
 
-def extract_card_text_openai(path: str) -> tuple[str, str, str]:
-    """Recognize card name and number using OpenAI Vision."""
+# ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
+def extract_card_info_openai(path: str) -> tuple[str, str, str, str]:
+    """Recognize card name, number, and set using OpenAI Vision."""
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
         url = path
@@ -779,224 +732,129 @@ def extract_card_text_openai(path: str) -> tuple[str, str, str]:
 
     try:
         api_key = os.getenv("OPENAI_API_KEY")
-        client = openai.OpenAI(api_key=api_key) if api_key else openai.OpenAI()
-        resp = client.responses.parse(
+        if not api_key:
+            return "", "", "", ""
+        client = openai.OpenAI(api_key=api_key)
+        
+        # ZMIANA: Prompt prosi o nazwę, numer i ZESTAW (set_name)
+        prompt_text = "Extract the Pokémon card's name, number, and set name. Return as JSON: {\"name\":\"\", \"number\":\"\", \"set_name\":\"\"}."
+
+        resp = client.chat.completions.create(
             model="gpt-4o",
-            input=[
+            response_format={"type": "json_object"},
+            messages=[
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "input_text",
-                            "text": "Extract Pokemon card name and number as JSON {\"name\":\"\",\"number\":\"\"}.",
-                        },
-                        {"type": "input_image", "image_url": url},
+                        {"type": "text", "text": prompt_text},
+                        {"type": "image_url", "image_url": {"url": url}},
                     ],
                 }
             ],
-            text_format=CardText,
-            max_output_tokens=100,
+            max_tokens=150,
         )
-        if (
-            not resp.output
-            or not getattr(resp.output[0], "content", None)
-            or not resp.output[0].content
-            or not getattr(resp.output[0].content[0], "parsed", None)
-        ):
-            print(f"[ERROR] extract_card_text_openai failed to parse response: {resp}")
-            return "", "", ""
-        data: CardText = resp.output[0].content[0].parsed
+        
+        content = resp.choices[0].message.content
+        if not content:
+            print("[ERROR] extract_card_info_openai got empty response from OpenAI")
+            return "", "", "", ""
+        
+        data_dict = json.loads(content)
+        data = CardInfo(**data_dict)
 
         raw_number = data.number or ""
-        number = ""
-        total = ""
+        number, total = "", ""
         if isinstance(raw_number, str):
             m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
             if m:
-                number = m.group(1)
-                total = m.group(2) or ""
+                number, total = m.group(1), m.group(2) or ""
             else:
                 number = re.sub(r"\D+", "", raw_number)
 
         name = data.name or ""
-        return name, number, total
+        set_name = data.set_name or ""
+        return name, number, total, set_name
     except Exception as e:
-        print(f"[ERROR] extract_card_text_openai failed: {e}")
-        return "", "", ""
+        print(f"[ERROR] extract_card_info_openai failed: {e}")
+        return "", "", "", ""
 
-def analyze_card_image(path: str, translate_name: bool = False, debug: bool = False):
-    """Return card details recognized from the image using OpenAI."""
+# ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
+def analyze_card_image(path: str, translate_name: bool = False):
+    """Return card details recognized from an image using a prioritized workflow."""
     parsed = urlparse(path)
     local_path = path if parsed.scheme not in ("http", "https") else None
+    
+    # --- PRIORITY 1: OpenAI Vision ---
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        print("[INFO] Step 1: Analyzing with OpenAI Vision...")
+        try:
+            name, number, total, set_name = extract_card_info_openai(path)
+            
+            if translate_name and name and not name.isascii():
+                name = translate_to_english(name)
 
-    w = h = None
-    rect = None
-    ocr_matches: list[str] = []
-    orientation = 0
-    local_image: Image.Image | None = None
+            # If OpenAI returns all necessary data, we trust it and finish here.
+            if name and number and set_name:
+                print(f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}")
+                return {"name": name, "number": number, "total": total, "set": set_name}
+            
+            # If OpenAI returned partial data, we'll use it in the next steps.
+            print("[INFO] OpenAI returned partial data. Proceeding to fallback methods.")
 
-    def _ensure_rect():
-        nonlocal w, h, rect, local_image, orientation
-        if rect is None and local_path:
-            if local_image is None:
-                local_image, orientation = normalize_orientation(local_path)
-            w, h = local_image.size
-            rect = get_symbol_rect(w, h)
-        return rect
+        except Exception as e:
+            print(f"[ERROR] OpenAI analysis failed: {e}")
+            name, number, total, set_name = "", "", "", ""
+    else:
+        # No API key, start with empty values
+        name, number, total, set_name = "", "", "", ""
+        print("[WARN] No OpenAI API key. Skipping to local analysis.")
 
-    def _ret(data: dict):
-        if debug:
-            try:
-                data["rect"] = rect or _ensure_rect()
-            except Exception:
-                data["rect"] = None
-        return data
 
-    try:
-        if local_path:
-            try:
-                rect = _ensure_rect()
-                ocr_matches = extract_set_code_ocr(local_image, rect)
-                if len(ocr_matches) == 1:
-                    return _ret({
-                        "name": "",
-                        "number": "",
-                        "total": "",
-                        "set": get_set_name(ocr_matches[0]),
-                        "orientation": orientation,
-                    })
-            except Exception:
-                ocr_matches = []
-
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            # Without the API key we can't recognize name/number, so fall back to
-            # local hashing if possible and use OCR hints when available.
-            if local_path:
-                try:
-                    rect = _ensure_rect()
-                    if len(ocr_matches) > 1:
-                        matches = identify_set_by_hash(local_image, rect)
-                        if matches:
-                            code, name, diff = matches[0]
-                            if diff <= HASH_DIFF_THRESHOLD and code in ocr_matches:
-                                return _ret({
-                                    "name": "",
-                                    "number": "",
-                                    "total": "",
-                                    "set": name,
-                                    "orientation": orientation,
-                                })
-                        return _ret({
-                            "name": "",
-                            "number": "",
-                            "total": "",
-                            "set": get_set_name(ocr_matches[0]),
-                            "orientation": orientation,
-                        })
-                    if not ocr_matches:
-                        matches = identify_set_by_hash(local_image, rect)
-                        if matches:
-                            code, name, diff = matches[0]
-                            if diff <= HASH_DIFF_THRESHOLD:
-                                return _ret({
-                                    "name": "",
-                                    "number": "",
-                                    "total": "",
-                                    "set": name,
-                                    "orientation": orientation,
-                                })
-                except Exception:
-                    pass
-            return _ret({
-                "name": "",
-                "number": "",
-                "total": "",
-                "set": "",
-                "orientation": orientation,
-            })
-
-        name, number, total = extract_card_text_openai(path)
-        if translate_name and name and not name.isascii():
-            name = translate_to_english(name)
-
-        # Look up possible sets from external API
-        api_sets: list[tuple[str, str]] = []
-        if name and number:
-            try:
-                api_sets = lookup_sets_from_api(name, number, total or None)
-            except Exception:
-                api_sets = []
-
-        if len(api_sets) == 1:
-            set_code = api_sets[0][0]
-            set_name = get_set_name(set_code) or api_sets[0][1]
-            return _ret({
-                "name": name,
-                "number": number,
-                "total": total,
-                "set": set_name,
-                "orientation": orientation,
-            })
-        if len(api_sets) > 1:
-            try:
+    # --- PRIORITY 2: TCGGO API Lookup (if name and number are known) ---
+    if name and number:
+        print("[INFO] Step 2: Looking up sets via TCGGO API...")
+        try:
+            api_sets = lookup_sets_from_api(name, number, total or None)
+            if len(api_sets) == 1:
+                set_code, api_set_name = api_sets[0]
+                print(f"[SUCCESS] TCGGO API found a single match: {api_set_name}")
+                return {"name": name, "number": number, "total": total, "set": api_set_name}
+            
+            if len(api_sets) > 1:
+                print(f"[INFO] TCGGO API found multiple matches. Prompting user...")
+                # INFO: This triggers the user selection dialog
                 selected_code = prompt_set_selection(api_sets)
-            except Exception:
-                selected_code = api_sets[0][0]
-            name_lookup = get_set_name(selected_code)
-            if name_lookup != selected_code:
-                selected_name = name_lookup
-            else:
-                selected_name = next(
-                    (n for c, n in api_sets if c == selected_code), selected_code
-                )
-            return _ret({
-                "name": name,
-                "number": number,
-                "total": total,
-                "set": selected_name,
-                "orientation": orientation,
-            })
+                name_lookup = get_set_name(selected_code)
+                selected_name = name_lookup if name_lookup != selected_code else next((n for c, n in api_sets if c == selected_code), selected_code)
+                print(f"[SUCCESS] User selected: {selected_name}")
+                return {"name": name, "number": number, "total": total, "set": selected_name}
 
-        # Fallback to local hashing if API did not provide answers
-        if local_path and not ocr_matches:
-            try:
-                rect = _ensure_rect()
-                matches = identify_set_by_hash(local_image, rect)
-                if matches:
-                    code, name_match, diff = matches[0]
-                    if diff <= HASH_DIFF_THRESHOLD:
-                        return _ret({
-                            "name": name,
-                            "number": number,
-                            "total": total,
-                            "set": name_match,
-                            "orientation": orientation,
-                        })
-            except Exception:
-                pass
-        return _ret({
-            "name": name,
-            "number": number,
-            "total": total,
-            "set": "",
-            "orientation": orientation,
-        })
-    except Exception as e:
-        print(f"[ERROR] analyze_card_image failed: {e}")
-        return _ret({
-            "name": "",
-            "number": "",
-            "total": "",
-            "set": "",
-            "orientation": orientation,
-        })
-    finally:
-        if local_image is not None:
-            try:
-                local_image.close()
-            except Exception:
-                pass
+        except Exception as e:
+            print(f"[ERROR] TCGGO API lookup failed: {e}")
+    
+    # --- PRIORITY 3: Local Analysis (Hash/OCR as last resort) ---
+    if local_path:
+        print("[INFO] Step 3: Performing local analysis (hash/OCR)...")
+        try:
+            with Image.open(local_path) as im:
+                w, h = im.size
+            rect = get_symbol_rect(w, h)
+            
+            matches = identify_set_by_hash(local_path, rect)
+            if matches:
+                code, name_match, diff = matches[0]
+                if diff <= HASH_DIFF_THRESHOLD:
+                    print(f"[SUCCESS] Local hash analysis found a match: {name_match}")
+                    return {"name": name, "number": number, "total": total, "set": name_match}
+            
+            print("[INFO] Hash analysis did not yield a confident result.")
+        except Exception as e:
+            print(f"[ERROR] Local analysis failed: {e}")
+
+    # If all methods fail, return any partial data we might have
+    print("[FAIL] All analysis methods failed to find a definitive set.")
+    return {"name": name, "number": number, "total": total, "set": ""}
 
 
 class CardEditorApp:
@@ -1046,8 +904,6 @@ class CardEditorApp:
         self.auction_queue = []
         self.in_scan = False
         self.current_image_path = ""
-        self.set_area_rect = None
-        self.current_card_scale = (1.0, 1.0)
         self.show_loading_screen()
         threading.Thread(target=self.startup_tasks, daemon=True).start()
 
@@ -2743,13 +2599,6 @@ class CardEditorApp:
         # Display only a textual progress indicator below the card image
         self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
         self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
-        self.show_set_area_var = tk.BooleanVar(value=False)
-        self.show_set_area_var.trace_add(
-            "write", lambda *a: self.update_set_area_preview()
-        )
-        ctk.CTkCheckBox(
-            self.frame, text="Pokaż obszar seta", variable=self.show_set_area_var
-        ).grid(row=14, column=1, pady=5, sticky="w")
 
         # Container for card information fields
         self.info_frame = ctk.CTkFrame(self.frame)
@@ -3131,13 +2980,12 @@ class CardEditorApp:
 
         image_path = self.cards[self.index]
         self.current_image_path = image_path
-        self.set_area_rect = None
         cache_key = self.file_to_key.get(os.path.basename(image_path))
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
         try:
-            image, _ = normalize_orientation(image_path)
+            image = Image.open(image_path)
         except Exception as e:
             print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
             if getattr(self, "failed_cards", None) is not None:
@@ -3145,13 +2993,7 @@ class CardEditorApp:
             self.index += 1
             self.show_card()
             return
-        w0, h0 = image.size
         image.thumbnail((400, 560))
-        w1, h1 = image.size
-        self.current_card_scale = (
-            w1 / w0 if w0 else 1.0,
-            h1 / h0 if h0 else 1.0,
-        )
         self.current_card_image = image.copy()
         if hasattr(ctk, "CTkImage"):
             img = ctk.CTkImage(light_image=image, size=image.size)
@@ -3303,7 +3145,7 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
-        result = analyze_card_image(path, translate_name=translate, debug=True)
+        result = analyze_card_image(path, translate_name=translate)
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
@@ -3326,32 +3168,7 @@ class CardEditorApp:
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
             self.update_set_options()
-            self.set_area_rect = result.get("rect")
-            self.update_set_area_preview()
         return
-
-    def update_set_area_preview(self, *args):
-        if not getattr(self, "current_card_image", None) or not hasattr(self, "image_label"):
-            return
-        show_var = getattr(self, "show_set_area_var", None)
-        show = show_var.get() if show_var else False
-        if show and getattr(self, "set_area_rect", None):
-            x1, y1, x2, y2 = self.set_area_rect
-            sx, sy = getattr(self, "current_card_scale", (1.0, 1.0))
-            rect = (x1 * sx, y1 * sy, x2 * sx, y2 * sy)
-            img = self.current_card_image.copy()
-            draw = ImageDraw.Draw(img)
-            draw.rectangle(rect, outline="red", width=3)
-        else:
-            img = self.current_card_image.copy()
-        if hasattr(ctk, "CTkImage"):
-            photo = ctk.CTkImage(light_image=img, size=img.size)
-        else:
-            photo = ImageTk.PhotoImage(img)
-        self.image_objects.append(photo)
-        self.image_objects = self.image_objects[-2:]
-        self.current_card_photo = photo
-        self.image_label.configure(image=photo)
 
     def prompt_set_selection(self, options: list[tuple[str, str]]):
         """Display a dialog with candidate set logos for manual selection.
@@ -4045,49 +3862,45 @@ class CardEditorApp:
             print(f"[ERROR] Lookup failed: {e}")
         return None
 
+    # ZMIANA: Logika pobierania ceny nie szuka już setu, jeśli jest on znany.
     def fetch_card_data(self):
         name = self.entries["nazwa"].get()
         number_raw = self.entries["numer"].get()
         set_name = self.entries["set"].get()
 
-        total = None
-        if "/" in str(number_raw):
-            num_part, total_part = str(number_raw).split("/", 1)
-            number = sanitize_number(num_part)
-            total = sanitize_number(total_part)
-        else:
-            number = sanitize_number(number_raw)
+        # INFO: Jeśli set nie jest znany, spróbuj go znaleźć przed szukaniem ceny.
+        if not set_name:
+            self.log("Set nie jest znany, próba dopasowania przed pobraniem ceny...")
+            total = None
+            if "/" in str(number_raw):
+                num_part, total_part = str(number_raw).split("/", 1)
+                number = sanitize_number(num_part)
+                total = sanitize_number(total_part)
+            else:
+                number = sanitize_number(number_raw)
 
-        api_sets = lookup_sets_from_api(name, number, total)
-        if api_sets:
-            # ``lookup_sets_from_api`` returns tuples ``(code, name)``; the code
-            # corresponds to ``episode.code`` from the API response.
-            first_code, _ = api_sets[0]
-            resolved_name = get_set_name(first_code) or api_sets[0][1]
-
-            current_set = self.entries["set"].get()
-            if not current_set or current_set != resolved_name:
+            api_sets = lookup_sets_from_api(name, number, total)
+            if api_sets:
+                if len(api_sets) > 1:
+                    self.log(f"Znaleziono {len(api_sets)} pasujących setów, proszę wybrać.")
+                    selected_code = self.prompt_set_selection(api_sets)
+                else:
+                    selected_code = api_sets[0][0]
+                
+                resolved_name = get_set_name(selected_code) or next((n for c, n in api_sets if c == selected_code), "")
                 self.entries["set"].set(resolved_name)
-                set_name = resolved_name
+                set_name = resolved_name # Zaktualizuj zmienną lokalną
                 if hasattr(self, "update_set_options"):
                     self.update_set_options()
-
-            if len(api_sets) > 1 and hasattr(self, "prompt_set_selection"):
-                try:
-                    selected_code = self.prompt_set_selection(api_sets)
-                except Exception:
-                    selected_code = first_code
-                set_name = get_set_name(selected_code) or next(
-                    (n for c, n in api_sets if c == selected_code), "",
-                )
-                if self.entries["set"].get() != set_name:
-                    self.entries["set"].set(set_name)
-                    if hasattr(self, "update_set_options"):
-                        self.update_set_options()
+            else:
+                self.log("Nie udało się automatycznie dopasować setu.")
 
         is_reverse = self.type_vars["Reverse"].get()
         is_holo = self.type_vars["Holo"].get()
 
+        number = sanitize_number(number_raw.split('/')[0])
+
+        # Teraz pobierz cenę, mając już pewność co do setu (lub jego braku)
         cena = self.get_price_from_db(name, number, set_name)
         if cena is not None:
             cena = self.apply_variant_multiplier(
@@ -4416,5 +4229,3 @@ class CardEditorApp:
     def send_csv_to_shoper(self, file_path: str):
         """Send a CSV file using the Shoper API or FTP fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
-
-
