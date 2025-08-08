@@ -985,7 +985,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
             ocr_codes = extract_set_code_ocr(local_path, rect)
             for code in ocr_codes:
                 name_lookup = get_set_name(code)
-                if name_lookup:
+                if name_lookup and name_lookup != code:
                     set_code = code
                     set_name = name_lookup
                     print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
@@ -1000,6 +1000,8 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                     if debug and rect:
                         result["rect"] = rect
                     return result
+                else:
+                    print(f"[WARN] OCR produced unknown set code: {code}")
 
             print("[INFO] OCR analysis did not find a valid set code.")
         except Exception as e:

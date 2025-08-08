@@ -203,6 +203,33 @@ def test_analyze_card_image_ocr(monkeypatch):
     mock_lookup.assert_not_called()
 
 
+def test_analyze_card_image_ocr_unknown_code(monkeypatch, capsys):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
+
+    with patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash, \
+        patch.object(ui, "extract_set_code_ocr", return_value=["XYZ"]) as mock_ocr, \
+        patch.object(ui, "extract_card_info_openai") as mock_extract, \
+        patch.object(ui, "lookup_sets_from_api") as mock_lookup:
+        result = ui.analyze_card_image(str(logo_path))
+
+    assert result == {
+        "name": "",
+        "number": "",
+        "total": "",
+        "set": "",
+        "set_code": "",
+        "orientation": 0,
+    }
+    mock_hash.assert_called_once()
+    mock_ocr.assert_called_once()
+    mock_extract.assert_not_called()
+    mock_lookup.assert_not_called()
+    out, err = capsys.readouterr()
+    assert "OCR produced unknown set code: XYZ" in out
+
+
 def test_analyze_card_image_hash_short_circuits_ocr(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
