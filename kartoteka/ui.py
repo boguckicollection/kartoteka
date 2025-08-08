@@ -63,6 +63,15 @@ SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
 HASH_SIZE = (32, 32)
 
+# minimum similarity ratio for fuzzy set code matching
+SET_CODE_MATCH_CUTOFF = 0.8
+try:
+    SET_CODE_MATCH_CUTOFF = float(
+        os.getenv("SET_CODE_MATCH_CUTOFF", SET_CODE_MATCH_CUTOFF)
+    )
+except ValueError:
+    pass
+
 _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehash.ImageHash]] = {}
 
 
@@ -660,7 +669,9 @@ def match_set_code(value: str) -> str:
     if value in codes:
         return value
 
-    match = difflib.get_close_matches(value, list(codes), n=1, cutoff=0.6)
+    match = difflib.get_close_matches(
+        value, list(codes), n=1, cutoff=SET_CODE_MATCH_CUTOFF
+    )
     if match:
         return match[0]
     return ""
