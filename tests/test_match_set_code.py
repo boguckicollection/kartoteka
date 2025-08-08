@@ -19,6 +19,10 @@ def test_match_set_code_fuzzy():
     assert ui.match_set_code("swsh-11") == "swsh11"
 
 
+def test_match_set_code_weak_match_rejected():
+    assert ui.match_set_code("sws-111") == ""
+
+
 def test_match_set_code_unknown():
     assert ui.match_set_code("unknown") == ""
 
