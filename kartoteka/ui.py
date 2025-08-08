@@ -864,8 +864,12 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
         try:
             with Image.open(local_path) as im:
                 w, h = im.size
-            orientation = 90 if w > h else 0
-            rect = get_symbol_rect(w, h)
+                orientation = 90 if w > h else 0
+                if orientation == 90:
+                    im = im.rotate(90, expand=True)
+                    im.save(local_path)
+                    w, h = im.size
+                rect = get_symbol_rect(w, h)
         except Exception:
             rect = None
 

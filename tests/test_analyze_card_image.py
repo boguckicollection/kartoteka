@@ -396,6 +396,30 @@ def test_analyze_card_image_orientation(tmp_path, monkeypatch):
     assert result["orientation"] == 90
 
 
+def test_analyze_card_image_horizontal_scan(tmp_path, monkeypatch):
+    """Ensure horizontal scans are rotated and hashed correctly."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    img_path = tmp_path / "horizontal.png"
+    Image.new("RGB", (400, 200), color="white").save(img_path)
+
+    expected_rect = ui.get_symbol_rect(200, 400)
+
+    def fake_hash(path, rect):
+        assert rect == expected_rect
+        return [(SV01_CODE, SV01_NAME, 0)]
+
+    monkeypatch.setattr(ui, "identify_set_by_hash", fake_hash)
+    monkeypatch.setattr(ui, "extract_card_info_openai", lambda *a, **k: ("", "", "", "", ""))
+    monkeypatch.setattr(ui, "lookup_sets_from_api", lambda *a, **k: [])
+    monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
+
+    result = ui.analyze_card_image(str(img_path))
+
+    assert result["set"] == SV01_NAME
+    assert result["set_code"] == SV01_CODE
+    assert result["orientation"] == 90
+
+
 def test_analyze_and_fill_translates_for_jp(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
 
