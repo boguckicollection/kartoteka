@@ -548,7 +548,7 @@ def translate_to_english(text: str) -> str:
     try:
         openai.api_key = api_key
         resp = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=[{"role": "user", "content": f"Translate to English: {text}"}],
             max_tokens=50,
         )
@@ -4404,3 +4404,4 @@ class CardEditorApp:
     def send_csv_to_shoper(self, file_path: str):
         """Send a CSV file using the Shoper API or FTP fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
+
