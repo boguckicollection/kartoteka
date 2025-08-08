@@ -400,7 +400,8 @@ def test_analyze_card_image_translate_name(monkeypatch):
 
 def test_analyze_card_image_debug_rect(tmp_path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    img_path = Path(__file__).resolve().parents[1] / "simple_pokeball.gif"
+    img_path = tmp_path / "wide.gif"
+    Image.new("RGB", (800, 600), color="white").save(img_path)
     monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
     monkeypatch.setattr(ui, "identify_set_by_hash", lambda *a, **k: [])
     result = ui.analyze_card_image(str(img_path), debug=True)

@@ -43,11 +43,9 @@ FTP_USER=username
 FTP_PASSWORD=secret
 WAREHOUSE_CSV=magazyn.csv
 BASE_IMAGE_URL=https://your-store.shop/upload/images
-SET_HASH_THRESHOLD=128
 ```
 
 - `OPENAI_API_KEY` – API key used by OpenAI Vision to extract card details from scans.
-- `SET_HASH_THRESHOLD` – grayscale threshold for binarising set logos prior to hashing (default `128`).
 
 **Warning:** This file may contain private API keys and tokens. It is excluded
 from version control via `.gitignore` and should never be shared publicly.
