@@ -2,93 +2,115 @@
   "Scarlet & Violet": [
     {
       "name": "Scarlet & Violet",
-      "code": "sv01"
+      "code": "sv01",
+      "abbr": "SVI"
     },
     {
       "name": "SVP Black Star Promos",
-      "code": "svp"
+      "code": "svp",
+      "abbr": "PR-SV"
     },
     {
       "name": "Paldea Evolved",
-      "code": "sv02"
+      "code": "sv02",
+      "abbr": "PAL"
     },
     {
       "name": "Obsidian Flames",
-      "code": "sv03"
+      "code": "sv03",
+      "abbr": "OBF"
     },
     {
       "name": "151",
-      "code": "sv3pt5"
+      "code": "sv3pt5",
+      "abbr": "MEW"
     },
     {
       "name": "Paradox Rift",
-      "code": "sv04"
+      "code": "sv04",
+      "abbr": "PAR"
     },
     {
       "name": "Paldean Fates",
-      "code": "sv4pt5"
+      "code": "sv4pt5",
+      "abbr": "PAF"
     },
     {
       "name": "Temporal Forces",
-      "code": "sv05"
+      "code": "sv05",
+      "abbr": "TEF"
     },
     {
       "name": "Twilight Masquerade",
-      "code": "sv06"
+      "code": "sv06",
+      "abbr": "TWM"
     },
     {
       "name": "Shrouded Fable",
-      "code": "sv6pt5"
+      "code": "sv6pt5",
+      "abbr": "SFA"
     },
     {
       "name": "Stellar Crown",
-      "code": "sv07"
+      "code": "sv07",
+      "abbr": "SCR"
     },
     {
       "name": "Surging Sparks",
-      "code": "sv8"
+      "code": "sv8",
+      "abbr": "SSP"
     },
     {
       "name": "Prismatic Evolutions",
-      "code": "sv8pt5"
+      "code": "sv8pt5",
+      "abbr": "PRE"
     },
     {
       "name": "Prismatic Evolutions: Additionals",
-      "code": "xpre"
+      "code": "xpre",
+      "abbr": "XPR"
     },
     {
       "name": "Journey Together",
-      "code": "sv9"
+      "code": "sv9",
+      "abbr": "JTG"
     },
     {
       "name": "Destined Rivals",
-      "code": "sv10"
+      "code": "sv10",
+      "abbr": "DRI"
     },
     {
       "name": "Black Bolt",
-      "code": "zsv10pt5"
+      "code": "zsv10pt5",
+      "abbr": "BLK"
     },
     {
       "name": "White Flare",
-      "code": "rsv10pt5"
+      "code": "rsv10pt5",
+      "abbr": "WHT"
     }
   ],
   "Sword & Shield": [
     {
       "name": "SWSH Black Star Promos",
-      "code": "swshp"
+      "code": "swshp",
+      "abbr": "PR-SW"
     },
     {
       "name": "Sword & Shield",
-      "code": "swsh1"
+      "code": "swsh1",
+      "abbr": "SSH"
     },
     {
       "name": "Rebel Clash",
-      "code": "swsh2"
+      "code": "swsh2",
+      "abbr": "RCL"
     },
     {
       "name": "Darkness Ablaze",
-      "code": "swsh3"
+      "code": "swsh3",
+      "abbr": "DAA"
     },
     {
       "name": "Pokémon Futsal 2020",
@@ -96,11 +118,13 @@
     },
     {
       "name": "Champion's Path",
-      "code": "swsh3pt5"
+      "code": "swsh3pt5",
+      "abbr": "CPA"
     },
     {
       "name": "Vivid Voltage",
-      "code": "swsh4"
+      "code": "swsh4",
+      "abbr": "VIV"
     },
     {
       "name": "Macdonald's Collection 2021",
@@ -108,61 +132,75 @@
     },
     {
       "name": "Shining Fates",
-      "code": "swsh4pt5"
+      "code": "swsh4pt5",
+      "abbr": "SHF"
     },
     {
       "name": "Battle Styles",
-      "code": "swsh5"
+      "code": "swsh5",
+      "abbr": "BST"
     },
     {
       "name": "Chilling Reign",
-      "code": "swsh6"
+      "code": "swsh6",
+      "abbr": "CRE"
     },
     {
       "name": "Evolving Skies",
-      "code": "swsh7"
+      "code": "swsh7",
+      "abbr": "EVS"
     },
     {
       "name": "Celebrations",
-      "code": "cel25"
+      "code": "cel25",
+      "abbr": "CEL"
     },
     {
       "name": "Fusion Strike",
-      "code": "swsh8"
+      "code": "swsh8",
+      "abbr": "FST"
     },
     {
       "name": "Brilliant Stars",
-      "code": "swsh9"
+      "code": "swsh9",
+      "abbr": "BRS"
     },
     {
       "name": "Astral Radiance",
-      "code": "swsh10"
+      "code": "swsh10",
+      "abbr": "ASR"
     },
     {
       "name": "Pokémon GO",
-      "code": "swsh10pt5"
+      "code": "swsh10pt5",
+      "abbr": "PGO"
     },
     {
       "name": "Lost Origin",
-      "code": "swsh11"
+      "code": "swsh11",
+      "abbr": "LOR"
     },
     {
       "name": "Silver Tempest",
-      "code": "swsh12"
+      "code": "swsh12",
+      "abbr": "SIT"
     },
     {
       "name": "Crown Zenith",
-      "code": "swsh12pt5"
+      "code": "swsh12pt5",
+      "abbr": "CRZ"
     }
   ],
   "Sun & Moon": [
     {
       "name": "Sun & Moon",
-      "code": "sm1"
+      "code": "sm1",
+      "abbr": "SUM"
     },
     {
       "name": "SM Black Star Promos",
-      "code": "smp"
+      "code": "smp",
+      "abbr": "PR-SM"
     },
     {
       "name": "SM trainer Kit (Alolan Raichu)",
@@ -174,7 +212,8 @@
     },
     {
       "name": "Guardians Rising",
-      "code": "sm2"
+      "code": "sm2",
+      "abbr": "GRI"
     },
     {
       "name": "Macdonald's Collection 2017",
@@ -182,31 +221,38 @@
     },
     {
       "name": "Burning Shadows",
-      "code": "sm3"
+      "code": "sm3",
+      "abbr": "BUS"
     },
     {
       "name": "Shining Legends",
-      "code": "sm3pt5"
+      "code": "sm3pt5",
+      "abbr": "SLG"
     },
     {
       "name": "Crimson Invasion",
-      "code": "sm4"
+      "code": "sm4",
+      "abbr": "CIN"
     },
     {
       "name": "Ultra Prism",
-      "code": "sm5"
+      "code": "sm5",
+      "abbr": "UPR"
     },
     {
       "name": "Forbidden Light",
-      "code": "sm6"
+      "code": "sm6",
+      "abbr": "FLI"
     },
     {
       "name": "Celestial Storm",
-      "code": "sm7"
+      "code": "sm7",
+      "abbr": "CES"
     },
     {
       "name": "Dragon Majesty",
-      "code": "sm7pt5"
+      "code": "sm7pt5",
+      "abbr": "DRM"
     },
     {
       "name": "Macdonald's Collection 2018",
@@ -214,31 +260,38 @@
     },
     {
       "name": "Lost Thunder",
-      "code": "sm8"
+      "code": "sm8",
+      "abbr": "LOT"
     },
     {
       "name": "Team Up",
-      "code": "sm9"
+      "code": "sm9",
+      "abbr": "TEU"
     },
     {
       "name": "Detective Pikachu",
-      "code": "det1"
+      "code": "det1",
+      "abbr": "DET"
     },
     {
       "name": "Unbroken Bonds",
-      "code": "sm10"
+      "code": "sm10",
+      "abbr": "UNB"
     },
     {
       "name": "Unified Minds",
-      "code": "sm11"
+      "code": "sm11",
+      "abbr": "UNM"
     },
     {
       "name": "Hidden Fates",
-      "code": "sm115"
+      "code": "sm115",
+      "abbr": "HIF"
     },
     {
       "name": "Yellow A Alternate",
-      "code": "sma"
+      "code": "sma",
+      "abbr": "HIF"
     },
     {
       "name": "Macdonald's Collection 2019",
@@ -246,17 +299,20 @@
     },
     {
       "name": "Cosmic Eclipse",
-      "code": "sm12"
+      "code": "sm12",
+      "abbr": "CEC"
     }
   ],
   "XY": [
     {
       "name": "XY Black Star Promos",
-      "code": "xyp"
+      "code": "xyp",
+      "abbr": "PR-XY"
     },
     {
       "name": "Kalos Starter Set",
-      "code": "xy0"
+      "code": "xy0",
+      "abbr": "KSS"
     },
     {
       "name": "Yello A Alternate",
@@ -276,7 +332,8 @@
     },
     {
       "name": "Flashfire",
-      "code": "xy2"
+      "code": "xy2",
+      "abbr": "FLF"
     },
     {
       "name": "Macdonald's Collection 2014",
@@ -284,7 +341,8 @@
     },
     {
       "name": "Furious Fists",
-      "code": "xy3"
+      "code": "xy3",
+      "abbr": "FFI"
     },
     {
       "name": "XY trainer Kit (Wigglytuff)",
@@ -296,15 +354,18 @@
     },
     {
       "name": "Phantom Forces",
-      "code": "xy4"
+      "code": "xy4",
+      "abbr": "PHF"
     },
     {
       "name": "Primal Clash",
-      "code": "xy5"
+      "code": "xy5",
+      "abbr": "PRC"
     },
     {
       "name": "Double Crisis",
-      "code": "dc1"
+      "code": "dc1",
+      "abbr": "DCR"
     },
     {
       "name": "XY trainer Kit (Latias)",
@@ -316,15 +377,18 @@
     },
     {
       "name": "Roaring Skies",
-      "code": "xy6"
+      "code": "xy6",
+      "abbr": "ROS"
     },
     {
       "name": "Ancient Origins",
-      "code": "xy7"
+      "code": "xy7",
+      "abbr": "AOR"
     },
     {
       "name": "BREAKthrough",
-      "code": "xy8"
+      "code": "xy8",
+      "abbr": "BKT"
     },
     {
       "name": "Macdonald's Collection 2015",
@@ -332,11 +396,13 @@
     },
     {
       "name": "BREAKpoint",
-      "code": "xy9"
+      "code": "xy9",
+      "abbr": "BKP"
     },
     {
       "name": "Generations",
-      "code": "g1"
+      "code": "g1",
+      "abbr": "GEN"
     },
     {
       "name": "XY trainer Kit (Suicune)",
@@ -348,11 +414,13 @@
     },
     {
       "name": "Fates Collide",
-      "code": "xy10"
+      "code": "xy10",
+      "abbr": "FCO"
     },
     {
       "name": "Steam Siege",
-      "code": "xy11"
+      "code": "xy11",
+      "abbr": "STS"
     },
     {
       "name": "Macdonald's Collection 2016",
@@ -360,17 +428,20 @@
     },
     {
       "name": "Evolutions",
-      "code": "xy12"
+      "code": "xy12",
+      "abbr": "EVO"
     }
   ],
   "Black & White": [
     {
       "name": "Black & White",
-      "code": "bw1"
+      "code": "bw1",
+      "abbr": "BLW"
     },
     {
       "name": "BW Black Star Promos",
-      "code": "bwp"
+      "code": "bwp",
+      "abbr": "PR-BLW"
     },
     {
       "name": "Macdonald's Collection 2011",
@@ -378,7 +449,8 @@
     },
     {
       "name": "Emerging Powers",
-      "code": "bw2"
+      "code": "bw2",
+      "abbr": "EPO"
     },
     {
       "name": "BW trainer Kit (Excadrill)",
@@ -390,15 +462,18 @@
     },
     {
       "name": "Noble Victories",
-      "code": "bw3"
+      "code": "bw3",
+      "abbr": "NVI"
     },
     {
       "name": "Next Destinies",
-      "code": "bw4"
+      "code": "bw4",
+      "abbr": "NXD"
     },
     {
       "name": "Dark Explorers",
-      "code": "bw5"
+      "code": "bw5",
+      "abbr": "DEX"
     },
     {
       "name": "Macdonald's Collection 2012",
@@ -406,27 +481,33 @@
     },
     {
       "name": "Dragons Exalted",
-      "code": "bw6"
+      "code": "bw6",
+      "abbr": "DRX"
     },
     {
       "name": "Dragon Vault",
-      "code": "dv1"
+      "code": "dv1",
+      "abbr": "DRV"
     },
     {
       "name": "Boundaries Crossed",
-      "code": "bw7"
+      "code": "bw7",
+      "abbr": "BCR"
     },
     {
       "name": "Plasma Storm",
-      "code": "bw8"
+      "code": "bw8",
+      "abbr": "PLS"
     },
     {
       "name": "Plasma Freeze",
-      "code": "bw9"
+      "code": "bw9",
+      "abbr": "PLF"
     },
     {
       "name": "Plasma Blast",
-      "code": "bw10"
+      "code": "bw10",
+      "abbr": "PLB"
     },
     {
       "name": "Radiant Collection",
@@ -434,7 +515,8 @@
     },
     {
       "name": "Legendary Treasures",
-      "code": "bw11"
+      "code": "bw11",
+      "abbr": "LTR"
     }
   ],
   "HeartGold SoulSilver": [
@@ -444,7 +526,8 @@
     },
     {
       "name": "HGSS Black Star Promos",
-      "code": "hgssp"
+      "code": "hgssp",
+      "abbr": "PR-HS"
     },
     {
       "name": "HS trainer Kit (Gyarados)",
@@ -500,7 +583,8 @@
     },
     {
       "name": "DP Black Star Promos",
-      "code": "dpp"
+      "code": "dpp",
+      "abbr": "PR-DPP"
     },
     {
       "name": "Mysterious Treasures",
@@ -562,7 +646,8 @@
     },
     {
       "name": "Nintendo Black Star Promos",
-      "code": "np"
+      "code": "np",
+      "abbr": "PR-NP"
     },
     {
       "name": "Dragon",
@@ -598,7 +683,8 @@
     },
     {
       "name": "Team Rocket Returns",
-      "code": "ex7"
+      "code": "ex7",
+      "abbr": "TRR"
     },
     {
       "name": "Deoxys",
