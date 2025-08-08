@@ -51,7 +51,16 @@ def run_update_sets(tmp_path, filename):
 
     resp = SimpleNamespace(
         status_code=200,
-        json=lambda: {"data": [{"series": "X", "id": "CODE", "name": "Name"}]},
+        json=lambda: {
+            "data": [
+                {
+                    "series": "X",
+                    "id": "CODE",
+                    "name": "Name",
+                    "ptcgoCode": "PTCGO",
+                }
+            ]
+        },
         raise_for_status=lambda: None,
     )
     with patch("requests.get", return_value=resp), patch.object(ui, "reload_sets") as reload_mock:
@@ -59,9 +68,9 @@ def run_update_sets(tmp_path, filename):
         reload_mock.assert_called_once()
 
     data = json.loads(sets_file.read_text(encoding="utf-8"))
-    # expect inserted under "X" with code and name
+    # expect inserted under "X" with code, name and abbr
     assert "X" in data
-    assert {"name": "Name", "code": "CODE"} in data["X"]
+    assert {"name": "Name", "code": "CODE", "abbr": "PTCGO"} in data["X"]
     dummy.download_set_symbols.assert_called_once_with([{"name": "Name", "code": "CODE"}])
 
 

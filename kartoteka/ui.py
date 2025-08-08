@@ -3664,13 +3664,17 @@ class CardEditorApp:
             series = item.get("series") or "Other"
             code = item.get("id")
             name = item.get("name")
+            abbr = item.get("ptcgoCode")
             if not code or not name:
                 continue
             code_key = code.strip().lower()
             if code_key in existing_codes:
                 continue
             group = current_sets.setdefault(series, [])
-            group.append({"name": name, "code": code})
+            entry = {"name": name, "code": code}
+            if abbr:
+                entry["abbr"] = abbr
+            group.append(entry)
             existing_codes.add(code_key)
             added += 1
             new_items.append({"name": name, "code": code})
