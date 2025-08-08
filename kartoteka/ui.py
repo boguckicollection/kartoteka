@@ -127,6 +127,8 @@ def reload_sets():
     """Load set definitions from the JSON files."""
     global tcg_sets_eng_by_era, tcg_sets_eng_map, tcg_sets_eng, tcg_sets_eng_code_map
     global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp, tcg_sets_jp_code_map
+    global tcg_sets_eng_abbr_map, tcg_sets_eng_abbr_name_map
+    global tcg_sets_jp_abbr_map, tcg_sets_jp_abbr_name_map
 
     try:
         with open("tcg_sets.json", encoding="utf-8") as f:
@@ -142,6 +144,18 @@ def reload_sets():
         item["code"]: item["name"]
         for sets in tcg_sets_eng_by_era.values()
         for item in sets
+    }
+    tcg_sets_eng_abbr_map = {
+        item["abbr"]: item["code"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
+    tcg_sets_eng_abbr_name_map = {
+        item["abbr"]: item["name"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+        if "abbr" in item
     }
     tcg_sets_eng = [
         item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
@@ -162,6 +176,18 @@ def reload_sets():
         for sets in tcg_sets_jp_by_era.values()
         for item in sets
     }
+    tcg_sets_jp_abbr_map = {
+        item["abbr"]: item["code"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
+    tcg_sets_jp_abbr_name_map = {
+        item["abbr"]: item["name"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
     tcg_sets_jp = [
         item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
     ]
@@ -180,11 +206,16 @@ ALLOWED_SET_CODES = {
 
 
 def get_set_code(name: str) -> str:
-    """Return the API code for a set name if available."""
+    """Return the API code for a set name or abbreviation if available."""
     if not name:
         return ""
     search = name.strip().lower()
-    for mapping in (tcg_sets_eng_map, tcg_sets_jp_map):
+    for mapping in (
+        tcg_sets_eng_map,
+        tcg_sets_jp_map,
+        tcg_sets_eng_abbr_map,
+        tcg_sets_jp_abbr_map,
+    ):
         for key, code in mapping.items():
             if key.lower() == search:
                 return code
@@ -192,15 +223,22 @@ def get_set_code(name: str) -> str:
 
 
 def get_set_name(code: str) -> str:
-    """Return the display name for a set code if available."""
+    """Return the display name for a set code or abbreviation if available."""
     if not code:
         return ""
     search = code.strip().lower()
-    for mapping in (tcg_sets_eng_code_map, tcg_sets_jp_code_map):
+    for mapping in (
+        tcg_sets_eng_code_map,
+        tcg_sets_jp_code_map,
+        tcg_sets_eng_abbr_name_map,
+        tcg_sets_jp_abbr_name_map,
+    ):
         for key, name in mapping.items():
             if key.lower() == search:
                 return name
-    print(f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana.")
+    print(
+        f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana."
+    )
     return code
 
 

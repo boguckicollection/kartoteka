@@ -15,3 +15,7 @@ def test_get_set_name_unknown_triggers_warning(capsys):
     captured = capsys.readouterr()
     assert result == code
     assert "Weryfikacja ręczna wymagana" in captured.out
+
+
+def test_get_set_name_from_abbr():
+    assert ui.get_set_name("DRI") == "Destined Rivals"
