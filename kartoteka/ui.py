@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk, ImageFilter
+from PIL import Image, ImageTk, ImageFilter, ImageOps
 import imagehash
 import os
 import csv
@@ -60,13 +60,44 @@ PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
-HASH_DIFF_THRESHOLD = 10 # ZMIANA: Lekko zwiększony próg dla większej elastyczności
+HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
+HASH_SIZE = (32, 32)
 
-SET_HASH_THRESHOLD = 128
-try:
-    SET_HASH_THRESHOLD = int(os.getenv("SET_HASH_THRESHOLD", SET_HASH_THRESHOLD))
-except ValueError:
-    pass
+_LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehash.ImageHash]] = {}
+
+
+def _preprocess_symbol(im: Image.Image) -> Image.Image:
+    """Normalize symbol/logo image before hashing."""
+    im = ImageOps.fit(im.convert("L"), HASH_SIZE, method=Image.Resampling.LANCZOS)
+    im = im.filter(ImageFilter.MedianFilter(3))
+    im = ImageOps.autocontrast(im)
+    return im.convert("1")
+
+
+def load_logo_hashes() -> None:
+    """Populate the global `_LOGO_HASHES` cache with preprocessed hashes."""
+    _LOGO_HASHES.clear()
+    if not os.path.isdir(SET_LOGO_DIR):
+        return
+    for file in os.listdir(SET_LOGO_DIR):
+        if not file.lower().endswith(".png"):
+            continue
+        code = os.path.splitext(file)[0]
+        if ALLOWED_SET_CODES and code not in ALLOWED_SET_CODES:
+            continue
+        path = os.path.join(SET_LOGO_DIR, file)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with Image.open(path) as im:
+                im = _preprocess_symbol(im)
+                _LOGO_HASHES[code] = (
+                    imagehash.phash(im),
+                    imagehash.dhash(im),
+                    imagehash.average_hash(im),
+                )
+        except Exception:
+            continue
 
 DEFAULT_LOGO_LIMIT = 20
 try:
@@ -203,6 +234,9 @@ ALLOWED_SET_CODES = {
     if era in ALLOWED_ERAS
     for item in sets
 }
+
+
+load_logo_hashes()
 
 
 def get_set_code(name: str) -> str:
@@ -671,42 +705,15 @@ def identify_set_by_hash(
         When matching fails, an empty list is returned.
     """
 
-    logos = {}
-    if os.path.isdir(SET_LOGO_DIR):
-        for file in os.listdir(SET_LOGO_DIR):
-            if not file.lower().endswith(".png"):
-                continue
-            code = os.path.splitext(file)[0]
-            if ALLOWED_SET_CODES and code not in ALLOWED_SET_CODES:
-                continue
-            path = os.path.join(SET_LOGO_DIR, file)
-            if not os.path.isfile(path):
-                continue
-            try:
-                with Image.open(path) as im:
-                    im = im.convert("L").point(
-                        lambda x, t=SET_HASH_THRESHOLD: 0 if x < t else 255,
-                        "1",
-                    )
-                    logos[code] = (
-                        imagehash.phash(im),
-                        imagehash.dhash(im),
-                        imagehash.average_hash(im),
-                    )
-            except Exception:
-                continue
-
-    if not logos:
+    if not _LOGO_HASHES:
+        load_logo_hashes()
+    if not _LOGO_HASHES:
         return []
 
     try:
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
-            # ZMIANA: Przetwarzanie obrazu w celu usunięcia szumu tła przed haszowaniem
-            crop = crop.convert("L").point(
-                lambda x, t=SET_HASH_THRESHOLD: 0 if x < t else 255,
-                "1",
-            )
+            crop = _preprocess_symbol(crop)
             crop_hashes = (
                 imagehash.phash(crop),
                 imagehash.dhash(crop),
@@ -716,24 +723,15 @@ def identify_set_by_hash(
         return []
 
     results: list[tuple[str, int]] = []
-    for code, hashes in logos.items():
+    for code, hashes in _LOGO_HASHES.items():
         diff = sum(h - c for h, c in zip(hashes, crop_hashes))
         results.append((code, int(diff)))
 
     results.sort(key=lambda x: x[1])
-
-    # ZMIANA: Logowanie najlepszych wyników do debugowania
-    logger.debug("Top 5 hash matches (code, difference): %s", results[:5])
-
     symbol_hash = str(crop_hashes[0])
     for best_code, diff in results[:4]:
         logger.debug("Hash %s -> %s (%s)", symbol_hash, best_code, diff)
-
-    mapped: list[tuple[str, str, int]] = []
-    for code, diff in results[:4]:
-        name = get_set_name(code)
-        mapped.append((code, name, diff))
-    return mapped
+    return [(code, get_set_name(code), diff) for code, diff in results[:4]]
 
 
 def extract_set_code_ocr(
