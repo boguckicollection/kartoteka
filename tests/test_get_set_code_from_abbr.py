@@ -11,3 +11,10 @@ importlib.reload(ui)
 
 def test_get_set_code_from_abbreviation():
     assert ui.get_set_code("DRI") == "sv10"
+
+
+def test_get_set_code_strips_suffixes_to_full_name():
+    for suffix in ("", " EN", " JP"):
+        code = ui.get_set_code(f"DRI{suffix}")
+        assert code == "sv10"
+        assert ui.get_set_name(code) == "Destined Rivals"

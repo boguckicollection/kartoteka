@@ -252,7 +252,10 @@ def get_set_code(name: str) -> str:
     """Return the API code for a set name or abbreviation if available."""
     if not name:
         return ""
-    search = name.strip().lower()
+    search = name.strip()
+    # remove trailing language or other short alphabetic suffixes like "EN", "JP"
+    search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
+    search = search.strip().lower()
     for mapping in (
         tcg_sets_eng_map,
         tcg_sets_jp_map,
@@ -3740,6 +3743,12 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
+        if hasattr(self, "set_var"):
+            try:
+                self.set_var.set(full_name)
+            except Exception:
+                pass
 
         try:
             headers = {}
@@ -3830,6 +3839,12 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
+        if hasattr(self, "set_var"):
+            try:
+                self.set_var.set(full_name)
+            except Exception:
+                pass
 
         try:
             headers = {}
@@ -3907,6 +3922,12 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
+        if hasattr(self, "set_var"):
+            try:
+                self.set_var.set(full_name)
+            except Exception:
+                pass
 
         try:
             headers = {}
@@ -3982,6 +4003,12 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
+        if hasattr(self, "set_var"):
+            try:
+                self.set_var.set(full_name)
+            except Exception:
+                pass
 
         try:
             headers = {}
