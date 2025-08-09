@@ -803,32 +803,47 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
     ``set_name`` value is normalised to the canonical display name whenever a
     matching ``set_code`` can be resolved.
     """
-    parsed = urlparse(path)
-    if parsed.scheme in ("http", "https"):
-        url = path
-    else:
-        folder = os.path.basename(os.path.dirname(path))
-        filename = os.path.basename(path)
-        url = f"{BASE_IMAGE_URL}/{folder}/{filename}"
-
     try:
+        parsed = urlparse(path)
+        if parsed.scheme in ("http", "https"):
+            try:
+                r = requests.get(path, timeout=10)
+                r.raise_for_status()
+                mime = r.headers.get("Content-Type") or mimetypes.guess_type(path)[0] or "image/jpeg"
+                encoded = base64.b64encode(r.content).decode("utf-8")
+            except Exception as e:
+                print(f"[ERROR] extract_card_info_openai failed to fetch image: {e}")
+                return "", "", "", "", ""
+        else:
+            mime = mimetypes.guess_type(path)[0] or "image/jpeg"
+            try:
+                with open(path, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+            except OSError as e:
+                print(f"[ERROR] extract_card_info_openai failed to read image: {e}")
+                return "", "", "", "", ""
+        data_url = f"data:{mime};base64,{encoded}"
+
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
-        
-        # ZMIANA: Prompt prosi o nazwę, numer i ZESTAW (set_name)
-        prompt_text = "Extract the Pokémon card's name, number, and set name. Return as JSON: {\"name\":\"\", \"number\":\"\", \"set_name\":\"\"}."
+
+        prompt_text = (
+            "You must return a JSON object with the Pokémon card's English name, "
+            "card number in the form NNN/NNN, and English set name. The response "
+            "must strictly match {\"name\":\"\", \"number\":\"\", \"set_name\":\"\"}."
+        )
 
         resp = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             response_format={"type": "json_object"},
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt_text},
-                        {"type": "image_url", "image_url": {"url": url}},
+                        {"type": "image_url", "image_url": {"url": data_url}},
                     ],
                 }
             ],
