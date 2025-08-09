@@ -773,7 +773,8 @@ def extract_set_code_ocr(
             crop = im.crop(rect)
         crop = crop.convert("L").resize((crop.width * 3, crop.height * 3))
         raw = pytesseract.image_to_string(
-            crop, config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            crop,
+            config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/-",
         )
     except Exception:
         return []
