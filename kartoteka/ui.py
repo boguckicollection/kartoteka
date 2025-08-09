@@ -236,16 +236,30 @@ def reload_sets():
 reload_sets()
 
 # Allowed eras and set codes used for logo operations
-ALLOWED_ERAS = {"Scarlet & Violet", "Sword & Shield", "Sun & Moon"}
-ALLOWED_SET_CODES = {
-    item["code"]
-    for era, sets in tcg_sets_eng_by_era.items()
-    if era in ALLOWED_ERAS
-    for item in sets
+ALLOWED_ERAS = {
+    "Scarlet & Violet",
+    "Sword & Shield",
+    "Sun & Moon",
+    "XY",
+    "Black & White",
 }
 
+ALLOWED_SET_CODES: set[str] = set()
 
-load_logo_hashes()
+
+def refresh_logo_cache() -> None:
+    """Regenerate ``ALLOWED_SET_CODES`` and reload logo hashes."""
+    global ALLOWED_SET_CODES
+    ALLOWED_SET_CODES = {
+        item["code"]
+        for era, sets in tcg_sets_eng_by_era.items()
+        if era in ALLOWED_ERAS
+        for item in sets
+    }
+    load_logo_hashes()
+
+
+refresh_logo_cache()
 
 
 def get_set_code(name: str) -> str:
@@ -3717,6 +3731,7 @@ class CardEditorApp:
             with open(self.sets_file, "w", encoding="utf-8") as f:
                 json.dump(current_sets, f, indent=2, ensure_ascii=False)
             reload_sets()
+            refresh_logo_cache()
             names = ", ".join(item["name"] for item in new_items)
             self.loading_label.configure(
                 text=f"Pobieram symbole setów 0/{added}..."
