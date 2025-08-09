@@ -23,8 +23,11 @@ SV01_CODE = "sv01"
 SV01_NAME = ui.get_set_name(SV01_CODE)
 
 
-def test_extract_card_info_openai_maps_set(monkeypatch):
+def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
+
+    img = tmp_path / "x.jpg"
+    img.write_bytes(b"data")
 
     payload = {"name": "Pikachu", "number": "037/198", "set_name": SV01_CODE}
     resp = SimpleNamespace(
@@ -38,7 +41,7 @@ def test_extract_card_info_openai_maps_set(monkeypatch):
             )
 
     monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
-    name, number, total, set_name, set_code = ui.extract_card_info_openai("/tmp/x.jpg")
+    name, number, total, set_name, set_code = ui.extract_card_info_openai(str(img))
     assert (name, number, total) == ("Pikachu", "037", "198")
     assert set_code == SV01_CODE
     assert set_name == SV01_NAME
