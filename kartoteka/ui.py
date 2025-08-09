@@ -694,22 +694,37 @@ def match_set_code(value: str) -> str:
     return ""
 
 
-def get_symbol_rect(w: int, h: int) -> tuple[int, int, int, int]:
-    """Return a rectangle around the expected set symbol location.
+def get_symbol_rects(w: int, h: int) -> list[tuple[int, int, int, int]]:
+    """Return possible rectangles around expected set symbol locations.
 
-    The symbol is typically located near the bottom-left corner of a card.
-    For very small images (e.g. stand-alone set logos) the entire image is
-    returned to ensure matching still works in tests and for direct logo
-    comparisons.
+    The set symbol is usually near the bottom-left corner of a card, but
+    rotated or unusually formatted scans may place it in other corners.  This
+    helper returns a list of candidate rectangles in the following order:
+    bottom-left, bottom-right, top-left and top-right.  For very small images
+    (e.g. stand-alone set logos) the entire image is returned to ensure
+    matching still works in tests and for direct logo comparisons.
     """
 
     # Use the full image for tiny logos
     if w <= 100 and h <= 100:
-        return (0, 0, w, h)
+        return [(0, 0, w, h)]
 
+    rects = []
     upper = int(h * 0.75)
+    lower = int(h * 0.25)
     right = int(w * 0.35)
-    return (0, upper, right, h)
+    left = w - right
+
+    # Bottom-left
+    rects.append((0, upper, right, h))
+    # Bottom-right
+    rects.append((left, upper, w, h))
+    # Top-left
+    rects.append((0, 0, right, lower))
+    # Top-right
+    rects.append((left, 0, w, lower))
+
+    return rects
 
 
 def identify_set_by_hash(
@@ -901,6 +916,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
     parsed = urlparse(path)
     local_path = path if parsed.scheme not in ("http", "https") else None
     orientation = 0
+    rects: list[tuple[int, int, int, int]] = []
     rect: Optional[tuple[int, int, int, int]] = None
     if local_path and os.path.exists(local_path):
         try:
@@ -911,8 +927,11 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                     im = im.rotate(90, expand=True)
                     im.save(local_path)
                     w, h = im.size
-                rect = get_symbol_rect(w, h)
+                rects = get_symbol_rects(w, h)
+                if rects:
+                    rect = rects[0]
         except Exception:
+            rects = []
             rect = None
 
     name = number = total = set_name = ""
@@ -1000,30 +1019,35 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
     if local_path:
         print("[INFO] Step 3: Performing local analysis (hash/OCR)...")
         try:
-            if rect is None:
-                rect = (0, 0, 0, 0)
+            if not rects:
+                rects = [(0, 0, 0, 0)]
 
-            matches = identify_set_by_hash(local_path, rect)
-            if matches:
-                code, name_match, diff = matches[0]
-                if diff <= HASH_DIFF_THRESHOLD:
-                    set_code = code
-                    set_name = name_match
-                    print(f"[SUCCESS] Local hash analysis found a match: {name_match}")
-                    result = {
-                        "name": name,
-                        "number": number,
-                        "total": total,
-                        "set": set_name,
-                        "set_code": set_code,
-                        "orientation": orientation,
-                    }
-                    if debug and rect:
-                        result["rect"] = rect
-                    return result
+            for candidate in rects:
+                potential = identify_set_by_hash(local_path, candidate)
+                if potential:
+                    code, name_match, diff = potential[0]
+                    if diff <= HASH_DIFF_THRESHOLD:
+                        rect = candidate
+                        set_code = code
+                        set_name = name_match
+                        print(
+                            f"[SUCCESS] Local hash analysis found a match: {name_match}"
+                        )
+                        result = {
+                            "name": name,
+                            "number": number,
+                            "total": total,
+                            "set": set_name,
+                            "set_code": set_code,
+                            "orientation": orientation,
+                        }
+                        if debug and rect:
+                            result["rect"] = rect
+                        return result
 
             print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
 
+            rect = rect or rects[0]
             ocr_codes = extract_set_code_ocr(local_path, rect)
             for code in ocr_codes:
                 name_lookup = get_set_name(code)
@@ -3282,8 +3306,12 @@ class CardEditorApp:
             if hasattr(self, "prompt_set_selection"):
                 try:
                     with Image.open(image_path) as im:
-                        rect = get_symbol_rect(*im.size)
-                    matches = identify_set_by_hash(image_path, rect)
+                        rects = get_symbol_rects(*im.size)
+                    matches = []
+                    for r in rects:
+                        matches = identify_set_by_hash(image_path, r)
+                        if matches:
+                            break
                 except Exception:
                     matches = []
                 options = [(c, n) for c, n, _ in matches]
