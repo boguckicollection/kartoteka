@@ -432,7 +432,7 @@ def test_analyze_card_image_horizontal_scan(tmp_path, monkeypatch):
     img_path = tmp_path / "horizontal.png"
     Image.new("RGB", (400, 200), color="white").save(img_path)
 
-    expected_rect = ui.get_symbol_rect(200, 400)
+    expected_rect = ui.get_symbol_rects(200, 400)[0]
 
     def fake_hash(path, rect):
         assert rect == expected_rect
