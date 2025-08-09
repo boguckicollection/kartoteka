@@ -610,7 +610,7 @@ def translate_to_english(text: str) -> str:
         resp = openai.chat.completions.create(
             model="gpt-5",
             messages=[{"role": "user", "content": f"Translate to English: {text}"}],
-            max_tokens=50,
+            max_completion_tokens=50,
         )
         return resp.choices[0].message.content.strip()
     except Exception:
@@ -877,7 +877,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                     ],
                 }
             ],
-            max_tokens=150,
+            max_completion_tokens=150,
         )
         
         content = resp.choices[0].message.content
