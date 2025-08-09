@@ -14,7 +14,6 @@ sys.modules["customtkinter"] = SimpleNamespace(
     CTkButton=MagicMock,
     CTkToplevel=MagicMock,
 )
-sys.modules["pytesseract"] = SimpleNamespace(image_to_string=MagicMock(return_value=""))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
 importlib.reload(ui)
@@ -302,7 +301,7 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
     assert processed.size == (30, 30)
     assert (
         ocr.call_args.kwargs.get("config")
-        == "--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        == "--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/-"
     )
 
 
