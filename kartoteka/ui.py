@@ -918,6 +918,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
     orientation = 0
     rects: list[tuple[int, int, int, int]] = []
     rect: Optional[tuple[int, int, int, int]] = None
+    rotated_path = None
     if local_path and os.path.exists(local_path):
         try:
             with Image.open(local_path) as im:
@@ -925,7 +926,10 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                 orientation = 90 if w > h else 0
                 if orientation == 90:
                     im = im.rotate(90, expand=True)
-                    im.save(local_path)
+                    rotated_path = local_path + ".rot.jpg"
+                    im.save(rotated_path)
+                    local_path = rotated_path
+                    path = rotated_path
                     w, h = im.size
                 rects = get_symbol_rects(w, h)
                 if rects:
@@ -937,124 +941,19 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
     name = number = total = set_name = ""
     set_code = ""
 
-    # --- PRIORITY 1: OpenAI Vision ---
-    api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
-        print("[INFO] Step 1: Analyzing with OpenAI Vision...")
-        try:
-            name, number, total, set_name, set_code = extract_card_info_openai(path)
+    try:
+        # --- PRIORITY 1: OpenAI Vision ---
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            print("[INFO] Step 1: Analyzing with OpenAI Vision...")
+            try:
+                name, number, total, set_name, set_code = extract_card_info_openai(path)
 
-            if translate_name and name and not name.isascii():
-                name = translate_to_english(name)
+                if translate_name and name and not name.isascii():
+                    name = translate_to_english(name)
 
-            if name and number and set_name:
-                print(f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}")
-                result = {
-                    "name": name,
-                    "number": number,
-                    "total": total,
-                    "set": set_name,
-                    "set_code": set_code,
-                    "orientation": orientation,
-                }
-                if debug and rect:
-                    result["rect"] = rect
-                return result
-
-            print("[INFO] OpenAI returned partial data. Proceeding to fallback methods.")
-
-        except Exception as e:
-            print(f"[ERROR] OpenAI analysis failed: {e}")
-            name = number = total = set_name = ""
-            set_code = ""
-    else:
-        print("[WARN] No OpenAI API key. Skipping to local analysis.")
-
-    # --- PRIORITY 2: TCGGO API Lookup (if name and number are known) ---
-    if name and number:
-        print("[INFO] Step 2: Looking up sets via TCGGO API...")
-        try:
-            api_sets = lookup_sets_from_api(name, number, total or None)
-            if len(api_sets) == 1:
-                set_code, api_set_name = api_sets[0]
-                print(f"[SUCCESS] TCGGO API found a single match: {api_set_name}")
-                result = {
-                    "name": name,
-                    "number": number,
-                    "total": total,
-                    "set": api_set_name,
-                    "set_code": set_code,
-                    "orientation": orientation,
-                }
-                if debug and rect:
-                    result["rect"] = rect
-                return result
-
-            if len(api_sets) > 1:
-                print("[INFO] TCGGO API found multiple matches. Prompting user...")
-                selected_code = prompt_set_selection(api_sets)
-                name_lookup = get_set_name(selected_code)
-                selected_name = (
-                    name_lookup
-                    if name_lookup != selected_code
-                    else next((n for c, n in api_sets if c == selected_code), selected_code)
-                )
-                print(f"[SUCCESS] User selected: {selected_name}")
-                result = {
-                    "name": name,
-                    "number": number,
-                    "total": total,
-                    "set": selected_name,
-                    "set_code": selected_code,
-                    "orientation": orientation,
-                }
-                if debug and rect:
-                    result["rect"] = rect
-                return result
-
-        except Exception as e:
-            print(f"[ERROR] TCGGO API lookup failed: {e}")
-
-    # --- PRIORITY 3: Local Analysis (Hash/OCR as last resort) ---
-    if local_path:
-        print("[INFO] Step 3: Performing local analysis (hash/OCR)...")
-        try:
-            if not rects:
-                rects = [(0, 0, 0, 0)]
-
-            for candidate in rects:
-                potential = identify_set_by_hash(local_path, candidate)
-                if potential:
-                    code, name_match, diff = potential[0]
-                    if diff <= HASH_DIFF_THRESHOLD:
-                        rect = candidate
-                        set_code = code
-                        set_name = name_match
-                        print(
-                            f"[SUCCESS] Local hash analysis found a match: {name_match}"
-                        )
-                        result = {
-                            "name": name,
-                            "number": number,
-                            "total": total,
-                            "set": set_name,
-                            "set_code": set_code,
-                            "orientation": orientation,
-                        }
-                        if debug and rect:
-                            result["rect"] = rect
-                        return result
-
-            print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
-
-            rect = rect or rects[0]
-            ocr_codes = extract_set_code_ocr(local_path, rect)
-            for code in ocr_codes:
-                name_lookup = get_set_name(code)
-                if name_lookup and name_lookup != code:
-                    set_code = code
-                    set_name = name_lookup
-                    print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
+                if name and number and set_name:
+                    print(f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}")
                     result = {
                         "name": name,
                         "number": number,
@@ -1066,26 +965,138 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                     if debug and rect:
                         result["rect"] = rect
                     return result
-                else:
-                    print(f"[WARN] OCR produced unknown set code: {code}")
 
-            print("[INFO] OCR analysis did not find a valid set code.")
-        except Exception as e:
-            print(f"[ERROR] Local analysis failed: {e}")
+                print("[INFO] OpenAI returned partial data. Proceeding to fallback methods.")
 
-    # If all methods fail, return any partial data we might have
-    print("[FAIL] All analysis methods failed to find a definitive set.")
-    result = {
-        "name": name,
-        "number": number,
-        "total": total,
-        "set": set_name,
-        "set_code": set_code,
-        "orientation": orientation,
-    }
-    if debug and rect:
-        result["rect"] = rect
-    return result
+            except Exception as e:
+                print(f"[ERROR] OpenAI analysis failed: {e}")
+                name = number = total = set_name = ""
+                set_code = ""
+        else:
+            print("[WARN] No OpenAI API key. Skipping to local analysis.")
+
+        # --- PRIORITY 2: TCGGO API Lookup (if name and number are known) ---
+        if name and number:
+            print("[INFO] Step 2: Looking up sets via TCGGO API...")
+            try:
+                api_sets = lookup_sets_from_api(name, number, total or None)
+                if len(api_sets) == 1:
+                    set_code, api_set_name = api_sets[0]
+                    print(f"[SUCCESS] TCGGO API found a single match: {api_set_name}")
+                    result = {
+                        "name": name,
+                        "number": number,
+                        "total": total,
+                        "set": api_set_name,
+                        "set_code": set_code,
+                        "orientation": orientation,
+                    }
+                    if debug and rect:
+                        result["rect"] = rect
+                    return result
+
+                if len(api_sets) > 1:
+                    print("[INFO] TCGGO API found multiple matches. Prompting user...")
+                    selected_code = prompt_set_selection(api_sets)
+                    name_lookup = get_set_name(selected_code)
+                    selected_name = (
+                        name_lookup
+                        if name_lookup != selected_code
+                        else next((n for c, n in api_sets if c == selected_code), selected_code)
+                    )
+                    print(f"[SUCCESS] User selected: {selected_name}")
+                    result = {
+                        "name": name,
+                        "number": number,
+                        "total": total,
+                        "set": selected_name,
+                        "set_code": selected_code,
+                        "orientation": orientation,
+                    }
+                    if debug and rect:
+                        result["rect"] = rect
+                    return result
+
+            except Exception as e:
+                print(f"[ERROR] TCGGO API lookup failed: {e}")
+
+        # --- PRIORITY 3: Local Analysis (Hash/OCR as last resort) ---
+        if local_path:
+            print("[INFO] Step 3: Performing local analysis (hash/OCR)...")
+            try:
+                if not rects:
+                    rects = [(0, 0, 0, 0)]
+
+                for candidate in rects:
+                    potential = identify_set_by_hash(local_path, candidate)
+                    if potential:
+                        code, name_match, diff = potential[0]
+                        if diff <= HASH_DIFF_THRESHOLD:
+                            rect = candidate
+                            set_code = code
+                            set_name = name_match
+                            print(
+                                f"[SUCCESS] Local hash analysis found a match: {name_match}"
+                            )
+                            result = {
+                                "name": name,
+                                "number": number,
+                                "total": total,
+                                "set": set_name,
+                                "set_code": set_code,
+                                "orientation": orientation,
+                            }
+                            if debug and rect:
+                                result["rect"] = rect
+                            return result
+
+                print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
+
+                rect = rect or rects[0]
+                ocr_codes = extract_set_code_ocr(local_path, rect)
+                for code in ocr_codes:
+                    name_lookup = get_set_name(code)
+                    if name_lookup and name_lookup != code:
+                        set_code = code
+                        set_name = name_lookup
+                        print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
+                        result = {
+                            "name": name,
+                            "number": number,
+                            "total": total,
+                            "set": set_name,
+                            "set_code": set_code,
+                            "orientation": orientation,
+                        }
+                        if debug and rect:
+                            result["rect"] = rect
+                        return result
+                    else:
+                        print(f"[WARN] OCR produced unknown set code: {code}")
+
+                print("[INFO] OCR analysis did not find a valid set code.")
+            except Exception as e:
+                print(f"[ERROR] Local analysis failed: {e}")
+
+        # If all methods fail, return any partial data we might have
+        print("[FAIL] All analysis methods failed to find a definitive set.")
+        result = {
+            "name": name,
+            "number": number,
+            "total": total,
+            "set": set_name,
+            "set_code": set_code,
+            "orientation": orientation,
+        }
+        if debug and rect:
+            result["rect"] = rect
+        return result
+    finally:
+        if rotated_path and os.path.exists(rotated_path):
+            try:
+                os.remove(rotated_path)
+            except OSError:
+                pass
 
 
 class CardEditorApp:
