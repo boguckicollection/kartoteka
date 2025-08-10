@@ -880,11 +880,15 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
             max_completion_tokens=150,
         )
         
-        content = resp.choices[0].message.content
-        if not content:
+        msg = resp.choices[0].message
+        raw = msg.content
+        if isinstance(raw, list):
+            raw = "".join(part.get("text", "") for part in raw)
+        if not raw:
             print("[ERROR] extract_card_info_openai got empty response from OpenAI")
             return "", "", "", "", ""
-        
+        content = raw
+
         data_dict = json.loads(content)
         data = CardInfo(**data_dict)
 
