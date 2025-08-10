@@ -294,7 +294,7 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
     ocr.assert_called_once()
     processed = ocr.call_args.args[0]
     assert processed.mode == "L"
-    assert processed.size == (30, 30)
+    assert processed.size == (40, 40)
     assert (
         ocr.call_args.kwargs.get("config")
         == "--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/-"
