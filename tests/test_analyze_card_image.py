@@ -29,15 +29,11 @@ def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
     img.write_bytes(b"data")
 
     payload = {"name": "Pikachu", "number": "037/198", "set_name": SV01_CODE}
-    resp = SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))]
-    )
+    resp = SimpleNamespace(output_text=json.dumps(payload))
 
     class DummyClient:
         def __init__(self, *a, **k):
-            self.chat = SimpleNamespace(
-                completions=SimpleNamespace(create=lambda *a, **k: resp)
-            )
+            self.responses = SimpleNamespace(create=lambda *a, **k: resp)
 
     monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
     name, number, total, set_name, set_code = ui.extract_card_info_openai(str(img))

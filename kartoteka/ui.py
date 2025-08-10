@@ -859,33 +859,32 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
             return "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
 
-        prompt_text = (
+        PROMPT = (
             "You must return a JSON object with the Pokémon card's English name, "
             "card number in the form NNN/NNN, and English set name. The response "
             "must strictly match {\"name\":\"\", \"number\":\"\", \"set_name\":\"\"}."
         )
 
-        resp = client.chat.completions.create(
-            model="gpt-5",
+        resp = client.responses.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             response_format={"type": "json_object"},
-            messages=[
+            input=[
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt_text},
-                        {"type": "image_url", "image_url": {"url": data_url}},
+                        {"type": "input_text", "text": PROMPT},
+                        {"type": "input_image", "image_url": data_url},
                     ],
                 }
             ],
-            max_completion_tokens=150,
+            max_output_tokens=150,
         )
-        
-        msg = resp.choices[0].message
-        raw = msg.content
-        if isinstance(raw, list):
-            raw = "".join(part.get("text", "") for part in raw)
+
+        raw = getattr(resp, "output_text", "")
         if not raw:
-            print("[ERROR] extract_card_info_openai got empty response from OpenAI")
+            logger.error(
+                "extract_card_info_openai got empty response from OpenAI: %r", resp
+            )
             return "", "", "", "", ""
         content = raw
 
