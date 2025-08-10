@@ -800,7 +800,8 @@ def extract_set_code_ocr(
     try:
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
-        crop = crop.convert("L").resize((crop.width * 3, crop.height * 3))
+        crop = ImageOps.autocontrast(crop.convert("L"))
+        crop = crop.resize((crop.width * 4, crop.height * 4))
         raw = pytesseract.image_to_string(
             crop,
             config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/-",
@@ -1029,6 +1030,8 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
+                if rect is None:
+                    rect = rects[0]
 
                 for candidate in rects:
                     potential = identify_set_by_hash(local_path, candidate)
@@ -1055,27 +1058,28 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
 
                 print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
 
-                rect = rect or rects[0]
-                ocr_codes = extract_set_code_ocr(local_path, rect)
-                for code in ocr_codes:
-                    name_lookup = get_set_name(code)
-                    if name_lookup and name_lookup != code:
-                        set_code = code
-                        set_name = name_lookup
-                        print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                        result = {
-                            "name": name,
-                            "number": number,
-                            "total": total,
-                            "set": set_name,
-                            "set_code": set_code,
-                            "orientation": orientation,
-                        }
-                        if debug and rect:
-                            result["rect"] = rect
-                        return result
-                    else:
-                        print(f"[WARN] OCR produced unknown set code: {code}")
+                for candidate in rects:
+                    ocr_codes = extract_set_code_ocr(local_path, candidate)
+                    for code in ocr_codes:
+                        name_lookup = get_set_name(code)
+                        if name_lookup and name_lookup != code:
+                            rect = candidate
+                            set_code = code
+                            set_name = name_lookup
+                            print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
+                            result = {
+                                "name": name,
+                                "number": number,
+                                "total": total,
+                                "set": set_name,
+                                "set_code": set_code,
+                                "orientation": orientation,
+                            }
+                            if debug and rect:
+                                result["rect"] = rect
+                            return result
+                        else:
+                            print(f"[WARN] OCR produced unknown set code: {code}")
 
                 print("[INFO] OCR analysis did not find a valid set code.")
             except Exception as e:
