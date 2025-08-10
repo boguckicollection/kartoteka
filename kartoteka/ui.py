@@ -1103,7 +1103,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
 
 
 class CardEditorApp:
-    API_TIMEOUT = 10
+    API_TIMEOUT = 30
 
     def __init__(self, root):
         self.root = root
@@ -3723,7 +3723,8 @@ class CardEditorApp:
         except Exception:
             current_sets = {}
 
-        timeout = getattr(self, "API_TIMEOUT", 10)
+        timeout = getattr(self, "API_TIMEOUT", 30)
+        remote: list[dict] = []
         for attempt in range(3):
             try:
                 resp = requests.get(
@@ -3732,15 +3733,11 @@ class CardEditorApp:
                 resp.raise_for_status()
                 remote = resp.json().get("data", [])
                 break
-            except Exception as exc:
+            except requests.RequestException as exc:
                 if attempt < 2:
                     time.sleep(2**attempt)
-                    continue
-                self.log(
-                    "Nie udało się odświeżyć listy setów. Użyte zostaną dane offline."
-                )
-                print(f"[WARN] Unable to fetch sets: {exc}")
-                return
+                else:
+                    self.log(f"[WARN] Using offline sets. Reason: {exc}")
 
         added = 0
         new_items = []
