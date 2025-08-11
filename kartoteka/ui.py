@@ -800,9 +800,12 @@ def extract_set_code_ocr(
     try:
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
-        debug_crop = crop.convert("RGB")
-        debug_crop.save("debug_ocr_crop.png")  # zapis do pliku
-        # debug_crop.show()  # opcjonalnie, jeśli środowisko pozwala wyświetlić okno
+        from pathlib import Path
+
+        debug_dir = Path("OCR")
+        debug_dir.mkdir(exist_ok=True)
+        debug_file = debug_dir / f"{Path(scan_path).stem}_set_crop.png"
+        crop.convert("RGB").save(debug_file)
         crop = crop.convert("L")
         crop = ImageOps.autocontrast(crop)
         crop = crop.resize((crop.width * 4, crop.height * 4))
