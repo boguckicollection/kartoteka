@@ -800,7 +800,8 @@ def extract_set_code_ocr(
     try:
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
-        crop = ImageOps.autocontrast(crop.convert("L"))
+        crop = crop.convert("L")
+        crop = ImageOps.autocontrast(crop)
         crop = crop.resize((crop.width * 4, crop.height * 4))
         raw = pytesseract.image_to_string(
             crop,
@@ -1058,6 +1059,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
 
                 print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
 
+                # Evaluate OCR on every candidate rectangle before declaring failure
                 for candidate in rects:
                     ocr_codes = extract_set_code_ocr(local_path, candidate)
                     for code in ocr_codes:
