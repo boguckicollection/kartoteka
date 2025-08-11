@@ -170,6 +170,13 @@ def reload_sets():
     global tcg_sets_eng_abbr_map, tcg_sets_eng_abbr_name_map
     global tcg_sets_jp_abbr_map, tcg_sets_jp_abbr_name_map
 
+    tcg_sets_eng_code_map = globals().get("tcg_sets_eng_code_map", {})
+    tcg_sets_jp_code_map = globals().get("tcg_sets_jp_code_map", {})
+    tcg_sets_eng_abbr_map = globals().get("tcg_sets_eng_abbr_map", {})
+    tcg_sets_eng_abbr_name_map = globals().get("tcg_sets_eng_abbr_name_map", {})
+    tcg_sets_jp_abbr_map = globals().get("tcg_sets_jp_abbr_map", {})
+    tcg_sets_jp_abbr_name_map = globals().get("tcg_sets_jp_abbr_name_map", {})
+
     try:
         with open("tcg_sets.json", encoding="utf-8") as f:
             tcg_sets_eng_by_era = json.load(f)
@@ -3119,25 +3126,62 @@ class CardEditorApp:
             self.create_cheat_frame()
 
     def filter_sets(self, event=None):
-        typed = self.set_var.get().lower()
+        typed = self.set_var.get().strip().lower()
         lang = self.lang_var.get().strip().upper()
-        all_sets = tcg_sets_jp if lang == "JP" else tcg_sets_eng
-        if typed:
-            filtered = [s for s in all_sets if typed in s.lower()]
+        if lang == "JP":
+            name_list = tcg_sets_jp
+            code_map = tcg_sets_jp_code_map
+            abbr_map = tcg_sets_jp_abbr_name_map
         else:
-            filtered = all_sets
+            name_list = tcg_sets_eng
+            code_map = tcg_sets_eng_code_map
+            abbr_map = tcg_sets_eng_abbr_name_map
+
+        search_map = {n.lower(): n for n in name_list}
+        search_map.update({c.lower(): n for c, n in code_map.items()})
+        search_map.update({a.lower(): n for a, n in abbr_map.items()})
+
+        if typed:
+            matches = [search_map[k] for k in search_map if typed in k]
+            if not matches:
+                close = difflib.get_close_matches(typed, search_map.keys(), n=10, cutoff=0.6)
+                matches = [search_map[k] for k in close]
+            filtered = []
+            seen = set()
+            for name in matches:
+                if name not in seen:
+                    filtered.append(name)
+                    seen.add(name)
+        else:
+            filtered = name_list
         self.set_dropdown.configure(values=filtered)
 
     def autocomplete_set(self, event=None):
-        typed = self.set_var.get().lower()
+        typed = self.set_var.get().strip().lower()
         lang = self.lang_var.get().strip().upper()
-        all_sets = tcg_sets_jp if lang == "JP" else tcg_sets_eng
-        if typed:
-            filtered = [s for s in all_sets if typed in s.lower()]
+        if lang == "JP":
+            code_map = tcg_sets_jp_code_map
+            abbr_map = tcg_sets_jp_abbr_name_map
+            name_list = tcg_sets_jp
         else:
-            filtered = all_sets
-        if filtered:
-            self.set_var.set(filtered[0])
+            code_map = tcg_sets_eng_code_map
+            abbr_map = tcg_sets_eng_abbr_name_map
+            name_list = tcg_sets_eng
+
+        name = None
+        if typed in code_map:
+            name = code_map[typed]
+        elif typed in abbr_map:
+            name = abbr_map[typed]
+        else:
+            search_map = {n.lower(): n for n in name_list}
+            search_map.update({c.lower(): n for c, n in code_map.items()})
+            search_map.update({a.lower(): n for a, n in abbr_map.items()})
+            close = difflib.get_close_matches(typed, search_map.keys(), n=1, cutoff=0.6)
+            if close:
+                name = search_map[close[0]]
+        if name:
+            self.set_var.set(name)
         event.widget.tk_focusNext().focus()
         return "break"
 
