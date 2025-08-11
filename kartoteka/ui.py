@@ -1179,7 +1179,7 @@ class CardEditorApp:
         self.folder_name = ""
         self.folder_path = ""
         self.sets_file = "tcg_sets.json"
-        self.progress_var = tk.StringVar(value="0/0")
+        self.progress_var = tk.StringVar(value="0/0 (0%)")
         self.start_box_var = tk.StringVar(value="1")
         self.start_col_var = tk.StringVar(value="1")
         self.start_pos_var = tk.StringVar(value="1")
@@ -2911,9 +2911,14 @@ class CardEditorApp:
         self.image_label = ctk.CTkLabel(self.frame, width=400, height=560)
         self.image_label.grid(row=2, column=0, rowspan=12, sticky="nsew")
         self.image_label.grid_propagate(False)
-        # Display only a textual progress indicator below the card image
-        self.progress_label = ctk.CTkLabel(self.frame, textvariable=self.progress_var)
-        self.progress_label.grid(row=14, column=0, pady=5, sticky="ew")
+        # Progress indicator below the card image
+        self.progress_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.progress_frame.grid(row=14, column=0, pady=5, sticky="ew")
+        self.progress_bar = ctk.CTkProgressBar(self.progress_frame)
+        self.progress_bar.pack(fill="x")
+        # optional textual progress display
+        self.progress_label = ctk.CTkLabel(self.progress_frame, textvariable=self.progress_var)
+        self.progress_label.pack()
 
         # Container for card information fields
         self.info_frame = ctk.CTkFrame(self.frame)
@@ -3274,7 +3279,15 @@ class CardEditorApp:
         self.output_data = [None] * len(self.cards)
         self.card_counts = defaultdict(int)
         self.failed_cards = []
-        self.progress_var.set(f"0/{len(self.cards)}")
+        total = len(self.cards)
+        # initialize progress bar for the number of cards
+        if hasattr(self, "progress_bar"):
+            try:
+                self.progress_bar.configure(maximum=total)
+            except Exception:
+                pass
+            self.progress_bar.set(0)
+        self.progress_var.set(f"0/{total} (0%)")
         self.log(f"Loaded {len(self.cards)} cards")
         self.show_card()
 
@@ -3291,7 +3304,14 @@ class CardEditorApp:
             self.export_csv()
             return
 
-        self.progress_var.set(f"{self.index + 1}/{len(self.cards)}")
+        total = len(self.cards) or 1
+        percent = int((self.index + 1) / total * 100)
+        self.progress_var.set(f"{self.index + 1}/{len(self.cards)} ({percent}%)")
+        if hasattr(self, "progress_bar"):
+            try:
+                self.progress_bar.set(self.index + 1)
+            except Exception:
+                self.progress_bar.set((self.index + 1) / total)
 
         image_path = self.cards[self.index]
         self.current_image_path = image_path
