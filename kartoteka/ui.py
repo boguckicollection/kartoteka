@@ -882,14 +882,42 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                 ],
                 max_output_tokens=150,
             )
-            raw = getattr(resp, "output_text", "")
+            raw = getattr(resp, "output_text", "").strip()
             if not raw:
                 logger.error(
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
                 return "", "", "", "", ""
-            data_dict = json.loads(raw)
+            try:
+                data_dict = json.loads(raw)
+            except json.JSONDecodeError:
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                resp = client.responses.create(
+                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                    input=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": PROMPT},
+                                {"type": "input_image", "image_url": data_url},
+                            ],
+                        }
+                    ],
+                    max_output_tokens=150,
+                )
+                raw = getattr(resp, "output_text", "").strip()
+                if not raw:
+                    logger.error(
+                        "extract_card_info_openai got empty response from OpenAI: %r",
+                        resp,
+                    )
+                    return "", "", "", "", ""
+                try:
+                    data_dict = json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.error("OpenAI returned non-JSON: %r", raw)
+                    return "", "", "", "", ""
         except TypeError:
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
@@ -904,14 +932,18 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                 ],
                 max_output_tokens=150,
             )
-            raw = getattr(resp, "output_text", "")
+            raw = getattr(resp, "output_text", "").strip()
             if not raw:
                 logger.error(
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
                 return "", "", "", "", ""
-            data_dict = json.loads(raw)
+            try:
+                data_dict = json.loads(raw)
+            except json.JSONDecodeError:
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                return "", "", "", "", ""
 
         data = CardInfo(**data_dict)
 
