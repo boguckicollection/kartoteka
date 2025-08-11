@@ -2,7 +2,7 @@ Pillow
 requests
 python-dotenv
 customtkinter
-openai>=1.0.0
+openai>=1.7.0
 tkinterweb
 imagehash
 pytesseract

@@ -867,30 +867,52 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
             "must strictly match {\"name\":\"\", \"number\":\"\", \"set_name\":\"\"}."
         )
 
-        resp = client.responses.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-            response_format={"type": "json_object"},
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": PROMPT},
-                        {"type": "input_image", "image_url": data_url},
-                    ],
-                }
-            ],
-            max_output_tokens=150,
-        )
-
-        raw = getattr(resp, "output_text", "")
-        if not raw:
-            logger.error(
-                "extract_card_info_openai got empty response from OpenAI: %r", resp
+        try:
+            resp = client.responses.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                response_format={"type": "json_object"},
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": PROMPT},
+                            {"type": "input_image", "image_url": data_url},
+                        ],
+                    }
+                ],
+                max_output_tokens=150,
             )
-            return "", "", "", "", ""
-        content = raw
+            raw = getattr(resp, "output_text", "")
+            if not raw:
+                logger.error(
+                    "extract_card_info_openai got empty response from OpenAI: %r",
+                    resp,
+                )
+                return "", "", "", "", ""
+            data_dict = json.loads(raw)
+        except TypeError:
+            resp = client.responses.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": PROMPT},
+                            {"type": "input_image", "image_url": data_url},
+                        ],
+                    }
+                ],
+                max_output_tokens=150,
+            )
+            raw = getattr(resp, "output_text", "")
+            if not raw:
+                logger.error(
+                    "extract_card_info_openai got empty response from OpenAI: %r",
+                    resp,
+                )
+                return "", "", "", "", ""
+            data_dict = json.loads(raw)
 
-        data_dict = json.loads(content)
         data = CardInfo(**data_dict)
 
         raw_number = data.number or ""
