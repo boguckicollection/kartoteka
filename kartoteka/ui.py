@@ -3729,6 +3729,7 @@ class CardEditorApp:
 
         timeout = getattr(self, "API_TIMEOUT", 30)
         remote: list[dict] = []
+        last_exc: Optional[Exception] = None
         for attempt in range(3):
             try:
                 resp = requests.get(
@@ -3738,10 +3739,11 @@ class CardEditorApp:
                 remote = resp.json().get("data", [])
                 break
             except requests.RequestException as exc:
+                last_exc = exc
                 if attempt < 2:
                     time.sleep(2**attempt)
-                else:
-                    self.log(f"[WARN] Using offline sets. Reason: {exc}")
+        if not remote and last_exc is not None:
+            self.log(f"[WARN] Using offline sets. Reason: {last_exc}")
 
         added = 0
         new_items = []
