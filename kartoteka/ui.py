@@ -61,7 +61,7 @@ HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
 HASH_SIZE = (32, 32)
-PSA_ICON_URL = "https://static.rollerbros.com/psa10.png"
+PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
 
 # minimum similarity ratio for fuzzy set code matching
 SET_CODE_MATCH_CUTOFF = 0.8
@@ -4749,4 +4749,5 @@ class CardEditorApp:
     def send_csv_to_shoper(self, file_path: str):
         """Send a CSV file using the Shoper API or FTP fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
+
 
