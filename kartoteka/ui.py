@@ -587,23 +587,47 @@ def choose_nearest_locations(order_list, output_data):
 
 
 def extract_cardmarket_price(card):
-    """Return the best available Cardmarket price for a card.
+    """Return an approximate Cardmarket price for a card.
 
-    The function checks multiple possible fields in the ``cardmarket`` price
-    section and returns the first non-zero value.  If none of the fields are
-    present or they evaluate to zero, ``None`` is returned.
+    The function prefers the arithmetic mean of ``30d_average`` and
+    ``trendPrice`` when both metrics are present and greater than zero.  If
+    only one of them is available the respective value is returned.  When
+    neither metric is usable the function falls back to ``lowest_near_mint``.
+    ``None`` is returned when no positive price can be determined.
     """
 
     cardmarket = card.get("prices", {}).get("cardmarket", {}) or {}
-    for field in ["30d_average", "trendPrice", "trend_price", "lowest_near_mint"]:
-        price = cardmarket.get(field)
+
+    def _get_float(key: str) -> float:
         try:
-            value = float(price)
+            return float(cardmarket.get(key, 0) or 0)
         except (TypeError, ValueError):
-            continue
-        if value:
-            print(f"[DEBUG] Using Cardmarket field '{field}' with value {value}")
-            return value
+            return 0.0
+
+    avg_30d = _get_float("30d_average")
+    trend = _get_float("trendPrice") or _get_float("trend_price")
+
+    values = [v for v in (avg_30d, trend) if v > 0]
+    if len(values) == 2:
+        value = sum(values) / 2
+        print(
+            f"[DEBUG] Using mean of Cardmarket fields '30d_average' ({avg_30d}) and "
+            f"'trendPrice' ({trend}) -> {value}"
+        )
+        return value
+    if len(values) == 1:
+        value = values[0]
+        field = "30d_average" if avg_30d > 0 else "trendPrice"
+        print(f"[DEBUG] Using Cardmarket field '{field}' with value {value}")
+        return value
+
+    lowest = _get_float("lowest_near_mint")
+    if lowest > 0:
+        print(
+            f"[DEBUG] Using Cardmarket field 'lowest_near_mint' with value {lowest}"
+        )
+        return lowest
+
     return None
 
 
