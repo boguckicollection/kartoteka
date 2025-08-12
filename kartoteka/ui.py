@@ -61,6 +61,7 @@ HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
 HASH_SIZE = (32, 32)
+PSA_ICON_URL = "https://static.rollerbros.com/psa10.png"
 
 # minimum similarity ratio for fuzzy set code matching
 SET_CODE_MATCH_CUTOFF = 0.8
@@ -4615,17 +4616,30 @@ class CardEditorApp:
             "</ul>"
         )
 
-        psa10_date = datetime.date.today().isoformat()
+        psa10_date = html.escape(datetime.date.today().isoformat())
         slug = raw_set_name.replace(" ", "-")
+        link_set = html.escape(f"https://kartoteka.shop/pl/c/{slug}")
+        psa_icon_url = html.escape(PSA_ICON_URL)
 
         data["description"] = (
             f'<div style="font-size:1.10em;line-height:1.7;">'
             f'<h2>{name} – Pokémon TCG</h2>'
-            f'<p>Karta pochodzi z zestawu {set_name} i ma numer {number}. Stan: {condition}.</p>'
-            f'<p>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN</p>'
-            '<p>Czy wiesz, że…? Ta karta to klasyk wśród kolekcjonerów Pokémon.</p>'
-            f'<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź '
-            f'<a href="https://kartoteka.shop/pl/c/{slug}">pozostałe oferty</a>.</p>'
+            f'<p><strong>Zestaw:</strong> {set_name}<br>'
+            f'<strong>Numer karty:</strong> {number}<br>'
+            f'<strong>Typ:</strong> {card_type}<br>'
+            f'<strong>Stan:</strong> {condition}</p>'
+            f'<div style="display:flex;align-items:center;margin:0.5em 0;">'
+            f'<img src="{psa_icon_url}" alt="PSA 10" style="height:24px;width:auto;margin-right:0.4em;"/>'
+            f'<span>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN</span>'
+            f'</div>'
+            '<p>Dlaczego warto kupić w Kartoteka.shop?</p>'
+            '<ul>'
+            '<li>Oryginalne karty Pokémon</li>'
+            '<li>Bezpieczna wysyłka i solidne opakowanie</li>'
+            '<li>Profesjonalna obsługa klienta</li>'
+            '</ul>'
+            f'<p>Jeśli szukasz więcej kart z tego setu – sprawdź '
+            f'<a href="{link_set}">pozostałe oferty</a>.</p>'
             '</div>'
         )
 
