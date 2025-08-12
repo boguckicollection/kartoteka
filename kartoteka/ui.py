@@ -4569,10 +4569,11 @@ class CardEditorApp:
 
         name = html.escape(data["nazwa"])
         number = html.escape(data["numer"])
-        set_name = html.escape(data["set"])
+        raw_set_name = data["set"]
+        set_name = html.escape(raw_set_name)
         card_type = html.escape(data["typ"])
         condition = html.escape(data["stan"])
-        psa10_price = html.escape(data.get("psa10_price", ""))
+        psa10_price = html.escape(data.get("psa10_price", "") or "???")
 
         psa10_icon = (
             '<img src="https://static.rollerbros.com/psa10.png" '
@@ -4581,8 +4582,6 @@ class CardEditorApp:
 
         psa10_li = (
             f'<li style="margin-top:0.3em;">PSA 10: ok. {psa10_price} PLN {psa10_icon}</li>'
-            if psa10_price
-            else f'<li style="margin-top:0.3em;">PSA 10: ok. ??? PLN {psa10_icon}</li>'
         )
 
         data["short_description"] = (
@@ -4595,29 +4594,21 @@ class CardEditorApp:
             f"{psa10_li}"
             "</ul>"
         )
-        psa10_paragraph = (
-            f'<p>Wartość tej karty w ocenie PSA 10: ok. {psa10_price} PLN {psa10_icon}</p>'
-            if psa10_price
-            else f'<p>Wartość tej karty w ocenie PSA 10: ok. ??? PLN {psa10_icon}</p>'
-        )
+
+        psa10_date = datetime.date.today().isoformat()
+        href_query = urlencode({"set": raw_set_name})
 
         data["description"] = (
-            '<div style="font-size:1.10em;line-height:1.7;">'
-            '<p>{name} – Pokémon TCG</p>'
-            '<p>Karta pochodzi z zestawu {set} i ma numer {number}. '
-            'Typ karty: {type}. Stan: {condition}.</p>'
+            f'<div style="font-size:1.10em;line-height:1.7;">'
+            f'<p>{name} – Pokémon TCG</p>'
+            f'<p>Karta pochodzi z zestawu {set_name} i ma numer {number}. '
+            f'Typ karty: {card_type}. Stan: {condition}.</p>'
             '<p>Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio '
             'zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.</p>'
-            '{psa10_paragraph}'
-            '<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty.</p>'
+            f'<p>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN {psa10_icon}</p>'
+            f'<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź '
+            f'<a href="?{href_query}">pozostałe oferty</a>.</p>'
             '</div>'
-        ).format(
-            name=name,
-            set=set_name,
-            number=number,
-            type=card_type,
-            condition=condition,
-            psa10_paragraph=psa10_paragraph,
         )
 
         data["availability"] = 1
