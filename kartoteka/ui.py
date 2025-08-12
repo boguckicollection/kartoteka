@@ -51,7 +51,6 @@ SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN", "").strip()
 FTP_HOST = os.getenv("FTP_HOST")
 FTP_USER = os.getenv("FTP_USER")
 FTP_PASSWORD = os.getenv("FTP_PASSWORD")
-SHOPER_DELIVERY_ID = int(os.getenv("SHOPER_DELIVERY_ID", "1"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
     openai.api_key = OPENAI_API_KEY
@@ -4600,7 +4599,7 @@ class CardEditorApp:
         )
 
         data["availability"] = 1
-        data["delivery"] = SHOPER_DELIVERY_ID
+        data["delivery"] = "3 dni"
 
         cena_local = self.get_price_from_db(data["nazwa"], data["numer"], data["set"])
         is_reverse = self.type_vars["Reverse"].get()
