@@ -15,6 +15,9 @@ class DummyVar:
         return self.value
 
 
+PSA10_PRICE = "123"
+
+
 def make_dummy():
     return SimpleNamespace(
         entries={
@@ -39,7 +42,7 @@ def make_dummy():
         output_data=[None],
         get_price_from_db=lambda *a: None,
         fetch_card_price=lambda *a: None,
-        fetch_psa10_price=MagicMock(return_value="123"),
+        fetch_psa10_price=MagicMock(return_value=PSA10_PRICE),
     )
 
 
@@ -49,11 +52,16 @@ def test_html_generated():
     ui.CardEditorApp.save_current_data(dummy)
     data = dummy.output_data[0]
     dummy.fetch_psa10_price.assert_called_once_with("Charizard", "4", "Base")
-    assert data["psa10_price"] == "123"
+    assert data["psa10_price"] == PSA10_PRICE
     assert data["short_description"].startswith("<ul")
     assert "<li>" in data["short_description"]
     assert "<img" in data["short_description"]
     assert "PSA 10: ok." in data["short_description"]
-    assert data["description"].count("<p>") >= 2
+    assert data["description"].startswith("<div")
+    assert (
+        '<img src="https://static.rollerbros.com/psa10.png"' in data["description"]
+    )
+    assert "Wartość tej karty w ocenie PSA 10:" in data["description"]
+    assert PSA10_PRICE in data["description"]
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
