@@ -4553,6 +4553,12 @@ class CardEditorApp:
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
+        existing_wc = ""
+        if getattr(self, "output_data", None) and 0 <= self.index < len(self.output_data):
+            current = self.output_data[self.index]
+            if current and current.get("warehouse_code"):
+                existing_wc = current["warehouse_code"]
+        data["warehouse_code"] = existing_wc or self.next_free_location()
         data["product_code"] = self.next_product_code
         self.next_product_code += 1
         data["unit"] = "szt."

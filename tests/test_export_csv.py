@@ -70,6 +70,7 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
             "short_description": "s",
             "description": "d",
             "image1": "img.jpg",
+            "warehouse_code": "K1R1P1",
         }]
     )
     dummy.back_to_welcome = lambda: None
@@ -85,5 +86,6 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
         assert reader.fieldnames == csv_utils.WAREHOUSE_FIELDNAMES
         assert rows[0]["name"] == "Pikachu 1"
         assert rows[0]["image"] == "img.jpg"
+        assert rows[0]["warehouse_code"] == "K1R1P1"
 
 
