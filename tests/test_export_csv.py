@@ -43,8 +43,10 @@ def test_export_includes_new_fields(tmp_path):
         assert row["currency"] == "PLN"
         assert row["producer_code"] == "1"
         assert row["stock"] == "1"
+        assert row["active"] == "1"
+        assert row["vat"] == "23%"
+        assert row["images 1"] == "img.jpg"
         assert "psa10_price" not in reader.fieldnames
-        assert "vat" not in reader.fieldnames
 
 
 def test_export_appends_warehouse(tmp_path, monkeypatch):

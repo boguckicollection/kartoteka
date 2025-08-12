@@ -27,7 +27,10 @@ STORE_FIELDNAMES = [
     "unit",
     "delivery",
     "stock",
+    "active",
     "seo_title",
+    "vat",
+    "images 1",
 ]
 
 WAREHOUSE_FIELDNAMES = ["name", "warehouse_code", "image"]
@@ -52,7 +55,10 @@ def format_store_row(row):
         "unit": row.get("unit", "szt."),
         "delivery": row.get("delivery", ""),
         "stock": row.get("stock", 1),
+        "active": row.get("active", 1),
         "seo_title": row.get("seo_title", ""),
+        "vat": row.get("vat", "23%"),
+        "images 1": row.get("image1", row.get("images", "")),
     }
 
 
