@@ -1088,42 +1088,16 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
             except Exception as e:
                 print(f"[ERROR] TCGGO API lookup failed: {e}")
 
-        # --- PRIORITY 3: Local Analysis (Hash/OCR as last resort) ---
+        # --- PRIORITY 3: Local Analysis (OCR before hash fallback) ---
         if local_path:
-            print("[INFO] Step 3: Performing local analysis (hash/OCR)...")
+            print("[INFO] Step 3: Performing local analysis (OCR/hash)...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
                 if rect is None:
                     rect = rects[0]
 
-                for candidate in rects:
-                    potential = identify_set_by_hash(local_path, candidate)
-                    if potential:
-                        code, name_match, diff = potential[0]
-                        if diff <= HASH_DIFF_THRESHOLD:
-                            rect = candidate
-                            set_code = code
-                            set_name = name_match
-                            print(
-                                f"[SUCCESS] Local hash analysis found a match: {name_match}"
-                            )
-                            result = {
-                                "name": name,
-                                "number": number,
-                                "total": total,
-                                "set": set_name,
-                                "set_code": set_code,
-                                "orientation": orientation,
-                                "set_format": set_format,
-                            }
-                            if debug and rect:
-                                result["rect"] = rect
-                            return result
-
-                print("[INFO] Hash analysis did not yield a confident result. Trying OCR...")
-
-                # Evaluate OCR on every candidate rectangle before declaring failure
+                # OCR has priority unless it fails to yield a valid code
                 for candidate in rects:
                     ocr_codes = extract_set_code_ocr(local_path, candidate)
                     for code in ocr_codes:
@@ -1148,7 +1122,36 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                         else:
                             print(f"[WARN] OCR produced unknown set code: {code}")
 
-                print("[INFO] OCR analysis did not find a valid set code.")
+                if set_format == "text":
+                    print("[INFO] OCR analysis did not find a valid set code and set format is text; skipping hash lookup.")
+                else:
+                    print("[INFO] OCR analysis did not find a valid set code. Trying hash...")
+
+                    for candidate in rects:
+                        potential = identify_set_by_hash(local_path, candidate)
+                        if potential:
+                            code, name_match, diff = potential[0]
+                            if diff <= HASH_DIFF_THRESHOLD:
+                                rect = candidate
+                                set_code = code
+                                set_name = name_match
+                                print(
+                                    f"[SUCCESS] Local hash analysis found a match: {name_match}"
+                                )
+                                result = {
+                                    "name": name,
+                                    "number": number,
+                                    "total": total,
+                                    "set": set_name,
+                                    "set_code": set_code,
+                                    "orientation": orientation,
+                                    "set_format": set_format,
+                                }
+                                if debug and rect:
+                                    result["rect"] = rect
+                                return result
+
+                    print("[INFO] Hash analysis did not yield a confident result.")
             except Exception as e:
                 print(f"[ERROR] Local analysis failed: {e}")
 
