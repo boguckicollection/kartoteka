@@ -2,6 +2,21 @@ import csv
 import re
 from . import csv_utils
 
+LAST_PRODUCT_CODE_FILE = "last_product_code.txt"
+
+
+def load_last_product_code() -> int:
+    try:
+        with open(LAST_PRODUCT_CODE_FILE, "r", encoding="utf-8") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def save_last_product_code(value: int) -> None:
+    with open(LAST_PRODUCT_CODE_FILE, "w", encoding="utf-8") as f:
+        f.write(str(int(value)))
+
 
 def location_from_code(code: str) -> str:
     match = re.match(r"K(\d+)R(\d)P(\d+)", code or "")
