@@ -230,11 +230,13 @@ def send_csv_to_shoper(app, file_path: str):
     """Send a CSV file using the Shoper API or FTP fallback."""
     try:
         if getattr(app, "shoper_client", None):
-            app.shoper_client.import_csv(file_path)
+            result = app.shoper_client.import_csv(file_path)
+            status = result.get("status", "ok")
+            messagebox.showinfo("Sukces", f"Import zakończony: {status}")
         else:
             with FTPClient(app.FTP_HOST, app.FTP_USER, app.FTP_PASSWORD) as ftp:
                 ftp.upload_file(file_path)
-        messagebox.showinfo("Sukces", "Plik CSV został wysłany.")
+            messagebox.showinfo("Sukces", "Plik CSV został wysłany.")
     except Exception as exc:  # pragma: no cover - network failure
         messagebox.showerror("Błąd", f"Nie udało się wysłać pliku: {exc}")
 
