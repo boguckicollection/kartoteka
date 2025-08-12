@@ -807,6 +807,8 @@ def extract_set_code_ocr(
     try:
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
+            h = crop.height
+            crop = crop.crop((0, int(h * 0.6), crop.width, h))
         from pathlib import Path
 
         debug_dir = Path("OCR")
