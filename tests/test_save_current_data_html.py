@@ -50,10 +50,9 @@ def test_html_generated():
     data = dummy.output_data[0]
     dummy.fetch_psa10_price.assert_called_once_with("Charizard", "4", "Base")
     assert data["psa10_price"] == "123"
-    assert data["short_description"].startswith(
-        '<ul style="margin:0 0 0.7em 1.2em; padding:0; font-size:1.14em;">'
-    )
+    assert data["short_description"].startswith("<ul")
     assert "<li>" in data["short_description"]
+    assert "<img" in data["short_description"]
     assert "PSA 10: ok." in data["short_description"]
     assert data["description"].count("<p>") >= 2
     assert dummy.product_code_map == {}
