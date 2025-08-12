@@ -4585,7 +4585,7 @@ class CardEditorApp:
         )
 
         psa10_date = datetime.date.today().isoformat()
-        href_query = urlencode({"set": raw_set_name})
+        slug = raw_set_name.replace(" ", "-")
 
         data["description"] = (
             f'<div style="font-size:1.10em;line-height:1.7;">'
@@ -4594,7 +4594,7 @@ class CardEditorApp:
             f'<p>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN</p>'
             '<p>Czy wiesz, że…? Ta karta to klasyk wśród kolekcjonerów Pokémon.</p>'
             f'<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź '
-            f'<a href="/szukaj?{href_query}">pozostałe oferty</a>.</p>'
+            f'<a href="https://kartoteka.shop/pl/c/{slug}">pozostałe oferty</a>.</p>'
             '</div>'
         )
 
