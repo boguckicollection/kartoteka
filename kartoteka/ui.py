@@ -976,7 +976,13 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
         return "", "", "", "", "", ""
 
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
-def analyze_card_image(path: str, translate_name: bool = False, debug: bool = False):
+def analyze_card_image(
+    path: str,
+    translate_name: bool = False,
+    debug: bool = False,
+    preview_cb=None,
+    preview_image=None,
+):
     """Return card details recognized from an image using a prioritized workflow."""
     parsed = urlparse(path)
     local_path = path if parsed.scheme not in ("http", "https") else None
@@ -1100,6 +1106,11 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
 
                 # OCR has priority unless it fails to yield a valid code
                 for candidate in rects:
+                    if preview_cb and preview_image is not None:
+                        try:
+                            preview_cb(candidate, preview_image)
+                        except Exception:
+                            pass
                     ocr_codes = extract_set_code_ocr(local_path, candidate)
                     for code in ocr_codes:
                         name_lookup = get_set_name(code)
@@ -1129,6 +1140,11 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                     print("[INFO] OCR analysis did not find a valid set code. Trying hash...")
 
                     for candidate in rects:
+                        if preview_cb and preview_image is not None:
+                            try:
+                                preview_cb(candidate, preview_image)
+                            except Exception:
+                                pass
                         potential = identify_set_by_hash(local_path, candidate)
                         if potential:
                             code, name_match, diff = potential[0]
@@ -3562,7 +3578,10 @@ class CardEditorApp:
             int(rect[3] * scale_y),
         )
 
-        preview = image.copy()
+        if getattr(self, "_preview_source_image", None) is not image:
+            self._preview_source_image = image
+            self._preview_base_image = image.copy()
+        preview = self._preview_base_image.copy()
         draw = ImageDraw.Draw(preview)
         draw.rectangle(scaled_rect, outline="red", width=3)
 
@@ -3581,7 +3600,13 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
-        result = analyze_card_image(path, translate_name=translate, debug=True)
+        result = analyze_card_image(
+            path,
+            translate_name=translate,
+            debug=True,
+            preview_cb=getattr(self, "update_set_area_preview", None),
+            preview_image=getattr(self, "current_card_image", None),
+        )
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):

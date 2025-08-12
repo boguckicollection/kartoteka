@@ -443,6 +443,31 @@ def test_analyze_card_image_orientation(tmp_path, monkeypatch):
     assert result["orientation"] == 90
 
 
+def test_preview_callback_called(tmp_path, monkeypatch):
+    """Ensure preview callback runs for each candidate region."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    img_path = tmp_path / "card.png"
+    Image.new("RGB", (200, 300), color="white").save(img_path)
+
+    preview_calls = []
+
+    def preview(rect, img):
+        preview_calls.append(rect)
+
+    monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
+    monkeypatch.setattr(ui, "identify_set_by_hash", lambda *a, **k: [])
+
+    with Image.open(img_path) as im:
+        ui.analyze_card_image(
+            str(img_path),
+            preview_cb=preview,
+            preview_image=im,
+        )
+
+    rects = ui.get_symbol_rects(200, 300)
+    assert preview_calls[: len(rects)] == rects
+
+
 def test_analyze_card_image_horizontal_scan(tmp_path, monkeypatch):
     """Ensure horizontal scans are rotated and hashed correctly."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
