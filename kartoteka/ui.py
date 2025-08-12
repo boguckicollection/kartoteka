@@ -4623,7 +4623,7 @@ class CardEditorApp:
 
         data["description"] = (
             f'<div style="font-size:1.10em;line-height:1.7;">'
-            f'<h2>{name} – Pokémon TCG</h2>'
+            f'<h2 style="margin:0 0 0.4em 0;">{name} – Pokémon TCG</h2>'
             f'<p><strong>Zestaw:</strong> {set_name}<br>'
             f'<strong>Numer karty:</strong> {number}<br>'
             f'<strong>Typ:</strong> {card_type}<br>'

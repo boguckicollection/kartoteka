@@ -58,19 +58,24 @@ def test_html_generated():
     assert data["vat"] == "23%"
     assert data["seo_title"] == "Charizard 4 Base Set"
     assert data["short_description"].startswith("<ul")
-    assert "<li>" in data["short_description"]
+    assert "<strong>Charizard</strong>" in data["short_description"]
     assert "Zestaw: Base Set" in data["short_description"]
     assert "Numer karty: 4" in data["short_description"]
     assert "Stan: NM" in data["short_description"]
     assert "Typ:" in data["short_description"]
-    assert "PSA" not in data["short_description"]
     assert data["description"].startswith("<div")
+    assert '<h2 style="margin:0 0 0.4em 0;">Charizard – Pokémon TCG</h2>' in data["description"]
+    assert '<div style="display:flex;align-items:center;margin:0.5em 0;">' in data["description"]
     assert f'<img src="{ui.PSA_ICON_URL}"' in data["description"]
     today = datetime.date.today().isoformat()
-    assert f"Wartość tej karty w ocenie PSA 10 ({today}):" in data["description"]
-    assert PSA10_PRICE in data["description"]
-    assert "<h2>" in data["description"]
-    assert data["description"].count("<li>") >= 3
+    assert f"Wartość tej karty w ocenie PSA 10 ({today}): ok. {PSA10_PRICE} PLN" in data["description"]
+    assert "<strong>Zestaw:</strong> Base Set" in data["description"]
+    assert "<strong>Numer karty:</strong> 4" in data["description"]
+    assert "<strong>Stan:</strong> NM" in data["description"]
+    assert "<p>Dlaczego warto kupić w Kartoteka.shop?</p>" in data["description"]
+    assert "<li>Oryginalne karty Pokémon</li>" in data["description"]
+    assert "<li>Bezpieczna wysyłka i solidne opakowanie</li>" in data["description"]
+    assert "<li>Profesjonalna obsługa klienta</li>" in data["description"]
     assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
