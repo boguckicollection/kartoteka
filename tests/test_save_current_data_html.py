@@ -47,9 +47,11 @@ def test_html_generated():
     dummy = make_dummy()
     ui.CardEditorApp.save_current_data(dummy)
     data = dummy.output_data[0]
-    assert "<ul>" in data["short_description"]
-    assert data["short_description"].startswith("<p><strong>")
+    assert data["short_description"].startswith(
+        '<ul style="margin:0 0 0.7em 1.2em; padding:0; font-size:1.14em;">'
+    )
     assert "<li>" in data["short_description"]
+    assert "PSA 10: ok." in data["short_description"]
     assert data["description"].count("<p>") >= 2
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2

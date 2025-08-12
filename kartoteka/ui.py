@@ -4563,15 +4563,22 @@ class CardEditorApp:
         set_name = html.escape(data["set"])
         card_type = html.escape(data["typ"])
         condition = html.escape(data["stan"])
+        psa10_price = html.escape(data.get("psa10_price", ""))
+
+        psa10_li = (
+            f'<li style="margin-top:0.3em;">PSA 10: ok. {psa10_price} PLN</li>'
+            if psa10_price
+            else '<li style="margin-top:0.3em;">PSA 10: ok. ??? PLN</li>'
+        )
 
         data["short_description"] = (
-            f"<p><strong>{name}</strong></p>"
-            "<!-- <ul> -->"
-            f'<ul style="margin:0 0 0.7em 1.2em;">'
-            f'<li>Zestaw: {set_name}</li>'
-            f'<li>Numer karty: {number}</li>'
-            f'<li>Typ: {card_type}</li>'
-            f'<li>Stan: {condition}</li>'
+            f'<ul style="margin:0 0 0.7em 1.2em; padding:0; font-size:1.14em;">'
+            f'<li><strong>{name}</strong></li>'
+            f'<li style="margin-top:0.3em;">Zestaw: {set_name}</li>'
+            f'<li style="margin-top:0.3em;">Numer karty: {number}</li>'
+            f'<li style="margin-top:0.3em;">Stan: {condition}</li>'
+            f'<li style="margin-top:0.3em;">Typ: {card_type}</li>'
+            f"{psa10_li}"
             "</ul>"
         )
 
