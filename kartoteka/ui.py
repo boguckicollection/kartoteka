@@ -4590,14 +4590,12 @@ class CardEditorApp:
 
         data["description"] = (
             f'<div style="font-size:1.10em;line-height:1.7;">'
-            f'<p>{name} – Pokémon TCG</p>'
-            f'<p>Karta pochodzi z zestawu {set_name} i ma numer {number}. '
-            f'Typ karty: {card_type}. Stan: {condition}.</p>'
-            '<p>Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio '
-            'zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.</p>'
+            f'<h2>{name} – Pokémon TCG</h2>'
+            f'<p>Karta pochodzi z zestawu {set_name} i ma numer {number}. Stan: {condition}.</p>'
             f'<p>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN</p>'
+            '<p>Czy wiesz, że…? Ta karta to klasyk wśród kolekcjonerów Pokémon.</p>'
             f'<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź '
-            f'<a href="?{href_query}">pozostałe oferty</a>.</p>'
+            f'<a href="/szukaj?{href_query}">pozostałe oferty</a>.</p>'
             '</div>'
         )
 

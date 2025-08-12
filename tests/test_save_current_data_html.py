@@ -4,7 +4,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 import datetime
-from urllib.parse import urlencode
 
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -64,13 +63,14 @@ def test_html_generated():
     assert "Numer karty: 4" in data["short_description"]
     assert "Stan: NM" in data["short_description"]
     assert "Typ:" in data["short_description"]
-    assert "<img" not in data["short_description"]
-    assert "PSA 10" not in data["short_description"]
+    assert "PSA" not in data["short_description"]
     assert data["description"].startswith("<div")
     assert '<img src="https://static.rollerbros.com/psa10.png"' not in data["description"]
     today = datetime.date.today().isoformat()
     assert f"Wartość tej karty w ocenie PSA 10 ({today}):" in data["description"]
-    assert urlencode({"set": "Base"}) in data["description"]
     assert PSA10_PRICE in data["description"]
+    assert "<h2>" in data["description"]
+    assert "Czy wiesz, że" in data["description"]
+    assert "/szukaj?set=Base" in data["description"]
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
