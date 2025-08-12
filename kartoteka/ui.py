@@ -4578,7 +4578,7 @@ class CardEditorApp:
         psa10_li = (
             f'<li style="margin-top:0.3em;">PSA 10: ok. {psa10_price} PLN {psa10_icon}</li>'
             if psa10_price
-            else '<li style="margin-top:0.3em;">PSA 10: ok. ??? PLN</li>'
+            else f'<li style="margin-top:0.3em;">PSA 10: ok. ??? PLN {psa10_icon}</li>'
         )
 
         data["short_description"] = (
@@ -4591,23 +4591,29 @@ class CardEditorApp:
             f"{psa10_li}"
             "</ul>"
         )
+        psa10_paragraph = (
+            f'<p>Wartość tej karty w ocenie PSA 10: ok. {psa10_price} PLN {psa10_icon}</p>'
+            if psa10_price
+            else f'<p>Wartość tej karty w ocenie PSA 10: ok. ??? PLN {psa10_icon}</p>'
+        )
 
-        desc_template = (
+        data["description"] = (
             '<div style="font-size:1.10em;line-height:1.7;">'
             '<p>{name} – Pokémon TCG</p>'
             '<p>Karta pochodzi z zestawu {set} i ma numer {number}. '
             'Typ karty: {type}. Stan: {condition}.</p>'
             '<p>Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio '
             'zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.</p>'
+            '{psa10_paragraph}'
             '<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź pozostałe oferty.</p>'
             '</div>'
-        )
-        data["description"] = desc_template.format(
+        ).format(
             name=name,
             set=set_name,
             number=number,
-            condition=condition,
             type=card_type,
+            condition=condition,
+            psa10_paragraph=psa10_paragraph,
         )
 
         data["availability"] = 1
