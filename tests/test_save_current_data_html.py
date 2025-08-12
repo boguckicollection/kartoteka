@@ -24,7 +24,7 @@ def make_dummy():
         entries={
             "nazwa": DummyVar("Charizard"),
             "numer": DummyVar("4"),
-            "set": DummyVar("Base"),
+            "set": DummyVar("Base Set"),
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "cena": DummyVar(""),
@@ -52,14 +52,14 @@ def test_html_generated():
     dummy = make_dummy()
     ui.CardEditorApp.save_current_data(dummy)
     data = dummy.output_data[0]
-    dummy.fetch_psa10_price.assert_called_once_with("Charizard", "4", "Base")
+    dummy.fetch_psa10_price.assert_called_once_with("Charizard", "4", "Base Set")
     assert data["psa10_price"] == PSA10_PRICE
     assert data["active"] == 1
     assert data["vat"] == "23%"
-    assert data["seo_title"] == "Charizard 4 Base"
+    assert data["seo_title"] == "Charizard 4 Base Set"
     assert data["short_description"].startswith("<ul")
     assert "<li>" in data["short_description"]
-    assert "Zestaw: Base" in data["short_description"]
+    assert "Zestaw: Base Set" in data["short_description"]
     assert "Numer karty: 4" in data["short_description"]
     assert "Stan: NM" in data["short_description"]
     assert "Typ:" in data["short_description"]
@@ -71,6 +71,6 @@ def test_html_generated():
     assert PSA10_PRICE in data["description"]
     assert "<h2>" in data["description"]
     assert "Czy wiesz, że" in data["description"]
-    assert "/szukaj?set=Base" in data["description"]
+    assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
