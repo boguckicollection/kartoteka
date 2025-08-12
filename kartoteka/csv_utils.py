@@ -231,8 +231,14 @@ def send_csv_to_shoper(app, file_path: str):
     try:
         if getattr(app, "shoper_client", None):
             result = app.shoper_client.import_csv(file_path)
-            status = result.get("status", "ok")
-            messagebox.showinfo("Sukces", f"Import zakończony: {status}")
+            errors = result.get("errors") or []
+            warnings = result.get("warnings") or []
+            status = (result.get("status") or "").lower()
+            if errors or warnings or status not in {"completed", "finished", "done", "success"}:
+                issues = "\n".join(map(str, errors + warnings)) or f"Status: {status or 'nieznany'}"
+                messagebox.showerror("Błąd", f"Import zakończony z problemami:\n{issues}")
+            else:
+                messagebox.showinfo("Sukces", f"Import zakończony: {status}")
         else:
             with FTPClient(app.FTP_HOST, app.FTP_USER, app.FTP_PASSWORD) as ftp:
                 ftp.upload_file(file_path)
