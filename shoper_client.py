@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 
 
@@ -98,11 +99,32 @@ class ShoperClient:
             print("[INFO] orders/stats unavailable")
             return {}
 
-    def import_csv(self, file_path):
-        """Upload a CSV file using the Shoper API."""
+    def import_csv(self, file_path, poll_interval=2, timeout=120):
+        """Upload a CSV file and wait for the import job to finish."""
         with open(file_path, "rb") as fh:
             files = {"file": (os.path.basename(file_path), fh, "text/csv")}
-            return self.post("import/csv", files=files)
+            data = self.post("products/import", files=files)
+        job_id = data.get("job_id") or data.get("id")
+        if job_id:
+            return self._poll_import_job(job_id, poll_interval, timeout)
+        return data
+
+    def _poll_import_job(self, job_id, interval=2, timeout=120):
+        """Poll the import job until completion or failure."""
+        endpoint = f"products/import/{job_id}"
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            status = self.get(endpoint)
+            state = status.get("status") or status.get("state")
+            if state in {"completed", "finished", "done", "success"}:
+                errors = status.get("errors")
+                if errors:
+                    raise RuntimeError(f"Import completed with errors: {errors}")
+                return status
+            if state in {"failed", "error"}:
+                raise RuntimeError(f"Import failed: {status}")
+            time.sleep(interval)
+        raise RuntimeError("Import job timed out")
 
     def get_attributes(self):
         """Return a list of product attributes."""
