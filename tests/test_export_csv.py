@@ -40,6 +40,7 @@ def test_export_includes_new_fields(tmp_path):
         rows = list(reader)
         assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
         row = rows[0]
+        assert row["name"] == "Pikachu"
         assert row["currency"] == "PLN"
         assert row["producer_code"] == "1"
         assert row["stock"] == "1"
