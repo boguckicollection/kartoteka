@@ -4570,8 +4570,13 @@ class CardEditorApp:
         condition = html.escape(data["stan"])
         psa10_price = html.escape(data.get("psa10_price", ""))
 
+        psa10_icon = (
+            '<img src="https://static.rollerbros.com/psa10.png" '
+            'alt="PSA 10" style="height:1em; margin-left:0.3em;">'
+        )
+
         psa10_li = (
-            f'<li style="margin-top:0.3em;">PSA 10: ok. {psa10_price} PLN</li>'
+            f'<li style="margin-top:0.3em;">PSA 10: ok. {psa10_price} PLN {psa10_icon}</li>'
             if psa10_price
             else '<li style="margin-top:0.3em;">PSA 10: ok. ??? PLN</li>'
         )
