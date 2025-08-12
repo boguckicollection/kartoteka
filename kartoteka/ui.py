@@ -838,15 +838,17 @@ class CardInfo(BaseModel):
     name: str = ""
     number: str = ""
     set_name: str = ""
+    set_format: str = ""
 
 
 # ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
-def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
-    """Recognize card name, number, and set using OpenAI Vision.
+def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
+    """Recognize card name, number, set, and its format using OpenAI Vision.
 
-    Returns a tuple ``(name, number, total, set_name, set_code)``.  The
-    ``set_name`` value is normalised to the canonical display name whenever a
-    matching ``set_code`` can be resolved.
+    Returns a tuple ``(name, number, total, set_name, set_code, set_format)``.
+    The ``set_name`` value is normalised to the canonical display name whenever
+    a matching ``set_code`` can be resolved. ``set_format`` is ``"text"`` or
+    ``"symbol"`` depending on how the set was detected.
     """
     try:
         parsed = urlparse(path)
@@ -858,7 +860,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                 encoded = base64.b64encode(r.content).decode("utf-8")
             except Exception as e:
                 print(f"[ERROR] extract_card_info_openai failed to fetch image: {e}")
-                return "", "", "", "", ""
+                return "", "", "", "", "", ""
         else:
             mime = mimetypes.guess_type(path)[0] or "image/jpeg"
             try:
@@ -866,18 +868,19 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                     encoded = base64.b64encode(f.read()).decode("utf-8")
             except OSError as e:
                 print(f"[ERROR] extract_card_info_openai failed to read image: {e}")
-                return "", "", "", "", ""
+                return "", "", "", "", "", ""
         data_url = f"data:{mime};base64,{encoded}"
 
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            return "", "", "", "", ""
+            return "", "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
 
         PROMPT = (
             "You must return a JSON object with the Pokémon card's English name, "
-            "card number in the form NNN/NNN, and English set name. The response "
-            "must strictly match {\"name\":\"\", \"number\":\"\", \"set_name\":\"\"}."
+            "card number in the form NNN/NNN, English set name, and whether the set "
+            "is written as text or shown as a symbol. The response must strictly "
+            "match {\"name\":\"\", \"number\":\"\", \"set_name\":\"\", \"set_format\":\"\"}."
         )
 
         try:
@@ -907,12 +910,12 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
-                return "", "", "", "", ""
+                return "", "", "", "", "", ""
             try:
                 data_dict = json.loads(raw)
             except json.JSONDecodeError:
                 logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", ""
+                return "", "", "", "", "", ""
         except TypeError:
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
@@ -939,12 +942,12 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
-                return "", "", "", "", ""
+                return "", "", "", "", "", ""
             try:
                 data_dict = json.loads(raw)
             except json.JSONDecodeError:
                 logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", ""
+                return "", "", "", "", "", ""
 
         data = CardInfo(**data_dict)
 
@@ -959,16 +962,17 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str]:
 
         name = data.name or ""
         set_name = data.set_name or ""
+        set_format = data.set_format or ""
         set_code = ""
         if set_name:
             set_code = get_set_code(set_name)
             mapped = get_set_name(set_code)
             if mapped:
                 set_name = mapped
-        return name, number, total, set_name, set_code
+        return name, number, total, set_name, set_code, set_format
     except Exception as e:
         print(f"[ERROR] extract_card_info_openai failed: {e}")
-        return "", "", "", "", ""
+        return "", "", "", "", "", ""
 
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
 def analyze_card_image(path: str, translate_name: bool = False, debug: bool = False):
@@ -1000,6 +1004,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
 
     name = number = total = set_name = ""
     set_code = ""
+    set_format = ""
 
     try:
         # --- PRIORITY 1: OpenAI Vision ---
@@ -1007,7 +1012,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
         if api_key:
             print("[INFO] Step 1: Analyzing with OpenAI Vision...")
             try:
-                name, number, total, set_name, set_code = extract_card_info_openai(path)
+                name, number, total, set_name, set_code, set_format = extract_card_info_openai(path)
 
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
@@ -1021,6 +1026,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                         "set": set_name,
                         "set_code": set_code,
                         "orientation": orientation,
+                        "set_format": set_format,
                     }
                     if debug and rect:
                         result["rect"] = rect
@@ -1050,6 +1056,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                         "set": api_set_name,
                         "set_code": set_code,
                         "orientation": orientation,
+                        "set_format": set_format,
                     }
                     if debug and rect:
                         result["rect"] = rect
@@ -1072,6 +1079,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                         "set": selected_name,
                         "set_code": selected_code,
                         "orientation": orientation,
+                        "set_format": set_format,
                     }
                     if debug and rect:
                         result["rect"] = rect
@@ -1107,6 +1115,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                                 "set": set_name,
                                 "set_code": set_code,
                                 "orientation": orientation,
+                                "set_format": set_format,
                             }
                             if debug and rect:
                                 result["rect"] = rect
@@ -1131,6 +1140,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
                                 "set": set_name,
                                 "set_code": set_code,
                                 "orientation": orientation,
+                                "set_format": set_format,
                             }
                             if debug and rect:
                                 result["rect"] = rect
@@ -1151,6 +1161,7 @@ def analyze_card_image(path: str, translate_name: bool = False, debug: bool = Fa
             "set": set_name,
             "set_code": set_code,
             "orientation": orientation,
+            "set_format": set_format,
         }
         if debug and rect:
             result["rect"] = rect
