@@ -75,6 +75,7 @@ def format_warehouse_row(row):
 
 def load_csv_data(app):
     """Load a CSV file and merge duplicate rows."""
+    from . import storage
     file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
     if not file_path:
         return
@@ -146,6 +147,7 @@ def load_csv_data(app):
     for row in combined.values():
         row["product_code"] = app.next_product_code
         app.next_product_code += 1
+        storage.save_last_product_code(app.next_product_code - 1)
 
     if qty_field is None:
         qty_field = "ilość"

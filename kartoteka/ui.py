@@ -1214,7 +1214,7 @@ class CardEditorApp:
         self.card_cache = {}
         self.file_to_key = {}
         self.product_code_map = {}
-        self.next_product_code = 1
+        self.next_product_code = storage.load_last_product_code() + 1
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
@@ -4612,6 +4612,7 @@ class CardEditorApp:
         data["warehouse_code"] = existing_wc or self.next_free_location()
         data["product_code"] = self.next_product_code
         self.next_product_code += 1
+        storage.save_last_product_code(self.next_product_code - 1)
         data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['set']}"
         data["producer"] = "Pokémon"
