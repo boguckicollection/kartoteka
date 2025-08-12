@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk, ImageFilter, ImageOps
+from PIL import Image, ImageTk, ImageFilter, ImageOps, ImageDraw
 import imagehash
 import os
 import csv
@@ -3520,6 +3520,44 @@ class CardEditorApp:
         if hasattr(self, "current_card_photo"):
             self.image_label.configure(image=self.current_card_photo)
 
+    def update_set_area_preview(self, rect, image):
+        """Overlay ``rect`` on ``image`` and display it on ``image_label``."""
+        if not rect or image is None:
+            return
+        try:
+            # determine dimensions of the image used for analysis
+            with Image.open(getattr(self, "current_image_path", "")) as im:
+                orig_w, orig_h = im.size
+        except Exception:
+            orig_w, orig_h = image.size
+
+        orientation = getattr(self, "_analysis_orientation", 0)
+        if orientation == 90:
+            base_w, base_h = orig_h, orig_w
+        else:
+            base_w, base_h = orig_w, orig_h
+
+        disp_w, disp_h = image.size
+        scale_x = disp_w / base_w if base_w else 1
+        scale_y = disp_h / base_h if base_h else 1
+        scaled_rect = (
+            int(rect[0] * scale_x),
+            int(rect[1] * scale_y),
+            int(rect[2] * scale_x),
+            int(rect[3] * scale_y),
+        )
+
+        preview = image.copy()
+        draw = ImageDraw.Draw(preview)
+        draw.rectangle(scaled_rect, outline="red", width=3)
+
+        if hasattr(ctk, "CTkImage"):
+            img = ctk.CTkImage(light_image=preview, size=preview.size)
+        else:
+            img = ImageTk.PhotoImage(preview)
+        self.current_card_photo = img
+        self.image_label.configure(image=img)
+
     def _analyze_and_fill(self, path, idx):
         lang_var = getattr(self, "lang_var", None)
         translate = False
@@ -3528,7 +3566,7 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
-        result = analyze_card_image(path, translate_name=translate)
+        result = analyze_card_image(path, translate_name=translate, debug=True)
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
@@ -3551,6 +3589,13 @@ class CardEditorApp:
             self.entries["numer"].insert(0, number)
             self.entries["set"].set(set_name)
             self.update_set_options()
+            rect = result.get("rect")
+            self._analysis_orientation = result.get("orientation", 0)
+            if rect and hasattr(self, "current_card_image"):
+                try:
+                    self.update_set_area_preview(rect, self.current_card_image)
+                except Exception:
+                    pass
         return
 
     def prompt_set_selection(self, options: list[tuple[str, str]]):
