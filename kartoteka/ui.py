@@ -31,7 +31,6 @@ from ftp_client import FTPClient
 from . import csv_utils, storage
 import threading
 from urllib.parse import urlencode, urlparse
-from urllib.error import HTTPError
 import io
 import webbrowser
 import logging
@@ -4535,46 +4534,13 @@ class CardEditorApp:
         tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
-        """Open a Cardmarket search for the current card inside the app."""
+        """Open a Cardmarket search for the current card in the default browser."""
         name = self.entries["nazwa"].get()
         number = sanitize_number(self.entries["numer"].get())
         search_terms = " ".join(t for t in [name, number] if t)
         params = urlencode({"searchString": search_terms})
         url = f"https://www.cardmarket.com/en/Pokemon/Products/Search?{params}"
-
-        try:
-            from tkinterweb import HtmlFrame, utilities
-        except ModuleNotFoundError:
-            messagebox.showwarning(
-                "Brak modułu",
-                "Moduł 'tkinterweb' nie jest zainstalowany.\n"
-                "Aby korzystać z wbudowanej przeglądarki, zainstaluj go poleceniem:\n"
-                "pip install tkinterweb",
-            )
-            return
-
-        top = ctk.CTkToplevel(self.root)
-        top.title("Cardmarket Search")
-        top.geometry("800x600")
-
-        browser = HtmlFrame(top, messages_enabled=False)
-        browser.pack(fill="both", expand=True)
-        try:
-            utilities.HEADERS["User-Agent"] = (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/115.0.0.0 Safari/537.36"
-            )
-            browser.load_website(url)
-        except HTTPError as e:
-            messagebox.showerror(
-                "Błąd", f"Nie udało się wczytać Cardmarket ({e.code})."
-            )
-            top.destroy()
-            webbrowser.open(url)
-            return
-
-        self.create_button(top, text="Close", command=top.destroy).pack(pady=5)
+        webbrowser.open(url)
 
     def get_exchange_rate(self):
         try:
