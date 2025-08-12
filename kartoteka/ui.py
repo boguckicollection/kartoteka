@@ -16,7 +16,7 @@ import asyncio
 import datetime
 import time
 from collections import defaultdict
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 import unicodedata
 from itertools import combinations
 import html
@@ -36,7 +36,8 @@ import io
 import webbrowser
 import logging
 
-load_dotenv()
+ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+load_dotenv(ENV_FILE)
 
 logger = logging.getLogger(__name__)
 
@@ -1337,6 +1338,12 @@ class CardEditorApp:
             text="\U0001f4f7 FTP Obrazy",
             command=self.upload_images_dialog,
             fg_color="#474747",
+        ).pack(side="left", padx=10, pady=5)
+        self.create_button(
+            button_frame,
+            text="\u2699\ufe0f Konfiguracja",
+            command=self.open_config_dialog,
+            fg_color="#404040",
         ).pack(side="left", padx=10, pady=5)
 
     def placeholder_btn(self, text: str, master=None):
@@ -3863,18 +3870,36 @@ class CardEditorApp:
         """Finalize initialization after background tasks complete."""
         if self.loading_frame is not None:
             self.loading_frame.destroy()
-        try:
-            if not SHOPER_API_URL or not SHOPER_API_TOKEN:
-                raise ValueError("Brak konfiguracji Shoper API")
-            self.shoper_client = ShoperClient(SHOPER_API_URL, SHOPER_API_TOKEN)
-        except Exception as e:
-            print(f"[ERROR] ShoperClient init failed: {e}")
-            self.shoper_client = None
-        if not self.shoper_client:
-            messagebox.showerror(
-                "Błąd", "Nie można połączyć się z API Shoper. Sprawdź dane w pliku .env."
-            )
+        self.shoper_client = None
+        self.ensure_shoper_client()
         self.setup_welcome_screen()
+
+    def ensure_shoper_client(self):
+        """Initialize ``ShoperClient`` using stored configuration.
+
+        If configuration is missing or authentication fails, a configuration
+        dialog is shown to the user.
+        """
+        global SHOPER_API_URL, SHOPER_API_TOKEN
+        url = os.getenv("SHOPER_API_URL", "").strip()
+        token = os.getenv("SHOPER_API_TOKEN", "").strip()
+        if not url or not token:
+            self.open_config_dialog()
+            return
+        try:
+            client = ShoperClient(url, token)
+            try:
+                # perform a simple request to verify credentials
+                client.get("products", params={"page": 1, "per-page": 1})
+            except RuntimeError as exc:
+                messagebox.showerror("Błąd", f"Autoryzacja nieudana: {exc}")
+                self.open_config_dialog()
+                return
+            self.shoper_client = client
+            SHOPER_API_URL, SHOPER_API_TOKEN = url, token
+        except Exception as exc:
+            messagebox.showerror("Błąd", f"Nie można połączyć się z API Shoper: {exc}")
+            self.open_config_dialog()
 
     def download_set_symbols(self, sets):
         """Download logos for the provided set definitions."""
@@ -4727,6 +4752,59 @@ class CardEditorApp:
     def export_csv(self):
         self.in_scan = False
         csv_utils.export_csv(self)
+
+    def open_config_dialog(self):
+        """Display a dialog for editing Shoper API configuration."""
+        url_var = tk.StringVar(value=os.getenv("SHOPER_API_URL", ""))
+        token_var = tk.StringVar(value=os.getenv("SHOPER_API_TOKEN", ""))
+
+        top = ctk.CTkToplevel(self.root)
+        top.title("Konfiguracja Shoper API")
+        top.grab_set()
+
+        ctk.CTkLabel(top, text="URL API:", text_color=TEXT_COLOR).grid(
+            row=0, column=0, padx=10, pady=(10, 5), sticky="e"
+        )
+        url_entry = ctk.CTkEntry(top, textvariable=url_var, width=400)
+        url_entry.grid(row=0, column=1, padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(top, text="Token API:", text_color=TEXT_COLOR).grid(
+            row=1, column=0, padx=10, pady=5, sticky="e"
+        )
+        token_entry = ctk.CTkEntry(top, textvariable=token_var, width=400)
+        token_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        def save():
+            url = url_var.get().strip()
+            token = token_var.get().strip()
+            if not url or not token:
+                messagebox.showerror("Błąd", "Podaj URL i token API")
+                return
+            set_key(ENV_FILE, "SHOPER_API_URL", url)
+            set_key(ENV_FILE, "SHOPER_API_TOKEN", token)
+            os.environ["SHOPER_API_URL"] = url
+            os.environ["SHOPER_API_TOKEN"] = token
+            try:
+                client = ShoperClient(url, token)
+                try:
+                    client.get("products", params={"page": 1, "per-page": 1})
+                except RuntimeError as exc:
+                    messagebox.showerror("Błąd", f"Autoryzacja nieudana: {exc}")
+                    return
+                self.shoper_client = client
+                global SHOPER_API_URL, SHOPER_API_TOKEN
+                SHOPER_API_URL, SHOPER_API_TOKEN = url, token
+                messagebox.showinfo("Sukces", "Zapisano konfigurację Shoper API")
+                top.destroy()
+            except Exception as exc:
+                messagebox.showerror(
+                    "Błąd", f"Nie można połączyć się z API Shoper: {exc}"
+                )
+
+        save_btn = ctk.CTkButton(top, text="Zapisz", command=save)
+        save_btn.grid(row=2, column=0, columnspan=2, pady=10)
+        top.grid_columnconfigure(1, weight=1)
+        self.root.wait_window(top)
 
     def upload_images_dialog(self):
         """Upload images from a selected directory via FTP."""
