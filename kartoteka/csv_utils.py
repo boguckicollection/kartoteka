@@ -38,8 +38,7 @@ WAREHOUSE_FIELDNAMES = ["name", "warehouse_code", "image"]
 
 def format_store_row(row):
     """Return a row formatted for the store CSV."""
-    name_parts = [row["nazwa"], row["numer"]]
-    formatted_name = " ".join(part for part in name_parts if part)
+    formatted_name = row["nazwa"]
 
     return {
         "product_code": row["product_code"],
