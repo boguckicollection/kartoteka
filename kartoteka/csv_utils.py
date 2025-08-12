@@ -52,7 +52,7 @@ def format_store_row(row):
         "currency": row.get("currency", "PLN"),
         "availability": row.get("availability", 1),
         "unit": row.get("unit", "szt."),
-        "delivery": row.get("delivery", ""),
+        "delivery": "3 dni",
         "stock": row.get("stock", 1),
         "active": row.get("active", 1),
         "seo_title": row.get("seo_title", ""),

@@ -88,4 +88,5 @@ def test_save_current_appends_session(tmp_path):
         assert rows[0]["active"] == "1"
         assert rows[0]["vat"] == "23%"
         assert rows[0]["seo_title"] == "Charizard 4 Base"
+        assert rows[0]["delivery"] == "3 dni"
 

@@ -16,8 +16,7 @@ class DummyVar:
         return self.value
 
 
-def test_delivery_id_used(monkeypatch):
-    monkeypatch.setenv("SHOPER_DELIVERY_ID", "7")
+def test_delivery_field_constant():
     importlib.reload(ui)
 
     dummy = SimpleNamespace(
@@ -47,5 +46,5 @@ def test_delivery_id_used(monkeypatch):
     )
 
     ui.CardEditorApp.save_current_data(dummy)
-    assert dummy.output_data[0]["delivery"] == 7
+    assert dummy.output_data[0]["delivery"] == "3 dni"
 
