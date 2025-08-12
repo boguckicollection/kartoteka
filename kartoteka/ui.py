@@ -4561,6 +4561,8 @@ class CardEditorApp:
         data["producer"] = "Pokémon"
         data["producer_code"] = data["numer"]
         data["currency"] = "PLN"
+        data["active"] = 1
+        data["vat"] = "23%"
         data["seo_title"] = f"{data['nazwa']} {data['numer']} {data['set']}"
         data["seo_description"] = ""
         data["seo_keywords"] = ""

@@ -85,5 +85,7 @@ def test_save_current_appends_session(tmp_path):
         assert rows[0]["currency"] == "PLN"
         assert rows[0]["producer_code"] == "4"
         assert rows[0]["stock"] == "1"
+        assert rows[0]["active"] == "1"
+        assert rows[0]["vat"] == "23%"
         assert rows[0]["seo_title"] == "Charizard 4 Base"
 
