@@ -26,7 +26,12 @@ def test_parse_code_fence(monkeypatch, tmp_path):
     img = tmp_path / "x.jpg"
     img.write_bytes(b"data")
 
-    payload = {"name": "Pikachu", "number": "037/198", "set_name": SV01_CODE}
+    payload = {
+        "name": "Pikachu",
+        "number": "037/198",
+        "set_name": SV01_CODE,
+        "set_format": "text",
+    }
     resp = SimpleNamespace(output_text=f"```json\n{json.dumps(payload)}\n```")
 
     class DummyClient:
@@ -34,7 +39,8 @@ def test_parse_code_fence(monkeypatch, tmp_path):
             self.responses = SimpleNamespace(create=lambda *a, **k: resp)
 
     monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
-    name, number, total, set_name, set_code = ui.extract_card_info_openai(str(img))
+    name, number, total, set_name, set_code, set_format = ui.extract_card_info_openai(str(img))
     assert (name, number, total) == ("Pikachu", "037", "198")
     assert set_code == SV01_CODE
     assert set_name == SV01_NAME
+    assert set_format == "text"
