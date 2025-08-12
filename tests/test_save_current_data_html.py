@@ -65,12 +65,12 @@ def test_html_generated():
     assert "Typ:" in data["short_description"]
     assert "PSA" not in data["short_description"]
     assert data["description"].startswith("<div")
-    assert '<img src="https://static.rollerbros.com/psa10.png"' not in data["description"]
+    assert f'<img src="{ui.PSA_ICON_URL}"' in data["description"]
     today = datetime.date.today().isoformat()
     assert f"Wartość tej karty w ocenie PSA 10 ({today}):" in data["description"]
     assert PSA10_PRICE in data["description"]
     assert "<h2>" in data["description"]
-    assert "Czy wiesz, że" in data["description"]
+    assert data["description"].count("<li>") >= 3
     assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
