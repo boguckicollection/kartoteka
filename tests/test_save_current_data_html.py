@@ -53,6 +53,7 @@ def test_html_generated():
     data = dummy.output_data[0]
     dummy.fetch_psa10_price.assert_called_once_with("Charizard", "4", "Base")
     assert data["psa10_price"] == PSA10_PRICE
+    assert data["seo_title"] == "Charizard 4 Base"
     assert data["short_description"].startswith("<ul")
     assert "<li>" in data["short_description"]
     assert "<img" in data["short_description"]
