@@ -74,3 +74,4 @@ def test_html_generated():
     assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
     assert dummy.next_product_code == 2
+    assert data["warehouse_code"] == "K1R1P1"
