@@ -3,6 +3,5 @@ requests
 python-dotenv
 customtkinter
 openai>=1.7.0
-tkinterweb
 imagehash
 pytesseract
