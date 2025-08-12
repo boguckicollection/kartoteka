@@ -42,6 +42,7 @@ def make_dummy():
         output_data=[None],
         get_price_from_db=lambda *a: None,
         fetch_card_price=lambda *a: None,
+        fetch_psa10_price=lambda *a, **k: "",
     )
 
 
