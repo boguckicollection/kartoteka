@@ -4532,6 +4532,11 @@ class CardEditorApp:
         the index."""
         data = {k: v.get() for k, v in self.entries.items()}
         data.setdefault("psa10_price", "")
+        name = data.get("nazwa")
+        number = data.get("numer")
+        set_name = data.get("set")
+        if not data["psa10_price"]:
+            data["psa10_price"] = self.fetch_psa10_price(name, number, set_name)
         data["typ"] = ",".join(
             [name for name, var in self.type_vars.items() if var.get()]
         )
