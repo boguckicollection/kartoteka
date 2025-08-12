@@ -60,10 +60,14 @@ def test_html_generated():
     assert data["seo_title"] == "Charizard 4 Base"
     assert data["short_description"].startswith("<ul")
     assert "<li>" in data["short_description"]
-    assert "<img" in data["short_description"]
-    assert "PSA 10: ok." in data["short_description"]
+    assert "Zestaw: Base" in data["short_description"]
+    assert "Numer karty: 4" in data["short_description"]
+    assert "Stan: NM" in data["short_description"]
+    assert "Typ:" in data["short_description"]
+    assert "<img" not in data["short_description"]
+    assert "PSA 10" not in data["short_description"]
     assert data["description"].startswith("<div")
-    assert '<img src="https://static.rollerbros.com/psa10.png"' in data["description"]
+    assert '<img src="https://static.rollerbros.com/psa10.png"' not in data["description"]
     today = datetime.date.today().isoformat()
     assert f"Wartość tej karty w ocenie PSA 10 ({today}):" in data["description"]
     assert urlencode({"set": "Base"}) in data["description"]

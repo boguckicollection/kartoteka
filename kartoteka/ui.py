@@ -4575,15 +4575,6 @@ class CardEditorApp:
         condition = html.escape(data["stan"])
         psa10_price = html.escape(data.get("psa10_price", "") or "???")
 
-        psa10_icon = (
-            '<img src="https://static.rollerbros.com/psa10.png" '
-            'alt="PSA 10" style="height:1em; margin-left:0.3em;">'
-        )
-
-        psa10_li = (
-            f'<li style="margin-top:0.3em;">PSA 10: ok. {psa10_price} PLN {psa10_icon}</li>'
-        )
-
         data["short_description"] = (
             f'<ul style="margin:0 0 0.7em 1.2em; padding:0; font-size:1.14em;">'
             f'<li><strong>{name}</strong></li>'
@@ -4591,7 +4582,6 @@ class CardEditorApp:
             f'<li style="margin-top:0.3em;">Numer karty: {number}</li>'
             f'<li style="margin-top:0.3em;">Stan: {condition}</li>'
             f'<li style="margin-top:0.3em;">Typ: {card_type}</li>'
-            f"{psa10_li}"
             "</ul>"
         )
 
@@ -4605,7 +4595,7 @@ class CardEditorApp:
             f'Typ karty: {card_type}. Stan: {condition}.</p>'
             '<p>Każda karta jest dokładnie sprawdzana przed wysyłką i odpowiednio '
             'zabezpieczana – trafia do Ciebie w idealnym stanie, gotowa do gry lub kolekcji.</p>'
-            f'<p>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN {psa10_icon}</p>'
+            f'<p>Wartość tej karty w ocenie PSA 10 ({psa10_date}): ok. {psa10_price} PLN</p>'
             f'<p>Zdjęcia przedstawiają rzeczywisty produkt lub jego odpowiednik. Jeśli szukasz więcej kart z tego setu – sprawdź '
             f'<a href="?{href_query}">pozostałe oferty</a>.</p>'
             '</div>'
