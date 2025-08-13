@@ -1409,6 +1409,8 @@ class CardEditorApp:
         count, total = csv_utils.get_inventory_stats()
         count_text = f"Łączna liczba kart: {count}"
         total_text = f"Łączna wartość: {total:.2f} PLN"
+        # Only attempt to update labels that actually exist to avoid
+        # attribute errors when the start screen has not been created yet.
         for attr, text in [
             ("inventory_count_label", count_text),
             ("mag_inventory_count_label", count_text),
@@ -1416,7 +1418,7 @@ class CardEditorApp:
             ("mag_inventory_value_label", total_text),
         ]:
             widget = getattr(self, attr, None)
-            if widget:
+            if widget and hasattr(widget, "winfo_exists"):
                 try:
                     if widget.winfo_exists():
                         widget.configure(text=text)
@@ -2662,6 +2664,13 @@ class CardEditorApp:
         if window is not None:
             try:
                 window.destroy()
+            except Exception:
+                pass
+
+        # Update inventory statistics after toggling the sold flag
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats()
             except Exception:
                 pass
 
@@ -4699,6 +4708,11 @@ class CardEditorApp:
                     self.output_data.remove(row)
                 break
         self.repack_column(box, column)
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats()
+            except Exception:
+                pass
 
     def load_csv_data(self):
         """Load a CSV file and merge duplicate rows."""
