@@ -87,6 +87,13 @@ except ValueError:
 _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehash.ImageHash]] = {}
 
 
+def _create_image(img: Image.Image):
+    """Return a CTkImage if available, otherwise a PhotoImage."""
+    if hasattr(ctk, "CTkImage"):
+        return ctk.CTkImage(light_image=img, size=img.size)
+    return ImageTk.PhotoImage(img)
+
+
 def _preprocess_symbol(im: Image.Image) -> Image.Image:
     """Normalize symbol/logo image before hashing."""
     im = ImageOps.fit(im.convert("L"), HASH_SIZE, method=Image.Resampling.LANCZOS)
@@ -1230,11 +1237,11 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((140, 140))
-            self.logo_photo = ImageTk.PhotoImage(logo_img)
-            logo_label = tk.Label(
+            self.logo_photo = _create_image(logo_img)
+            logo_label = ctk.CTkLabel(
                 self.start_frame,
                 image=self.logo_photo,
-                bg=self.root.cget("background"),
+                text="",
             )
             logo_label.pack(pady=(10, 10))
 
@@ -1390,11 +1397,11 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
-            self.location_logo_photo = ImageTk.PhotoImage(logo_img)
-            tk.Label(
+            self.location_logo_photo = _create_image(logo_img)
+            ctk.CTkLabel(
                 frame,
                 image=self.location_logo_photo,
-                bg=self.root.cget("background"),
+                text="",
             ).pack(pady=(0, 10))
 
         form = tk.Frame(frame, bg=self.root.cget("background"))
@@ -1489,11 +1496,11 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
-            self.shoper_logo_photo = ImageTk.PhotoImage(logo_img)
-            tk.Label(
+            self.shoper_logo_photo = _create_image(logo_img)
+            ctk.CTkLabel(
                 self.shoper_frame,
                 image=self.shoper_logo_photo,
-                bg=self.root.cget("background"),
+                text="",
             ).grid(row=0, column=0, pady=(0, 10))
 
         self.shoper_tabs = ctk.CTkTabview(
@@ -1740,7 +1747,7 @@ class CardEditorApp:
         left_panel = tk.Frame(container, bg=self.root.cget("background"))
         left_panel.pack(side="right", fill="y", padx=10, pady=10)
 
-        self.auction_image_label = tk.Label(left_panel, bg=self.root.cget("background"))
+        self.auction_image_label = ctk.CTkLabel(left_panel, text="")
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
@@ -1915,10 +1922,7 @@ class CardEditorApp:
                     else:
                         return
                 img.thumbnail((200, 280))
-                if hasattr(ctk, "CTkImage"):
-                    photo = ctk.CTkImage(light_image=img, size=img.size)
-                else:
-                    photo = ImageTk.PhotoImage(img)
+                photo = _create_image(img)
                 self.auction_photo = photo
                 self.auction_image_label.configure(image=photo)
             except Exception:
@@ -2221,10 +2225,7 @@ class CardEditorApp:
                                 img = None
                         if img is not None:
                             img.thumbnail((200, 280))
-                            if hasattr(ctk, "CTkImage"):
-                                photo = ctk.CTkImage(light_image=img, size=img.size)
-                            else:
-                                photo = ImageTk.PhotoImage(img)
+                            photo = _create_image(img)
                             self.auction_photo = photo
                             self.auction_image_label.configure(image=photo)
                     except Exception:
@@ -2486,7 +2487,8 @@ class CardEditorApp:
             img.thumbnail((150, 150))
         else:
             img = Image.new("RGB", (150, 150), "#111111")
-        self.mag_box_photo = ImageTk.PhotoImage(img)
+        self.mag_box_photo = _create_image(img)
+        box_w, box_h = img.size
 
         container = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         container.pack(padx=10, pady=10)
@@ -2508,12 +2510,21 @@ class CardEditorApp:
             lbl.pack()
             canvas = tk.Canvas(
                 frame,
-                width=self.mag_box_photo.width(),
-                height=self.mag_box_photo.height(),
+                width=box_w,
+                height=box_h,
                 highlightthickness=0,
             )
             canvas.config(bg=BG_COLOR)
-            canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
+            if hasattr(ctk, "CTkImage") and isinstance(
+                self.mag_box_photo, ctk.CTkImage
+            ):
+                photo = self.mag_box_photo.create_scaled_photo_image(
+                    ctk.ScalingTracker.get_widget_scaling(canvas),
+                    ctk.get_appearance_mode(),
+                )
+            else:
+                photo = self.mag_box_photo
+            canvas.create_image(0, 0, image=photo, anchor="nw")
             canvas.pack()
             frame.grid(row=i // 4, column=i % 4, padx=5, pady=5)
             self.mag_canvases.append(canvas)
@@ -2538,7 +2549,7 @@ class CardEditorApp:
                         try:
                             img = Image.open(img_path)
                             img.thumbnail((64, 64))
-                            photo = ImageTk.PhotoImage(img)
+                            photo = _create_image(img)
                         except Exception:
                             photo = None
                     self.mag_card_images.append(photo)
@@ -2596,8 +2607,19 @@ class CardEditorApp:
                 else idx + 1
             )
             canvas.delete("stats")
-            col_w = self.mag_box_photo.width() / 4
-            canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
+            if hasattr(ctk, "CTkImage") and isinstance(
+                self.mag_box_photo, ctk.CTkImage
+            ):
+                box_w, box_h = self.mag_box_photo.cget("size")
+                photo = self.mag_box_photo.create_scaled_photo_image(
+                    ctk.ScalingTracker.get_widget_scaling(canvas),
+                    ctk.get_appearance_mode(),
+                )
+            else:
+                box_w, box_h = self.mag_box_photo.width(), self.mag_box_photo.height()
+                photo = self.mag_box_photo
+            col_w = box_w / 4
+            canvas.create_image(0, 0, image=photo, anchor="nw")
             for c in range(1, 5):
                 filled = occ.get(box, {}).get(c, 0)
                 free_percent = (1000 - filled) / 10
@@ -2608,17 +2630,17 @@ class CardEditorApp:
                         x1,
                         0,
                         x1 + col_w,
-                        self.mag_box_photo.height(),
+                        box_h,
                         fill="#ffcc80",
                         width=0,
                         tags="stats",
                     )
                 # Draw 100-card sections
                 filled_sections = filled // 100
-                seg_h = self.mag_box_photo.height() / 10
+                seg_h = box_h / 10
                 for i in range(10):
-                    y1 = self.mag_box_photo.height() - seg_h * (i + 1)
-                    y2 = self.mag_box_photo.height() - seg_h * i
+                    y1 = box_h - seg_h * (i + 1)
+                    y2 = box_h - seg_h * i
                     color = "#c8f7c8" if i < filled_sections else ""
                     canvas.create_rectangle(
                         x1,
@@ -2632,7 +2654,7 @@ class CardEditorApp:
                     )
                 canvas.create_text(
                     x_mid,
-                    self.mag_box_photo.height() / 2,
+                    box_h / 2,
                     text=f"C{c}: {free_percent:.0f}%",
                     fill=TEXT_COLOR,
                     tags="stats",
@@ -2653,7 +2675,7 @@ class CardEditorApp:
         else:
             img = Image.new("RGB", (300, 300), "#111111")
         img.thumbnail((300, 300))
-        photo = ImageTk.PhotoImage(img)
+        photo = _create_image(img)
         img_lbl = ctk.CTkLabel(top, image=photo, text="")
         img_lbl.image = photo  # keep reference
         img_lbl.pack(pady=10)
@@ -2691,11 +2713,11 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
-            self.pricing_logo_photo = ImageTk.PhotoImage(logo_img)
-            tk.Label(
+            self.pricing_logo_photo = _create_image(logo_img)
+            ctk.CTkLabel(
                 self.pricing_frame,
                 image=self.pricing_logo_photo,
-                bg=self.root.cget("background"),
+                text="",
             ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
         self.input_frame = tk.Frame(
@@ -2814,11 +2836,11 @@ class CardEditorApp:
                 if res.status_code == 200:
                     img = Image.open(io.BytesIO(res.content))
                     img.thumbnail((240, 340))
-                    self.pricing_photo = ImageTk.PhotoImage(img)
-                    self.result_image_label = tk.Label(
+                    self.pricing_photo = _create_image(img)
+                    self.result_image_label = ctk.CTkLabel(
                         self.result_frame,
                         image=self.pricing_photo,
-                        bg=self.root.cget("background"),
+                        text="",
                     )
                     self.result_image_label.pack(pady=5)
             except Exception as e:
@@ -2830,11 +2852,11 @@ class CardEditorApp:
                 if res.status_code == 200:
                     img = Image.open(io.BytesIO(res.content))
                     img.thumbnail((180, 60))
-                    self.set_logo_photo = ImageTk.PhotoImage(img)
-                    self.set_logo_label = tk.Label(
+                    self.set_logo_photo = _create_image(img)
+                    self.set_logo_label = ctk.CTkLabel(
                         self.result_frame,
                         image=self.set_logo_photo,
-                        bg=self.root.cget("background"),
+                        text="",
                     )
                     self.set_logo_label.pack(pady=5)
             except Exception as e:
@@ -2958,11 +2980,11 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((200, 80))
-        self.logo_photo = ImageTk.PhotoImage(logo_img)
-        self.logo_label = tk.Label(
+        self.logo_photo = _create_image(logo_img)
+        self.logo_label = ctk.CTkLabel(
             self.frame,
             image=self.logo_photo,
-            bg=self.root.cget("background"),
+            text="",
         )
         self.logo_label.grid(row=0, column=0, columnspan=6, pady=(0, 10))
 
@@ -3335,17 +3357,16 @@ class CardEditorApp:
                 code = item["code"]
                 img = self.set_logos.get(code)
                 if img:
-                    tk.Label(
+                    ctk.CTkLabel(
                         self.cheat_frame,
                         image=img,
-                        bg=self.root.cget("background"),
+                        text="",
                     ).grid(row=row, column=0, sticky="w", padx=5, pady=2)
                 else:
-                    tk.Label(
+                    ctk.CTkLabel(
                         self.cheat_frame,
                         text="",
                         width=2,
-                        bg=self.root.cget("background"),
                     ).grid(row=row, column=0, sticky="w", padx=5, pady=2)
                 ctk.CTkLabel(
                     self.cheat_frame,
@@ -3471,10 +3492,7 @@ class CardEditorApp:
             return
         image.thumbnail((400, 560))
         self.current_card_image = image.copy()
-        if hasattr(ctk, "CTkImage"):
-            img = ctk.CTkImage(light_image=image, size=image.size)
-        else:
-            img = ImageTk.PhotoImage(image)
+        img = _create_image(image)
         self.image_objects.append(img)
         self.image_objects = self.image_objects[-2:]
         self.current_card_photo = img
@@ -3628,10 +3646,7 @@ class CardEditorApp:
         draw = ImageDraw.Draw(preview)
         draw.rectangle(scaled_rect, outline="red", width=3)
 
-        if hasattr(ctk, "CTkImage"):
-            img = ctk.CTkImage(light_image=preview, size=preview.size)
-        else:
-            img = ImageTk.PhotoImage(preview)
+        img = _create_image(preview)
         self.current_card_photo = img
         self.image_label.configure(image=img)
 
@@ -3744,7 +3759,7 @@ class CardEditorApp:
             try:
                 img = Image.open(path)
                 img.thumbnail((40, 40))
-                self.set_logos[code] = ImageTk.PhotoImage(img)
+                self.set_logos[code] = _create_image(img)
             except Exception:
                 continue
 
@@ -3757,11 +3772,11 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             img = Image.open(logo_path)
             img.thumbnail((300, 150))
-            self.loading_logo = ImageTk.PhotoImage(img)
-            tk.Label(
+            self.loading_logo = _create_image(img)
+            ctk.CTkLabel(
                 self.loading_frame,
                 image=self.loading_logo,
-                bg=self.loading_frame.cget("fg_color"),
+                text="",
             ).pack(pady=10)
 
         gif_path = os.path.join(os.path.dirname(__file__), "simple_pokeball.gif")
@@ -3772,11 +3787,13 @@ class CardEditorApp:
             self.gif_frames = []
             self.gif_durations = []
             for frame in ImageSequence.Iterator(img):
-                self.gif_frames.append(ImageTk.PhotoImage(frame.copy()))
+                self.gif_frames.append(
+                    _create_image(frame.copy())
+                )
                 self.gif_durations.append(frame.info.get("duration", 100))
 
-            self.gif_label = tk.Label(
-                self.loading_frame, bg=self.loading_frame.cget("fg_color")
+            self.gif_label = ctk.CTkLabel(
+                self.loading_frame, text=""
             )
             self.gif_label.pack()
             self.animate_loading_gif(0)
@@ -4425,7 +4442,7 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = Image.open(logo_path)
             logo_img.thumbnail((140, 140))
-            top.logo_image = ctk.CTkImage(light_image=logo_img, size=logo_img.size)
+            top.logo_image = _create_image(logo_img)
             ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
 
         columns = ("name", "number", "set", "price")
