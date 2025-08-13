@@ -6,18 +6,17 @@ from . import csv_utils
 LAST_PRODUCT_CODE_FILE = "last_product_code.txt"
 LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 
-# Number of columns per storage box.  Standard boxes (1-8) have four
-# columns, while box 100 is a shorter overflow box with a single column.
-BOX_COLUMNS: dict[int, int] = {b: 4 for b in range(1, 9)}
-BOX_COLUMNS[100] = 1
+# Total card capacity per storage box.  Standard boxes hold 4000 cards in
+# four columns, while the special box ``100`` is a single 500-card column.
+BOX_CAPACITY: dict[int, int] = {**{b: 4000 for b in range(1, 9)}, 100: 500}
 
-# Total card capacity per storage box.  Standard columns hold 1000 cards
-# each, the special box 100 has a single 500-card column.
+# Number of columns per storage box.  All regular boxes (1-8) have four
+# columns, the overflow box ``100`` only one.
+BOX_COLUMNS: dict[int, int] = {box: (1 if box == 100 else 4) for box in BOX_CAPACITY}
+
+# Default per-column capacity for standard boxes.  Used as a fallback when
+# handling boxes outside of :data:`BOX_CAPACITY`.
 BOX_COLUMN_CAPACITY = 1000
-BOX_CAPACITY: dict[int, int] = {
-    box: (500 if box == 100 else BOX_COLUMNS.get(box, 4) * BOX_COLUMN_CAPACITY)
-    for box in BOX_COLUMNS
-}
 
 
 def load_last_product_code() -> int:

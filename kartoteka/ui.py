@@ -2474,7 +2474,7 @@ class CardEditorApp:
         legend_frame.pack(pady=(0, 10))
         legend_items = [
             ("#ff9800", "≥30% free"),
-            ("#4caf50", "Occupied 100-card segment"),
+            ("#4caf50", "Occupied capacity segment"),
             ("#888888", "Sold item"),
         ]
         for color, desc in legend_items:
@@ -2509,8 +2509,9 @@ class CardEditorApp:
         """Refresh storage view and color code capacity usage.
 
         A column's background turns orange when 30% or more of its
-        capacity is still free.  Individual 100-card segments become
-        green as soon as they are occupied.
+        capacity is still free.  Individual segments representing 10%
+        of the column capacity become green as soon as they are
+        occupied.
         """
         occ = self.compute_column_occupancy()
         if not self.mag_canvases:
@@ -2537,7 +2538,7 @@ class CardEditorApp:
 
             columns = storage.BOX_COLUMNS.get(box, GRID_COLUMNS)
             total_capacity = storage.BOX_CAPACITY.get(
-                box, columns * BOX_COLUMN_CAPACITY
+                box, columns * storage.BOX_COLUMN_CAPACITY
             )
             col_capacity = total_capacity // columns
 
@@ -2558,9 +2559,9 @@ class CardEditorApp:
                         width=0,
                         tags="stats",
                     )
-                # Draw 100-card sections
-                filled_sections = filled // 100
-                seg_count = max(1, col_capacity // 100)
+                # Draw proportional capacity sections
+                seg_count = 10
+                filled_sections = int(filled * seg_count / col_capacity)
                 seg_h = box_h / seg_count
                 for i in range(seg_count):
                     y1 = box_h - seg_h * (i + 1)
