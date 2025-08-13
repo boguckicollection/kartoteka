@@ -2470,6 +2470,18 @@ class CardEditorApp:
 
         top = ctk.CTkToplevel(self.root)
         top.title(row.get("name", "Card"))
+        # ensure enough space for side-by-side layout
+        if hasattr(top, "geometry"):
+            top.geometry("600x400")
+
+        container = ctk.CTkFrame(top)
+        container.pack(expand=True, fill="both", padx=10, pady=10)
+
+        left = ctk.CTkFrame(container)
+        left.pack(side="left", padx=(0, 10), pady=10)
+
+        right = ctk.CTkFrame(container)
+        right.pack(side="left", fill="both", expand=True, pady=10)
 
         img_path = row.get("image") or ""
         img = _load_image(img_path)
@@ -2477,9 +2489,9 @@ class CardEditorApp:
             img = Image.new("RGB", (300, 300), "#111111")
         img.thumbnail((300, 300))
         photo = _create_image(img)
-        img_lbl = ctk.CTkLabel(top, image=photo, text="")
+        img_lbl = ctk.CTkLabel(left, image=photo, text="")
         img_lbl.image = photo  # keep reference
-        img_lbl.pack(pady=10)
+        img_lbl.pack()
 
         fields = [
             ("name", "Name"),
@@ -2488,9 +2500,13 @@ class CardEditorApp:
             ("price", "Price"),
             ("warehouse_code", "Warehouse Code"),
         ]
-        for key, label in fields:
+        for i, (key, label) in enumerate(fields):
             val = row.get(key, "")
-            ctk.CTkLabel(top, text=f"{label}: {val}").pack(anchor="w")
+            ctk.CTkLabel(
+                right,
+                text=f"{label}: {val}",
+                font=("Inter", 16),
+            ).grid(row=i, column=0, sticky="w", pady=2)
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""
