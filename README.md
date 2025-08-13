@@ -46,9 +46,10 @@ recognise duplicate scans. Each entry stores perceptual hashes and optional
 ORB descriptors together with card metadata, allowing previously processed
 images to be matched quickly.
 
-Set the `HASH_DB_PATH` environment variable to a writable SQLite file to enable
-persistent storage. When it is not provided the fingerprint database is
-disabled and no duplicate detection is performed.
+Set the `HASH_DB_FILE` environment variable to a writable SQLite file to enable
+persistent storage. The file is created automatically if it does not exist.
+When it is not provided the fingerprint database is disabled and no duplicate
+detection is performed.
 
 ### Dependencies
 
@@ -105,12 +106,12 @@ FTP_USER=username
 FTP_PASSWORD=secret
 WAREHOUSE_CSV=magazyn.csv
 BASE_IMAGE_URL=https://your-store.shop/upload/images
-HASH_DB_PATH=hashes.sqlite
+HASH_DB_FILE=hashes.sqlite
 ```
 
 - `OPENAI_API_KEY` – API key used by OpenAI Vision to extract card details from scans.
-- `HASH_DB_PATH` – path to a SQLite file used for fingerprint storage. When unset
-  duplicate detection is disabled.
+- `HASH_DB_FILE` – path to a SQLite file used for fingerprint storage. When
+  unset duplicate detection is disabled.
 
 **Warning:** This file may contain private API keys and tokens. It is excluded
 from version control via `.gitignore` and should never be shared publicly.
