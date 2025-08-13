@@ -86,6 +86,61 @@ except ValueError:
 
 _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehash.ImageHash]] = {}
 
+# simple cache for downloaded remote images
+_IMAGE_CACHE: dict[str, Optional[bytes]] = {}
+
+
+def _load_image(path: str) -> Optional[Image.Image]:
+    """Load image from local path or URL with caching.
+
+    Parameters
+    ----------
+    path:
+        Local filesystem path or HTTP(S) URL.
+
+    Returns
+    -------
+    Optional[Image.Image]
+        Loaded PIL Image or ``None`` on failure.
+    """
+
+    if not path:
+        return None
+
+    if os.path.exists(path):
+        try:
+            return Image.open(path)
+        except Exception as exc:  # pragma: no cover - unlikely
+            logger.warning("Failed to open image %s: %s", path, exc)
+            return None
+
+    parsed = urlparse(path)
+    if parsed.scheme in ("http", "https"):
+        cached = _IMAGE_CACHE.get(path, ...)
+        if cached is not ...:
+            if cached is None:
+                return None
+            try:
+                img = Image.open(io.BytesIO(cached))
+                img.load()
+                return img
+            except Exception:
+                return None
+        try:
+            resp = requests.get(path, timeout=5)
+            resp.raise_for_status()
+            data = resp.content
+            _IMAGE_CACHE[path] = data
+            img = Image.open(io.BytesIO(data))
+            img.load()
+            return img
+        except Exception as exc:
+            logger.warning("Failed to download image %s: %s", path, exc)
+            _IMAGE_CACHE[path] = None
+            return None
+
+    return None
+
 
 def _create_image(img: Image.Image):
     """Return a CTkImage if available, otherwise a PhotoImage."""
@@ -2292,14 +2347,12 @@ class CardEditorApp:
                 for row in reader:
                     self.mag_card_rows.append(row)
                     img_path = row.get("image") or ""
-                    photo = None
-                    if img_path and os.path.exists(img_path):
-                        try:
-                            img = Image.open(img_path)
-                            img.thumbnail((64, 64))
-                            photo = _create_image(img)
-                        except Exception:
-                            photo = None
+                    img = _load_image(img_path)
+                    if img is not None:
+                        img.thumbnail((64, 64))
+                    else:
+                        img = Image.new("RGB", (64, 64), "#111111")
+                    photo = _create_image(img)
                     self.mag_card_images.append(photo)
                     label = ctk.CTkLabel(
                         list_frame,
@@ -2415,12 +2468,8 @@ class CardEditorApp:
         top.title(row.get("name", "Card"))
 
         img_path = row.get("image") or ""
-        if img_path and os.path.exists(img_path):
-            try:
-                img = Image.open(img_path)
-            except Exception:
-                img = Image.new("RGB", (300, 300), "#111111")
-        else:
+        img = _load_image(img_path)
+        if img is None:
             img = Image.new("RGB", (300, 300), "#111111")
         img.thumbnail((300, 300))
         photo = _create_image(img)
