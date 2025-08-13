@@ -34,6 +34,8 @@ from urllib.parse import urlencode, urlparse
 import io
 import webbrowser
 import logging
+from hash_db import HashDB
+from fingerprint import compute_fingerprint
 
 ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(ENV_FILE)
@@ -62,6 +64,9 @@ SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
 HASH_SIZE = (32, 32)
 PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
+
+# toggle automatic fingerprint lookup via environment variable
+AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
 
 # minimum similarity ratio for fuzzy set code matching
 SET_CODE_MATCH_CUTOFF = 0.8
@@ -1237,6 +1242,9 @@ class CardEditorApp:
         self.card_cache = {}
         self.file_to_key = {}
         self.product_code_map = {}
+        self.hash_db = HashDB()
+        self.auto_lookup = AUTO_HASH_LOOKUP
+        self.current_fingerprint = None
         self.next_product_code = storage.load_last_product_code() + 1
         self.price_db = self.load_price_db()
         self.folder_name = ""
@@ -3421,12 +3429,17 @@ class CardEditorApp:
 
         image_path = self.cards[self.index]
         self.current_image_path = image_path
+        self.current_fingerprint = None
         cache_key = self.file_to_key.get(os.path.basename(image_path))
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
         try:
             image = Image.open(image_path)
+            if isinstance(image, Image.Image):
+                self.current_fingerprint = compute_fingerprint(image.copy())
+            else:
+                self.current_fingerprint = None
         except Exception as e:
             print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
             if getattr(self, "failed_cards", None) is not None:
@@ -3463,6 +3476,17 @@ class CardEditorApp:
         for var in self.type_vars.values():
             var.set(False)
 
+        fp_match = None
+        if (
+            getattr(self, "hash_db", None)
+            and self.current_fingerprint is not None
+            and getattr(self, "auto_lookup", False)
+        ):
+            try:
+                fp_match = self.hash_db.best_match(self.current_fingerprint)
+            except Exception:
+                fp_match = None
+
         skip_analysis = False
         if cache_key and cache_key in self.card_cache:
             cached = self.card_cache[cache_key]
@@ -3485,6 +3509,25 @@ class CardEditorApp:
                 0, sanitize_number(str(inv_entry.get("numer", "")))
             )
             self.entries["set"].set(inv_entry.get("set", ""))
+            self.update_set_options()
+            skip_analysis = True
+
+        elif fp_match:
+            meta = fp_match.meta
+            for field, value in meta.items():
+                entry = self.entries.get(field)
+                if entry is None:
+                    continue
+                if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
+                    if field == "numer":
+                        value = sanitize_number(str(value))
+                    entry.insert(0, value)
+                elif isinstance(entry, tk.StringVar):
+                    entry.set(value)
+            if "typ" in meta:
+                for name in str(meta["typ"]).split(","):
+                    if name in self.type_vars:
+                        self.type_vars[name].set(True)
             self.update_set_options()
             skip_analysis = True
 
@@ -4582,6 +4625,24 @@ class CardEditorApp:
         data["typ"] = ",".join(
             [name for name, var in self.type_vars.items() if var.get()]
         )
+        fp = getattr(self, "current_fingerprint", None)
+        if fp is None and getattr(self, "current_image_path", None):
+            try:
+                with Image.open(self.current_image_path) as img:
+                    fp = compute_fingerprint(img)
+            except Exception:
+                fp = None
+        self.current_fingerprint = fp
+        if fp is not None and getattr(self, "hash_db", None):
+            meta = {
+                k: data.get(k, "")
+                for k in ("nazwa", "numer", "set", "język", "stan", "typ")
+            }
+            card_id = f"{meta['set']} {meta['numer']}".strip()
+            try:
+                self.hash_db.add_card_from_fp(fp, meta, card_id=card_id)
+            except Exception:
+                pass
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         data["ilość"] = 1
         self.card_cache[key] = {
