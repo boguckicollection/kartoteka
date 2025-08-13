@@ -3928,7 +3928,11 @@ class CardEditorApp:
 
     def startup_tasks(self):
         """Run initial setup tasks in the background."""
-        self.update_sets()
+        last_check = storage.load_last_sets_check()
+        now = datetime.datetime.now()
+        if not last_check or last_check.year != now.year or last_check.month != now.month:
+            self.update_sets()
+            storage.save_last_sets_check(now)
         self.root.after(0, self.load_set_logos)
         self.root.after(1, self.finish_startup)
 
