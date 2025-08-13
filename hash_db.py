@@ -104,6 +104,13 @@ class HashDB:
             )
             """
         )
+        # prevent storing duplicate fingerprints
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_hashes
+            ON cards (phash, dhash, tile_phash, orb)
+            """
+        )
         self.conn.commit()
 
     # ------------------------------------------------------------------
@@ -163,12 +170,32 @@ class HashDB:
 
         phash, dhash, tile_phash, orb = self._serialise_fp(fp)
         cur = self.conn.cursor()
+        # return existing row id if the fingerprint is already stored
         cur.execute(
-            "INSERT INTO cards (phash, dhash, tile_phash, orb, meta) VALUES (?, ?, ?, ?, ?)",
-            (phash, dhash, tile_phash, orb, json.dumps(meta_dict, ensure_ascii=False)),
+            "SELECT id FROM cards WHERE phash=? AND dhash=? AND tile_phash=? AND orb=?",
+            (phash, dhash, tile_phash, orb),
         )
-        self.conn.commit()
-        return int(cur.lastrowid)
+        row = cur.fetchone()
+        if row is not None:
+            return int(row["id"])
+
+        try:
+            cur.execute(
+                "INSERT INTO cards (phash, dhash, tile_phash, orb, meta) VALUES (?, ?, ?, ?, ?)",
+                (phash, dhash, tile_phash, orb, json.dumps(meta_dict, ensure_ascii=False)),
+            )
+            self.conn.commit()
+            return int(cur.lastrowid)
+        except sqlite3.IntegrityError:
+            # another process might have inserted the same fingerprint concurrently
+            cur.execute(
+                "SELECT id FROM cards WHERE phash=? AND dhash=? AND tile_phash=? AND orb=?",
+                (phash, dhash, tile_phash, orb),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise
+            return int(row["id"])
 
     # ------------------------------------------------------------------
     # query helpers

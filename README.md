@@ -51,6 +51,13 @@ persistent storage. The file is created automatically if it does not exist.
 When it is not provided the fingerprint database is disabled and no duplicate
 detection is performed.
 
+During a scan the application initialises :class:`HashDB` with this file so
+fingerprints are written to disk rather than a transient in-memory database.  A
+new entry is stored via ``add_card_from_fp`` for every card that is processed
+and the information is reused on subsequent scans to recognise cards
+automatically. Identical fingerprints are ignored, preventing accidental
+duplicate rows.
+
 ### Dependencies
 
 Fingerprinting relies on [`numpy`](https://numpy.org), [`Pillow`](https://python-pillow.org) and
@@ -110,8 +117,8 @@ HASH_DB_FILE=hashes.sqlite
 ```
 
 - `OPENAI_API_KEY` – API key used by OpenAI Vision to extract card details from scans.
-- `HASH_DB_FILE` – path to a SQLite file used for fingerprint storage. When
-  unset duplicate detection is disabled.
+- `HASH_DB_FILE` – path to a writable SQLite file used for fingerprint storage.
+  The application stores fingerprints in this file on each scan and reuses it across sessions for automatic card recognition. When unset duplicate detection is disabled.
 
 **Warning:** This file may contain private API keys and tokens. It is excluded
 from version control via `.gitignore` and should never be shared publicly.
