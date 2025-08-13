@@ -1406,24 +1406,36 @@ class CardEditorApp:
 
     def update_inventory_stats(self):
         """Refresh labels showing total item count and value in the UI."""
-        count, total = csv_utils.get_inventory_stats()
-        count_text = f"Łączna liczba kart: {count}"
-        total_text = f"Łączna wartość: {total:.2f} PLN"
-        # Only attempt to update labels that actually exist to avoid
-        # attribute errors when the start screen has not been created yet.
-        for attr, text in [
-            ("inventory_count_label", count_text),
-            ("mag_inventory_count_label", count_text),
-            ("inventory_value_label", total_text),
-            ("mag_inventory_value_label", total_text),
+        # Collect widgets that are available and still exist.  The start screen
+        # may not yet be created which would leave these attributes undefined.
+        widgets = []
+        for attr in [
+            "inventory_count_label",
+            "mag_inventory_count_label",
+            "inventory_value_label",
+            "mag_inventory_value_label",
         ]:
             widget = getattr(self, attr, None)
             if widget and hasattr(widget, "winfo_exists"):
                 try:
                     if widget.winfo_exists():
-                        widget.configure(text=text)
+                        widgets.append((attr, widget))
                 except tk.TclError:
                     pass
+
+        # No labels found - nothing to update and avoids attribute errors.
+        if not widgets:
+            return
+
+        count, total = csv_utils.get_inventory_stats()
+        count_text = f"Łączna liczba kart: {count}"
+        total_text = f"Łączna wartość: {total:.2f} PLN"
+        for attr, widget in widgets:
+            text = count_text if "count" in attr else total_text
+            try:
+                widget.configure(text=text)
+            except tk.TclError:
+                pass
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
