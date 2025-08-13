@@ -3369,13 +3369,6 @@ class CardEditorApp:
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
         try:
             image = Image.open(image_path)
-            if isinstance(image, Image.Image):
-                if getattr(self, "hash_db", None):
-                    self.current_fingerprint = compute_fingerprint(image.copy())
-                else:
-                    self.current_fingerprint = None
-            else:
-                self.current_fingerprint = None
         except Exception as e:
             print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
             if getattr(self, "failed_cards", None) is not None:
@@ -3412,17 +3405,6 @@ class CardEditorApp:
         for var in self.type_vars.values():
             var.set(False)
 
-        fp_match = None
-        if (
-            getattr(self, "hash_db", None)
-            and self.current_fingerprint is not None
-            and getattr(self, "auto_lookup", False)
-        ):
-            try:
-                fp_match = self.hash_db.best_match(self.current_fingerprint)
-            except Exception:
-                fp_match = None
-
         skip_analysis = False
         if cache_key and cache_key in self.card_cache:
             cached = self.card_cache[cache_key]
@@ -3445,25 +3427,6 @@ class CardEditorApp:
                 0, sanitize_number(str(inv_entry.get("numer", "")))
             )
             self.entries["set"].set(inv_entry.get("set", ""))
-            self.update_set_options()
-            skip_analysis = True
-
-        elif fp_match:
-            meta = fp_match.meta
-            for field, value in meta.items():
-                entry = self.entries.get(field)
-                if entry is None:
-                    continue
-                if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
-                    if field == "numer":
-                        value = sanitize_number(str(value))
-                    entry.insert(0, value)
-                elif isinstance(entry, tk.StringVar):
-                    entry.set(value)
-            if "typ" in meta:
-                for name in str(meta["typ"]).split(","):
-                    if name in self.type_vars:
-                        self.type_vars[name].set(True)
             self.update_set_options()
             skip_analysis = True
 
@@ -3593,12 +3556,12 @@ class CardEditorApp:
             except Exception:
                 translate = False
         fp_match = None
-        if (
-            getattr(self, "hash_db", None)
-            and getattr(self, "current_fingerprint", None) is not None
-        ):
+        if getattr(self, "hash_db", None) and getattr(self, "auto_lookup", False):
             try:
-                fp_match = self.hash_db.best_match(self.current_fingerprint)
+                with Image.open(path) as img:
+                    fp = compute_fingerprint(img)
+                self.current_fingerprint = fp
+                fp_match = self.hash_db.best_match(fp)
             except Exception:
                 fp_match = None
 
