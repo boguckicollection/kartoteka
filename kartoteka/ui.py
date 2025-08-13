@@ -2532,6 +2532,10 @@ class CardEditorApp:
         # ensure enough space for side-by-side layout
         if hasattr(top, "geometry"):
             top.geometry("600x400")
+            try:
+                top.minsize(600, 400)
+            except Exception:
+                pass
 
         container = ctk.CTkFrame(top)
         container.pack(expand=True, fill="both", padx=10, pady=10)
