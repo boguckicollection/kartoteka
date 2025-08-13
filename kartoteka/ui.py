@@ -1257,6 +1257,20 @@ class CardEditorApp:
         )
         desc.pack(pady=5)
 
+        count, total_value = csv_utils.get_inventory_stats()
+        self.inventory_count_label = ctk.CTkLabel(
+            self.start_frame,
+            text=f"Łączna liczba kart: {count}",
+            text_color=TEXT_COLOR,
+        )
+        self.inventory_count_label.pack()
+        self.inventory_value_label = ctk.CTkLabel(
+            self.start_frame,
+            text=f"Łączna wartość: {total_value:.2f} PLN",
+            text_color=TEXT_COLOR,
+        )
+        self.inventory_value_label.pack(pady=(0, 5))
+
         author = ctk.CTkLabel(
             self.start_frame,
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
@@ -1316,6 +1330,18 @@ class CardEditorApp:
             command=self.open_config_dialog,
             fg_color="#404040",
         ).pack(side="left", padx=10, pady=5)
+
+    def update_inventory_stats(self):
+        """Refresh labels showing total item count and value."""
+        count, total = csv_utils.get_inventory_stats()
+        if getattr(self, "inventory_count_label", None):
+            self.inventory_count_label.configure(
+                text=f"Łączna liczba kart: {count}"
+            )
+        if getattr(self, "inventory_value_label", None):
+            self.inventory_value_label.configure(
+                text=f"Łączna wartość: {total:.2f} PLN"
+            )
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
