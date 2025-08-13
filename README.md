@@ -161,13 +161,13 @@ Use the **Import CSV** button on the welcome screen to merge an existing CSV fil
 Every time you press **Zapisz i dalej**, the entered values are stored in a temporary cache under a key composed of `name|number|set`. When another scan of the same card is loaded, the application pre-fills the form with the cached data so you do not need to type them again.
 
 ### Shoper integration
-Use the **Porządkuj** button to open a window with actions against your Shoper store. The interface now lets you search products by name, card number or category, apply sorting options and view new orders. Each order item is matched with the `warehouse_code` so you can quickly locate it in storage. Every card is assigned its own `warehouse_code` while the per-product `product_code` stays the same for duplicates. The inventory view now pulls every page from the API so the list shows all products at once. Make sure the Shoper credentials are set in `.env` before launching the application.
+Use the **Porządkuj** button to open a window with actions against your Shoper store. The interface now focuses on displaying new orders. Each order item is matched with the `warehouse_code` so you can quickly locate it in storage. Make sure the Shoper credentials are set in `.env` before launching the application.
 
 ### Dashboard
-The welcome screen displays a small dashboard with store statistics fetched from your Shoper account: counts of new orders, pending shipments or payments and recent sales totals. To populate these fields the token must have permissions to read orders and statistics. Active product count is taken from the sales statistics when available, otherwise the application queries the inventory to determine the total number of products. Use the **Pokaż szczegóły** button to open the Shoper window with full functionality.
+The welcome screen displays a small dashboard with store statistics fetched from your Shoper account: counts of new orders, pending shipments or payments and recent sales totals. To populate these fields the token must have permissions to read orders and statistics. Active product count is taken from the sales statistics when available, otherwise the application queries the inventory to determine the total number of products. Use the **Pokaż szczegóły** button to open the Shoper window with the order list.
 
 ### Product attributes
-When a card is sent to Shoper via **Wyślij produkt** the application also posts a `Typ` attribute for the new product. The attribute ID is looked up using `GET /attributes` on first use and cached for later calls. The value is built from all enabled type checkboxes (`Common`, `Holo`, `Reverse`).
+When a card is sent to Shoper the application also posts a `Typ` attribute for the new product. The attribute ID is looked up using `GET /attributes` on first use and cached for later calls. The value is built from all enabled type checkboxes (`Common`, `Holo`, `Reverse`).
 
 ### Inventory CSV format
 The auction queue reads cards from `magazyn.csv`. Preferred headers are
