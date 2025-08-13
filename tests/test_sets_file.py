@@ -1,6 +1,7 @@
 import importlib
 import json
 import sys
+import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -82,4 +83,37 @@ def test_update_sets_eng(tmp_path):
 
 def test_update_sets_jp(tmp_path):
     run_update_sets(tmp_path, "tcg_sets_jp.json")
+
+
+def test_startup_tasks_skips_when_same_month():
+    now = datetime.datetime.now()
+    dummy = SimpleNamespace(
+        root=SimpleNamespace(after=lambda *a, **k: None),
+        load_set_logos=lambda: None,
+        finish_startup=lambda: None,
+        update_sets=MagicMock(),
+    )
+    with patch.object(ui.storage, "load_last_sets_check", return_value=now), patch.object(
+        ui.storage, "save_last_sets_check"
+    ) as save_mock:
+        ui.CardEditorApp.startup_tasks(dummy)
+        dummy.update_sets.assert_not_called()
+        save_mock.assert_not_called()
+
+
+def test_startup_tasks_runs_when_old_month():
+    now = datetime.datetime.now()
+    prev_month = now.replace(day=1) - datetime.timedelta(days=1)
+    dummy = SimpleNamespace(
+        root=SimpleNamespace(after=lambda *a, **k: None),
+        load_set_logos=lambda: None,
+        finish_startup=lambda: None,
+        update_sets=MagicMock(),
+    )
+    with patch.object(
+        ui.storage, "load_last_sets_check", return_value=prev_month
+    ), patch.object(ui.storage, "save_last_sets_check") as save_mock:
+        ui.CardEditorApp.startup_tasks(dummy)
+        dummy.update_sets.assert_called_once()
+        save_mock.assert_called_once()
 

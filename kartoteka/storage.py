@@ -1,8 +1,10 @@
 import csv
 import re
+from datetime import datetime
 from . import csv_utils
 
 LAST_PRODUCT_CODE_FILE = "last_product_code.txt"
+LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 
 
 def load_last_product_code() -> int:
@@ -16,6 +18,24 @@ def load_last_product_code() -> int:
 def save_last_product_code(value: int) -> None:
     with open(LAST_PRODUCT_CODE_FILE, "w", encoding="utf-8") as f:
         f.write(str(int(value)))
+
+
+def load_last_sets_check() -> datetime | None:
+    try:
+        with open(LAST_SETS_CHECK_FILE, "r", encoding="utf-8") as f:
+            text = f.read().strip()
+            if not text:
+                return None
+            return datetime.fromisoformat(text)
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def save_last_sets_check(value: datetime | None = None) -> None:
+    if value is None:
+        value = datetime.now()
+    with open(LAST_SETS_CHECK_FILE, "w", encoding="utf-8") as f:
+        f.write(value.isoformat())
 
 
 def location_from_code(code: str) -> str:
