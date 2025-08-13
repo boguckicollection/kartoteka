@@ -3522,14 +3522,48 @@ class CardEditorApp:
 
         folder = os.path.basename(os.path.dirname(image_path))
         progress_cb = getattr(self, "_update_card_progress", None)
-        if progress_cb:
-            progress_cb(0, hide=True)
-        if not skip_analysis:
-            threading.Thread(
-                target=self._analyze_and_fill,
-                args=(image_path, self.index),
-                daemon=True,
-            ).start()
+
+        fp_match = None
+        if (
+            not skip_analysis
+            and getattr(self, "hash_db", None)
+            and getattr(self, "auto_lookup", False)
+        ):
+            try:
+                with Image.open(image_path) as img_fp:
+                    fp = compute_fingerprint(img_fp)
+                self.current_fingerprint = fp
+                fp_match = self.hash_db.best_match(fp)
+            except Exception:
+                fp_match = None
+
+            if fp_match:
+                meta = fp_match.meta
+                name = meta.get("nazwa", meta.get("name", ""))
+                number = sanitize_number(str(meta.get("numer", meta.get("number", ""))))
+                set_name = meta.get("set", meta.get("set_name", ""))
+                self.entries["nazwa"].insert(0, name)
+                self.entries["numer"].insert(0, number)
+                self.entries["set"].set(set_name)
+                if isinstance(meta.get("typ"), str):
+                    for name in meta["typ"].split(","):
+                        name = name.strip()
+                        if name in self.type_vars:
+                            self.type_vars[name].set(True)
+                self.update_set_options()
+                skip_analysis = True
+                if progress_cb:
+                    progress_cb(1.0, hide=True)
+
+        if not fp_match:
+            if progress_cb:
+                progress_cb(0, hide=True)
+            if not skip_analysis:
+                threading.Thread(
+                    target=self._analyze_and_fill,
+                    args=(image_path, self.index),
+                    daemon=True,
+                ).start()
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
