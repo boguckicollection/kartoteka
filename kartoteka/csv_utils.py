@@ -33,7 +33,7 @@ STORE_FIELDNAMES = [
     "images 1",
 ]
 
-WAREHOUSE_FIELDNAMES = ["name", "number", "set", "warehouse_code", "image"]
+WAREHOUSE_FIELDNAMES = ["name", "number", "set", "warehouse_code", "price", "image"]
 
 
 def format_store_row(row):
@@ -68,6 +68,7 @@ def format_warehouse_row(row):
         "number": row.get("numer", ""),
         "set": row.get("set", ""),
         "warehouse_code": row.get("warehouse_code", ""),
+        "price": row.get("cena") or row.get("price", ""),
         "image": row.get("image1", row.get("images", "")),
     }
 
