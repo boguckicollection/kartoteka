@@ -1013,7 +1013,13 @@ def analyze_card_image(
     preview_cb=None,
     preview_image=None,
 ):
-    """Return card details recognized from an image using a prioritized workflow."""
+    """Return card details recognized from an image.
+
+    The processing order is:
+    1. Local set-symbol hash lookup.
+    2. OpenAI Vision for text recognition.
+    3. OCR as a final fallback.
+    """
     parsed = urlparse(path)
     local_path = path if parsed.scheme not in ("http", "https") else None
     orientation = 0
@@ -1044,10 +1050,50 @@ def analyze_card_image(
     set_format = ""
 
     try:
-        # --- PRIORITY 1: OpenAI Vision ---
+        # --- PRIORITY 1: Local hash lookup for the set symbol ---
+        if local_path:
+            print("[INFO] Step 1: Matching set symbol via hash...")
+            try:
+                if not rects:
+                    rects = [(0, 0, 0, 0)]
+                if rect is None and rects:
+                    rect = rects[0]
+
+                for candidate in rects:
+                    if preview_cb and preview_image is not None:
+                        try:
+                            preview_cb(candidate, preview_image)
+                        except Exception:
+                            pass
+                    potential = identify_set_by_hash(local_path, candidate)
+                    if potential:
+                        code, name_match, diff = potential[0]
+                        if diff <= HASH_DIFF_THRESHOLD:
+                            rect = candidate
+                            set_code = code
+                            set_name = name_match
+                            print(
+                                f"[SUCCESS] Local hash analysis found a match: {name_match}"
+                            )
+                            result = {
+                                "name": name,
+                                "number": number,
+                                "total": total,
+                                "set": set_name,
+                                "set_code": set_code,
+                                "orientation": orientation,
+                                "set_format": set_format,
+                            }
+                            if debug and rect:
+                                result["rect"] = rect
+                            return result
+            except Exception as e:
+                print(f"[ERROR] Hash lookup failed: {e}")
+
+        # --- PRIORITY 2: OpenAI Vision ---
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
-            print("[INFO] Step 1: Analyzing with OpenAI Vision...")
+            print("[INFO] Step 2: Analyzing with OpenAI Vision...")
             try:
                 name, number, total, set_name, set_code, set_format = extract_card_info_openai(path)
 
@@ -1055,7 +1101,9 @@ def analyze_card_image(
                     name = translate_to_english(name)
 
                 if name and number and set_name:
-                    print(f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}")
+                    print(
+                        f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}"
+                    )
                     result = {
                         "name": name,
                         "number": number,
@@ -1069,23 +1117,27 @@ def analyze_card_image(
                         result["rect"] = rect
                     return result
 
-                print("[INFO] OpenAI returned partial data. Proceeding to fallback methods.")
+                print(
+                    "[INFO] OpenAI returned partial data. Proceeding to fallback methods."
+                )
 
             except Exception as e:
                 print(f"[ERROR] OpenAI analysis failed: {e}")
                 name = number = total = set_name = ""
                 set_code = ""
         else:
-            print("[WARN] No OpenAI API key. Skipping to local analysis.")
+            print("[WARN] No OpenAI API key. Skipping to OCR.")
 
-        # --- PRIORITY 2: TCGGO API Lookup (if name and number are known) ---
+        # --- PRIORITY 3: TCGGO API Lookup (if name and number are known) ---
         if name and number:
-            print("[INFO] Step 2: Looking up sets via TCGGO API...")
+            print("[INFO] Step 3: Looking up sets via TCGGO API...")
             try:
                 api_sets = lookup_sets_from_api(name, number, total or None)
                 if len(api_sets) == 1:
                     set_code, api_set_name = api_sets[0]
-                    print(f"[SUCCESS] TCGGO API found a single match: {api_set_name}")
+                    print(
+                        f"[SUCCESS] TCGGO API found a single match: {api_set_name}"
+                    )
                     result = {
                         "name": name,
                         "number": number,
@@ -1100,13 +1152,18 @@ def analyze_card_image(
                     return result
 
                 if len(api_sets) > 1:
-                    print("[INFO] TCGGO API found multiple matches. Prompting user...")
+                    print(
+                        "[INFO] TCGGO API found multiple matches. Prompting user..."
+                    )
                     selected_code = prompt_set_selection(api_sets)
                     name_lookup = get_set_name(selected_code)
                     selected_name = (
                         name_lookup
                         if name_lookup != selected_code
-                        else next((n for c, n in api_sets if c == selected_code), selected_code)
+                        else next(
+                            (n for c, n in api_sets if c == selected_code),
+                            selected_code,
+                        )
                     )
                     print(f"[SUCCESS] User selected: {selected_name}")
                     result = {
@@ -1125,16 +1182,15 @@ def analyze_card_image(
             except Exception as e:
                 print(f"[ERROR] TCGGO API lookup failed: {e}")
 
-        # --- PRIORITY 3: Local Analysis (OCR before hash fallback) ---
+        # --- PRIORITY 4: OCR fallback ---
         if local_path:
-            print("[INFO] Step 3: Performing local analysis (OCR/hash)...")
+            print("[INFO] Step 4: Performing OCR fallback...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
-                if rect is None:
+                if rect is None and rects:
                     rect = rects[0]
 
-                # OCR has priority unless it fails to yield a valid code
                 for candidate in rects:
                     if preview_cb and preview_image is not None:
                         try:
@@ -1163,44 +1219,8 @@ def analyze_card_image(
                             return result
                         else:
                             print(f"[WARN] OCR produced unknown set code: {code}")
-
-                if set_format == "text":
-                    print("[INFO] OCR analysis did not find a valid set code and set format is text; skipping hash lookup.")
-                else:
-                    print("[INFO] OCR analysis did not find a valid set code. Trying hash...")
-
-                    for candidate in rects:
-                        if preview_cb and preview_image is not None:
-                            try:
-                                preview_cb(candidate, preview_image)
-                            except Exception:
-                                pass
-                        potential = identify_set_by_hash(local_path, candidate)
-                        if potential:
-                            code, name_match, diff = potential[0]
-                            if diff <= HASH_DIFF_THRESHOLD:
-                                rect = candidate
-                                set_code = code
-                                set_name = name_match
-                                print(
-                                    f"[SUCCESS] Local hash analysis found a match: {name_match}"
-                                )
-                                result = {
-                                    "name": name,
-                                    "number": number,
-                                    "total": total,
-                                    "set": set_name,
-                                    "set_code": set_code,
-                                    "orientation": orientation,
-                                    "set_format": set_format,
-                                }
-                                if debug and rect:
-                                    result["rect"] = rect
-                                return result
-
-                    print("[INFO] Hash analysis did not yield a confident result.")
             except Exception as e:
-                print(f"[ERROR] Local analysis failed: {e}")
+                print(f"[ERROR] OCR analysis failed: {e}")
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
@@ -3674,13 +3694,36 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
-        result = analyze_card_image(
-            path,
-            translate_name=translate,
-            debug=True,
-            preview_cb=getattr(self, "update_set_area_preview", None),
-            preview_image=getattr(self, "current_card_image", None),
-        )
+        fp_match = None
+        if (
+            getattr(self, "hash_db", None)
+            and getattr(self, "current_fingerprint", None) is not None
+        ):
+            try:
+                fp_match = self.hash_db.best_match(self.current_fingerprint)
+            except Exception:
+                fp_match = None
+
+        if fp_match:
+            meta = fp_match.meta
+            result = {
+                "name": meta.get("nazwa", meta.get("name", "")),
+                "number": meta.get("numer", meta.get("number", "")),
+                "total": meta.get("total", ""),
+                "set": meta.get("set", meta.get("set_name", "")),
+                "set_code": meta.get("set_code", ""),
+                "orientation": 0,
+                "set_format": meta.get("set_format", ""),
+            }
+        else:
+            result = analyze_card_image(
+                path,
+                translate_name=translate,
+                debug=True,
+                preview_cb=getattr(self, "update_set_area_preview", None),
+                preview_image=getattr(self, "current_card_image", None),
+            )
+
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
