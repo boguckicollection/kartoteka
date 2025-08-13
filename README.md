@@ -27,6 +27,14 @@ Install dependencies from `requirements.txt`:
 pip install -r requirements.txt
 ```
 
+`zlib` comes bundled with Python's standard library and does not need to be
+installed separately.  On Linux, the `opencv-python` wheel requires the
+`libgl1` and `libglib2.0-0` system packages.  Install them with:
+
+```bash
+sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
+```
+
 If your version of `ttkbootstrap` is 1.10 or newer, the buttons will display built-in icons. On older versions the icons are skipped automatically.
 
 Ensure a `card_prices.csv` file with columns `name`, `number`, `set` and `price` exists in the project directory.
