@@ -2524,17 +2524,20 @@ class CardEditorApp:
                 photo = photo_obj
 
             if box == SPECIAL_BOX_NUMBER:
-                capacity = SPECIAL_BOX_CAPACITY
                 columns = 1
             else:
-                capacity = BOX_COLUMN_CAPACITY
                 columns = GRID_COLUMNS
+
+            total_capacity = storage.BOX_CAPACITY.get(
+                box, GRID_COLUMNS * BOX_COLUMN_CAPACITY
+            )
+            col_capacity = total_capacity // columns
 
             col_w = box_w / columns
             canvas.create_image(0, 0, image=photo, anchor="nw")
             for c in range(1, columns + 1):
                 filled = occ.get(box, {}).get(c, 0)
-                free_percent = (capacity - filled) / capacity * 100
+                free_percent = (col_capacity - filled) / col_capacity * 100
                 x1 = (c - 1) * col_w
                 x_mid = x1 + col_w / 2
                 if free_percent >= 30:
@@ -2549,7 +2552,7 @@ class CardEditorApp:
                     )
                 # Draw 100-card sections
                 filled_sections = filled // 100
-                seg_count = capacity // 100
+                seg_count = max(1, col_capacity // 100)
                 seg_h = box_h / seg_count
                 for i in range(seg_count):
                     y1 = box_h - seg_h * (i + 1)
