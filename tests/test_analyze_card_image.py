@@ -121,8 +121,8 @@ def test_analyze_card_image_api_single_set(monkeypatch):
     with patch.object(
         ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
     ), patch.object(ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]), patch.object(
-        ui, "prompt_set_selection"
-    ) as mock_prompt, patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash:
+        ui, "identify_set_by_hash", return_value=[]
+    ) as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {
@@ -134,7 +134,6 @@ def test_analyze_card_image_api_single_set(monkeypatch):
         "orientation": 0,
         "set_format": "",
     }
-    mock_prompt.assert_not_called()
     mock_hash.assert_called_once()
 
 
@@ -145,20 +144,19 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
     with patch.object(
         ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
     ), patch.object(ui, "lookup_sets_from_api", return_value=options), patch.object(
-        ui, "prompt_set_selection", return_value="b"
-    ) as mock_prompt, patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash:
+        ui, "identify_set_by_hash", return_value=[]
+    ) as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {
         "name": "Pikachu",
         "number": "037",
         "total": "",
-        "set": "Set B",
-        "set_code": "b",
+        "set": "Set A",
+        "set_code": "a",
         "orientation": 0,
         "set_format": "",
     }
-    mock_prompt.assert_called_once_with(options)
     mock_hash.assert_called_once()
 
 
@@ -692,7 +690,6 @@ def test_fetch_card_data_auto_set(monkeypatch):
         fetch_psa10_price=lambda *a, **k: None,
         apply_variant_multiplier=lambda price, **kw: price,
         log=lambda *a, **k: None,
-        prompt_set_selection=MagicMock(),
         update_set_options=lambda *a, **k: None,
     )
 
@@ -703,5 +700,4 @@ def test_fetch_card_data_auto_set(monkeypatch):
 
     assert entries["set"].get() == SV01_NAME
     mock_lookup.assert_called_once_with("Pikachu", "37", "102")
-    dummy.prompt_set_selection.assert_not_called()
 
