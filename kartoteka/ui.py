@@ -4662,27 +4662,33 @@ class CardEditorApp:
         data["availability"] = 1
         data["delivery"] = "3 dni"
 
-        cena_local = self.get_price_from_db(data["nazwa"], data["numer"], data["set"])
-        is_reverse = self.type_vars["Reverse"].get()
-        is_holo = self.type_vars["Holo"].get()
-        if cena_local is not None:
-            cena_local = self.apply_variant_multiplier(
-                cena_local, is_reverse=is_reverse, is_holo=is_holo
-            )
-            data["cena"] = str(cena_local)
+        price = data.get("cena", "").strip()
+        if price:
+            data["cena"] = price
         else:
-            fetched = self.fetch_card_price(
-                data["nazwa"],
-                data["numer"],
-                data["set"],
+            cena_local = self.get_price_from_db(
+                data["nazwa"], data["numer"], data["set"]
             )
-            if fetched is not None:
-                fetched = self.apply_variant_multiplier(
-                    fetched, is_reverse=is_reverse, is_holo=is_holo
+            is_reverse = self.type_vars["Reverse"].get()
+            is_holo = self.type_vars["Holo"].get()
+            if cena_local is not None:
+                cena_local = self.apply_variant_multiplier(
+                    cena_local, is_reverse=is_reverse, is_holo=is_holo
                 )
-                data["cena"] = str(fetched)
+                data["cena"] = str(cena_local)
             else:
-                data["cena"] = ""
+                fetched = self.fetch_card_price(
+                    data["nazwa"],
+                    data["numer"],
+                    data["set"],
+                )
+                if fetched is not None:
+                    fetched = self.apply_variant_multiplier(
+                        fetched, is_reverse=is_reverse, is_holo=is_holo
+                    )
+                    data["cena"] = str(fetched)
+                else:
+                    data["cena"] = ""
 
         self.output_data[self.index] = data
         if getattr(self, "session_csv_path", None):
