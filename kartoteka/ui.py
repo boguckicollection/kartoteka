@@ -2381,20 +2381,22 @@ class CardEditorApp:
                 if is_sold:
                     text = f"[SOLD] {text}"
                     color = "#888888"
-                label = ctk.CTkLabel(
-                    frame,
-                    image=photo,
-                    text=text,
-                    compound="top",
-                    text_color=color,
-                )
+
+                img_label = ctk.CTkLabel(frame, image=photo, text="")
+                img_label.pack()
+
+                label = ctk.CTkLabel(frame, text=text, text_color=color)
                 label.pack()
+
                 frame.grid(row=i // N, column=i % N, padx=5, pady=5)
-                label.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
-                label.bind(
-                    "<Double-Button-1>",
-                    lambda e, r=row: self.show_card_details(r),
-                )
+
+                for widget in (img_label, label):
+                    widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
+                    widget.bind(
+                        "<Double-Button-1>",
+                        lambda e, r=row: self.show_card_details(r),
+                    )
+
                 if is_sold:
                     self.mag_sold_labels.append(label)
                 else:
