@@ -2299,7 +2299,8 @@ class CardEditorApp:
         # Order boxes so that the grid layout is:
         # row0 -> K1 K2 K5 K6
         # row1 -> K3 K4 K7 K8
-        self.mag_box_order = [1, 2, 5, 6, 3, 4, 7, 8]
+        # row2 -> K100
+        self.mag_box_order = [1, 2, 5, 6, 3, 4, 7, 8, 100]
         self.mag_canvases = []
         self.mag_labels = []
         for i, box_num in enumerate(self.mag_box_order):
@@ -2423,11 +2424,19 @@ class CardEditorApp:
             else:
                 box_w, box_h = self.mag_box_photo.width(), self.mag_box_photo.height()
                 photo = self.mag_box_photo
-            col_w = box_w / 4
+
+            if box == 100:
+                capacity = 500
+                columns = 1
+            else:
+                capacity = 1000
+                columns = 4
+
+            col_w = box_w / columns
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            for c in range(1, 5):
+            for c in range(1, columns + 1):
                 filled = occ.get(box, {}).get(c, 0)
-                free_percent = (1000 - filled) / 10
+                free_percent = (capacity - filled) / capacity * 100
                 x1 = (c - 1) * col_w
                 x_mid = x1 + col_w / 2
                 if free_percent >= 30:
@@ -2442,8 +2451,9 @@ class CardEditorApp:
                     )
                 # Draw 100-card sections
                 filled_sections = filled // 100
-                seg_h = box_h / 10
-                for i in range(10):
+                seg_count = capacity // 100
+                seg_h = box_h / seg_count
+                for i in range(seg_count):
                     y1 = box_h - seg_h * (i + 1)
                     y2 = box_h - seg_h * i
                     color = "#c8f7c8" if i < filled_sections else ""

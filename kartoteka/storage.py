@@ -47,10 +47,26 @@ def location_from_code(code: str) -> str:
 
 
 def generate_location(idx):
-    pos = idx % 1000 + 1
-    column = (idx // 1000) % 4 + 1
-    box = (idx // 4000) + 1
-    return f"K{box:02d}R{column}P{pos:04d}"
+    """Return a warehouse code for a sequential slot index.
+
+    The first 32 000 indices map to boxes 1-8 (four 1000-card columns each).
+    Subsequent indices map to the special box 100 which has a single
+    500-card column.
+    """
+
+    if idx < 8 * 4000:
+        pos = idx % 1000 + 1
+        column = (idx // 1000) % 4 + 1
+        box = (idx // 4000) + 1
+        return f"K{box:02d}R{column}P{pos:04d}"
+
+    idx -= 8 * 4000
+    if idx < 500:
+        # box 100, only one column
+        pos = idx + 1
+        return f"K100R1P{pos:04d}"
+
+    raise ValueError("Index out of range for known storage boxes")
 
 
 def next_free_location(app):
@@ -66,7 +82,10 @@ def next_free_location(app):
             box = int(match.group(1))
             column = int(match.group(2))
             pos = int(match.group(3))
-            idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
+            if box == 100:
+                idx = 8 * 4000 + (pos - 1)
+            else:
+                idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
             used.add(idx)
 
     idx = getattr(app, "starting_idx", 0)
@@ -76,7 +95,15 @@ def next_free_location(app):
 
 
 def compute_column_occupancy():
+    """Return count of used slots per box column.
+
+    Boxes 1-8 have four 1000-card columns.  Box 100 is a special
+    short box with a single 500-card column divided into five 100-card
+    segments.
+    """
+
     occ = {b: {c: 0 for c in range(1, 5)} for b in range(1, 9)}
+    occ[100] = {1: 0}
     try:
         with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
