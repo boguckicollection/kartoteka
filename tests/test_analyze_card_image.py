@@ -118,10 +118,11 @@ def test_show_card_uses_analyzer(tmp_path):
 
 def test_analyze_card_image_api_single_set(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")), \
-         patch.object(ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]), \
-         patch.object(ui, "prompt_set_selection") as mock_prompt, \
-         patch.object(ui, "identify_set_by_hash") as mock_hash:
+    with patch.object(
+        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
+    ), patch.object(ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]), patch.object(
+        ui, "prompt_set_selection"
+    ) as mock_prompt, patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {
@@ -134,17 +135,18 @@ def test_analyze_card_image_api_single_set(monkeypatch):
         "set_format": "",
     }
     mock_prompt.assert_not_called()
-    mock_hash.assert_not_called()
+    mock_hash.assert_called_once()
 
 
 def test_analyze_card_image_api_multiple_sets(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     options = [("a", "Set A"), ("b", "Set B")]
 
-    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")), \
-         patch.object(ui, "lookup_sets_from_api", return_value=options), \
-         patch.object(ui, "prompt_set_selection", return_value="b") as mock_prompt, \
-         patch.object(ui, "identify_set_by_hash") as mock_hash:
+    with patch.object(
+        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
+    ), patch.object(ui, "lookup_sets_from_api", return_value=options), patch.object(
+        ui, "prompt_set_selection", return_value="b"
+    ) as mock_prompt, patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash:
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {
@@ -157,10 +159,10 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
         "set_format": "",
     }
     mock_prompt.assert_called_once_with(options)
-    mock_hash.assert_not_called()
+    mock_hash.assert_called_once()
 
 
-def test_analyze_card_image_api_fallback_hash(monkeypatch):
+def test_analyze_card_image_hash_preempts_openai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     class DummyImage:
         size = (100, 100)
@@ -168,15 +170,16 @@ def test_analyze_card_image_api_fallback_hash(monkeypatch):
         def crop(self, *args, **kwargs):
             return self
 
-    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")), \
-         patch.object(ui, "lookup_sets_from_api", return_value=[]), \
-         patch.object(ui, "identify_set_by_hash", return_value=[("x", "Set X", 0)]) as mock_hash, \
-         patch.object(ui, "extract_set_code_ocr", return_value=[]):
+    with patch.object(
+        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
+    ) as mock_openai, patch.object(ui, "lookup_sets_from_api", return_value=[]), patch.object(
+        ui, "identify_set_by_hash", return_value=[("x", "Set X", 0)]
+    ) as mock_hash, patch.object(ui, "extract_set_code_ocr", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
     assert result == {
-        "name": "Pikachu",
-        "number": "037",
+        "name": "",
+        "number": "",
         "total": "",
         "set": "Set X",
         "set_code": "x",
@@ -184,6 +187,7 @@ def test_analyze_card_image_api_fallback_hash(monkeypatch):
         "set_format": "",
     }
     mock_hash.assert_called_once()
+    mock_openai.assert_not_called()
 
 
 def test_analyze_card_image_ocr(monkeypatch):
@@ -191,10 +195,11 @@ def test_analyze_card_image_ocr(monkeypatch):
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
-    with patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash, \
-        patch.object(ui, "extract_set_code_ocr", return_value=[SV01_CODE]) as mock_ocr, \
-        patch.object(ui, "extract_card_info_openai") as mock_extract, \
-        patch.object(ui, "lookup_sets_from_api") as mock_lookup:
+    with patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash, patch.object(
+        ui, "extract_set_code_ocr", return_value=[SV01_CODE]
+    ) as mock_ocr, patch.object(ui, "extract_card_info_openai") as mock_extract, patch.object(
+        ui, "lookup_sets_from_api"
+    ) as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
     assert result == {
@@ -206,7 +211,7 @@ def test_analyze_card_image_ocr(monkeypatch):
         "orientation": 0,
         "set_format": "",
     }
-    mock_hash.assert_not_called()
+    mock_hash.assert_called_once()
     mock_ocr.assert_called_once()
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
@@ -217,10 +222,11 @@ def test_analyze_card_image_ocr_unknown_code(monkeypatch, capsys):
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
-    with patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash, \
-        patch.object(ui, "extract_set_code_ocr", return_value=["XYZ"]) as mock_ocr, \
-        patch.object(ui, "extract_card_info_openai") as mock_extract, \
-        patch.object(ui, "lookup_sets_from_api") as mock_lookup:
+    with patch.object(ui, "identify_set_by_hash", return_value=[]) as mock_hash, patch.object(
+        ui, "extract_set_code_ocr", return_value=["XYZ"]
+    ) as mock_ocr, patch.object(ui, "extract_card_info_openai") as mock_extract, patch.object(
+        ui, "lookup_sets_from_api"
+    ) as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
     assert result == {
@@ -240,18 +246,16 @@ def test_analyze_card_image_ocr_unknown_code(monkeypatch, capsys):
     assert "OCR produced unknown set code: XYZ" in out
 
 
-def test_analyze_card_image_hash_after_ocr_failure(monkeypatch):
+def test_analyze_card_image_hash_shortcircuits_ocr(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
 
     with patch.object(
         ui, "identify_set_by_hash", return_value=[(SV01_CODE, SV01_NAME, 0)]
-    ) as mock_hash, patch.object(
-        ui, "extract_set_code_ocr", return_value=[]
-    ) as mock_ocr, patch.object(ui, "extract_card_info_openai") as mock_extract, patch.object(
-        ui, "lookup_sets_from_api"
-    ) as mock_lookup:
+    ) as mock_hash, patch.object(ui, "extract_set_code_ocr") as mock_ocr, patch.object(
+        ui, "extract_card_info_openai"
+    ) as mock_extract, patch.object(ui, "lookup_sets_from_api") as mock_lookup:
         result = ui.analyze_card_image(str(logo_path))
 
     assert result == {
@@ -263,13 +267,13 @@ def test_analyze_card_image_hash_after_ocr_failure(monkeypatch):
         "orientation": 0,
         "set_format": "",
     }
-    mock_ocr.assert_called_once()
     mock_hash.assert_called_once()
+    mock_ocr.assert_not_called()
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
 
 
-def test_analyze_card_image_ocr_skips_hash(monkeypatch):
+def test_analyze_card_image_ocr_after_hash_failure(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
@@ -292,7 +296,7 @@ def test_analyze_card_image_ocr_skips_hash(monkeypatch):
         "orientation": 0,
         "set_format": "",
     }
-    mock_hash.assert_not_called()
+    mock_hash.assert_called_once()
     mock_ocr.assert_called_once()
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
@@ -535,6 +539,49 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
         ui.CardEditorApp._analyze_and_fill(dummy, "/tmp/x", 0)
 
     name_entry.insert.assert_called_with(0, "Pikachu")
+
+
+def test_analyze_and_fill_uses_hash_db(monkeypatch):
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+
+    dummy = SimpleNamespace(
+        root=SimpleNamespace(after=lambda delay, func: func()),
+        lang_var=None,
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        index=0,
+        stop_scan_animation=lambda: None,
+        update_set_options=lambda: None,
+        update_set_area_preview=lambda *a, **k: None,
+        hash_db=SimpleNamespace(
+            best_match=lambda fp: SimpleNamespace(
+                meta={
+                    "name": "Pika",
+                    "number": "001",
+                    "set": SV01_NAME,
+                    "set_code": SV01_CODE,
+                }
+            )
+        ),
+        current_fingerprint=object(),
+    )
+    dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(
+        dummy, ui.CardEditorApp
+    )
+
+    with patch.object(ui, "analyze_card_image") as mock_analyze:
+        ui.CardEditorApp._analyze_and_fill(dummy, "/tmp/x", 0)
+
+    mock_analyze.assert_not_called()
+    name_entry.insert.assert_called_with(0, "Pika")
+    num_entry.insert.assert_called_with(0, "1")
+    set_var.set.assert_called_with(SV01_NAME)
 
 
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
