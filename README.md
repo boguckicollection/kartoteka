@@ -19,6 +19,8 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Toggle the **Reverse** switch on the pricing screen when pricing a reverse card
 - Import CSV files and merge duplicates automatically
 - Show warehouse occupancy with dedicated icons for standard boxes and optionally for K100 when `box100.png` is available
+- Display warehouse cards as rows of thumbnails, grey out sold items and move them to the end
+- Toggle a sold flag to exclude cards from occupancy statistics
 - Automatically updates the list of card sets and downloads new logos on startup
 
 ## Requirements
@@ -126,6 +128,56 @@ from version control via `.gitignore` and should never be shared publicly.
 
 The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads. `OPENAI_API_KEY` supplies the key for OpenAI Vision to recognise card details from scans. `BASE_IMAGE_URL` should point to the public directory where scans are uploaded so OpenAI can fetch them during analysis and the exported CSV contains correct links. Leading or trailing spaces in `SHOPER_API_URL` and `SHOPER_API_TOKEN` are ignored.
 `WAREHOUSE_CSV` controls where the local warehouse CSV is written.
+
+## Warehouse Layout
+The warehouse view arranges eight standard boxes in two rows followed by a special overflow box:
+
+```mermaid
+flowchart TB
+    subgraph Row0
+        direction LR
+        K1[K1] --> K2[K2] --> K5[K5] --> K6[K6]
+    end
+    subgraph Row1
+        direction LR
+        K3[K3] --> K4[K4] --> K7[K7] --> K8[K8]
+    end
+    K100[K100]
+```
+
+Each standard box has four columns of 1,000 slots. Box `K100` is a dedicated overflow container with a single column and 500 slots. If a `box100.png` file is present it is used as a distinct icon.
+
+### Row-based thumbnails
+Cards stored in the warehouse are displayed as thumbnails in rows of four. Sold items are greyed out and listed after available cards.
+
+```mermaid
+flowchart TB
+    subgraph Thumbnails
+        direction LR
+        A1[1] --> A2[2] --> A3[3] --> A4[4]
+        B1[5] --> B2[6] --> B3[7] --> B4[8]
+    end
+```
+
+### Sold-card handling
+* Use **Mark as sold** from the card details window to toggle status.
+* Cards flagged as sold (`1`, `true` or `yes`) are excluded from capacity statistics.
+* Sold entries appear with a `[SOLD]` prefix and grey text.
+
+### CSV fields
+The warehouse CSV uses the following columns: `name`, `number`, `set`, `warehouse_code`, `price`, `image` and `sold`.
+
+### Layout configuration constants
+Adjust the layout in `kartoteka/ui.py` via:
+
+- `GRID_COLUMNS` – number of columns per box (default **4**)
+- `BOX_COLUMN_CAPACITY` – slots per column (default **1000**)
+- `BOX_COUNT` – number of standard boxes (default **8**)
+- `SPECIAL_BOX_NUMBER` – overflow box identifier (default **100**)
+- `SPECIAL_BOX_CAPACITY` – slots in the overflow box (default **500**)
+- `BOX_THUMB_SIZE` – pixel size of box thumbnails
+- `CARD_THUMB_SIZE` – pixel size of card thumbnails
+- `BOX_CAPACITY` – total slots per standard box (`GRID_COLUMNS * BOX_COLUMN_CAPACITY`)
 
 ## Running the App
 Execute the main script with Python 3:
