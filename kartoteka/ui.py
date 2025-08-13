@@ -34,7 +34,10 @@ from urllib.parse import urlencode, urlparse
 import io
 import webbrowser
 import logging
-from hash_db import HashDB
+try:
+    from hash_db import HashDB
+except Exception:  # pragma: no cover - optional dependency
+    HashDB = None  # type: ignore[assignment]
 from fingerprint import compute_fingerprint
 
 ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
@@ -67,6 +70,9 @@ PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standard
 
 # toggle automatic fingerprint lookup via environment variable
 AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
+
+# optional path to enable persistent fingerprint storage
+HASH_DB_PATH = os.getenv("HASH_DB_PATH")
 
 # minimum similarity ratio for fuzzy set code matching
 SET_CODE_MATCH_CUTOFF = 0.8
@@ -1166,7 +1172,10 @@ class CardEditorApp:
         self.card_cache = {}
         self.file_to_key = {}
         self.product_code_map = {}
-        self.hash_db = HashDB()
+        try:
+            self.hash_db = HashDB(HASH_DB_PATH) if HashDB and HASH_DB_PATH else None
+        except Exception:
+            self.hash_db = None
         self.auto_lookup = AUTO_HASH_LOOKUP
         self.current_fingerprint = None
         self.next_product_code = storage.load_last_product_code() + 1
@@ -3361,7 +3370,10 @@ class CardEditorApp:
         try:
             image = Image.open(image_path)
             if isinstance(image, Image.Image):
-                self.current_fingerprint = compute_fingerprint(image.copy())
+                if getattr(self, "hash_db", None):
+                    self.current_fingerprint = compute_fingerprint(image.copy())
+                else:
+                    self.current_fingerprint = None
             else:
                 self.current_fingerprint = None
         except Exception as e:
@@ -4435,13 +4447,17 @@ class CardEditorApp:
             [name for name, var in self.type_vars.items() if var.get()]
         )
         fp = getattr(self, "current_fingerprint", None)
-        if fp is None and getattr(self, "current_image_path", None):
+        if (
+            fp is None
+            and getattr(self, "current_image_path", None)
+            and getattr(self, "hash_db", None)
+        ):
             try:
                 with Image.open(self.current_image_path) as img:
                     fp = compute_fingerprint(img)
             except Exception:
                 fp = None
-        self.current_fingerprint = fp
+            self.current_fingerprint = fp
         if fp is not None and getattr(self, "hash_db", None):
             meta = {
                 k: data.get(k, "")
