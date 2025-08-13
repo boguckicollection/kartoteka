@@ -3321,19 +3321,19 @@ class CardEditorApp:
             messagebox.showerror("Błąd", "Podaj poprawne wartości liczbowe")
             return
 
-        if box not in range(1, 9) and box != 100:
+        if box not in {*range(1, 9), 100}:
             messagebox.showerror("Błąd", "Box musi być w zakresie 1-8 lub 100")
             return
 
         if box == 100:
-            if column != 1 or pos < 1 or pos > 500:
+            if column != 1 or not (1 <= pos <= 500):
                 messagebox.showerror(
                     "Błąd", "Dla boxu 100 kolumna musi być 1, pozycja 1-500"
                 )
                 return
             self.starting_idx = 8 * 4000 + (pos - 1)
         else:
-            if column < 1 or column > 4 or pos < 1 or pos > 1000:
+            if not (1 <= column <= 4 and 1 <= pos <= 1000):
                 messagebox.showerror(
                     "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
                 )
