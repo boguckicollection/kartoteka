@@ -2344,24 +2344,28 @@ class CardEditorApp:
         if os.path.exists(csv_path):
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
-                for row in reader:
+                thumb_size = int(64 * 1.3)
+                N = 4
+                for i, row in enumerate(reader):
                     self.mag_card_rows.append(row)
                     img_path = row.get("image") or ""
                     img = _load_image(img_path)
                     if img is not None:
-                        img.thumbnail((64, 64))
+                        img.thumbnail((thumb_size, thumb_size))
                     else:
-                        img = Image.new("RGB", (64, 64), "#111111")
+                        img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
                     photo = _create_image(img)
                     self.mag_card_images.append(photo)
+                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
                     label = ctk.CTkLabel(
-                        list_frame,
+                        frame,
                         image=photo,
                         text=row.get("name", ""),
-                        compound="left",
-                        anchor="w",
+                        compound="top",
+                        text_color=TEXT_COLOR,
                     )
-                    label.pack(fill="x", padx=5, pady=2)
+                    label.pack()
+                    frame.grid(row=i // N, column=i % N, padx=5, pady=5)
                     label.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
                     label.bind(
                         "<Double-Button-1>",
