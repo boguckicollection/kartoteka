@@ -6,6 +6,13 @@ from . import csv_utils
 LAST_PRODUCT_CODE_FILE = "last_product_code.txt"
 LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 
+# Total card capacity per storage box.  Standard boxes (1-8) hold 4
+# columns of 1000 cards each.  Box 100 is a shorter overflow box with a
+# single 500-card column.
+BOX_COLUMN_CAPACITY = 1000
+BOX_CAPACITY = {b: 4 * BOX_COLUMN_CAPACITY for b in range(1, 9)}
+BOX_CAPACITY[100] = 500
+
 
 def load_last_product_code() -> int:
     try:
@@ -97,13 +104,17 @@ def next_free_location(app):
 def compute_column_occupancy():
     """Return count of used slots per box column.
 
-    Boxes 1-8 have four 1000-card columns.  Box 100 is a special
-    short box with a single 500-card column divided into five 100-card
-    segments.
+    The result is a nested dictionary mapping ``box -> column -> used
+    slots``.  The set of boxes and the number of columns per box are
+    derived from :data:`BOX_CAPACITY` so changes in storage layout only
+    require updating that mapping.
     """
 
-    occ = {b: {c: 0 for c in range(1, 5)} for b in range(1, 9)}
-    occ[100] = {1: 0}
+    occ: dict[int, dict[int, int]] = {}
+    for box, cap in BOX_CAPACITY.items():
+        # Standard boxes have columns of ``BOX_COLUMN_CAPACITY`` slots.
+        columns = max(1, cap // BOX_COLUMN_CAPACITY)
+        occ[box] = {c: 0 for c in range(1, columns + 1)}
     try:
         with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
