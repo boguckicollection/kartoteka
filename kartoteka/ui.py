@@ -25,6 +25,7 @@ import sys
 from typing import Iterable, Optional
 from pydantic import BaseModel
 import pytesseract
+from pathlib import Path
 
 from shoper_client import ShoperClient
 from ftp_client import FTPClient
@@ -72,7 +73,7 @@ PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standard
 AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
 
 # optional path to enable persistent fingerprint storage
-HASH_DB_PATH = os.getenv("HASH_DB_PATH")
+HASH_DB_FILE = os.getenv("HASH_DB_FILE")
 
 # minimum similarity ratio for fuzzy set code matching
 SET_CODE_MATCH_CUTOFF = 0.8
@@ -1173,7 +1174,13 @@ class CardEditorApp:
         self.file_to_key = {}
         self.product_code_map = {}
         try:
-            self.hash_db = HashDB(HASH_DB_PATH) if HashDB and HASH_DB_PATH else None
+            if HashDB and HASH_DB_FILE:
+                db_path = Path(HASH_DB_FILE)
+                db_path.parent.mkdir(parents=True, exist_ok=True)
+                db_path.touch(exist_ok=True)
+                self.hash_db = HashDB(str(db_path))
+            else:
+                self.hash_db = None
         except Exception:
             self.hash_db = None
         self.auto_lookup = AUTO_HASH_LOOKUP
