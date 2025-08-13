@@ -33,7 +33,16 @@ STORE_FIELDNAMES = [
     "images 1",
 ]
 
-WAREHOUSE_FIELDNAMES = ["name", "number", "set", "warehouse_code", "price", "image"]
+# include a ``sold`` flag so individual cards can be marked as sold
+WAREHOUSE_FIELDNAMES = [
+    "name",
+    "number",
+    "set",
+    "warehouse_code",
+    "price",
+    "image",
+    "sold",
+]
 
 
 def get_inventory_stats(path: str = WAREHOUSE_CSV):
@@ -58,6 +67,9 @@ def get_inventory_stats(path: str = WAREHOUSE_CSV):
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         for row in reader:
+            # Skip rows marked as sold
+            if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
+                continue
             count += 1
             price_raw = str(row.get("price") or "0").replace(",", ".")
             try:
@@ -102,6 +114,7 @@ def format_warehouse_row(row):
         "warehouse_code": row.get("warehouse_code", ""),
         "price": row.get("cena") or row.get("price", ""),
         "image": row.get("image1", row.get("images", "")),
+        "sold": row.get("sold", ""),
     }
 
 

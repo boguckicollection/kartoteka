@@ -2337,17 +2337,21 @@ class CardEditorApp:
         # List of cards currently in the warehouse
         self.mag_card_images = []
         self.mag_card_rows = []
+        # unsold card labels
         self.mag_card_labels = []
+        # sold card labels for separate styling/testing
+        self.mag_sold_labels = []
         list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=BG_COLOR)
         list_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
         if os.path.exists(csv_path):
+            unsold = []
+            sold = []
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
                 thumb_size = int(64 * 1.3)
-                N = 4
-                for i, row in enumerate(reader):
+                for row in reader:
                     self.mag_card_rows.append(row)
                     img_path = row.get("image") or ""
                     img = _load_image(img_path)
@@ -2357,21 +2361,39 @@ class CardEditorApp:
                         img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
                     photo = _create_image(img)
                     self.mag_card_images.append(photo)
-                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
-                    label = ctk.CTkLabel(
-                        frame,
-                        image=photo,
-                        text=row.get("name", ""),
-                        compound="top",
-                        text_color=TEXT_COLOR,
-                    )
-                    label.pack()
-                    frame.grid(row=i // N, column=i % N, padx=5, pady=5)
-                    label.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
-                    label.bind(
-                        "<Double-Button-1>",
-                        lambda e, r=row: self.show_card_details(r),
-                    )
+                    if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
+                        sold.append((row, photo))
+                    else:
+                        unsold.append((row, photo))
+
+            N = 4
+            # display unsold first, then sold
+            combined = unsold + sold
+            for i, (row, photo) in enumerate(combined):
+                frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                text = row.get("name", "")
+                color = TEXT_COLOR
+                if is_sold:
+                    text = f"[SOLD] {text}"
+                    color = "#888888"
+                label = ctk.CTkLabel(
+                    frame,
+                    image=photo,
+                    text=text,
+                    compound="top",
+                    text_color=color,
+                )
+                label.pack()
+                frame.grid(row=i // N, column=i % N, padx=5, pady=5)
+                label.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
+                label.bind(
+                    "<Double-Button-1>",
+                    lambda e, r=row: self.show_card_details(r),
+                )
+                if is_sold:
+                    self.mag_sold_labels.append(label)
+                else:
                     self.mag_card_labels.append(label)
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -2517,6 +2539,52 @@ class CardEditorApp:
                 text=f"{label}: {val}",
                 font=("Inter", 16),
             ).grid(row=i, column=0, sticky="w", pady=2)
+
+        # Button to toggle sold status
+        is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+        btn_text = "Mark as available" if is_sold else "Mark as sold"
+        toggle = lambda: self.toggle_sold(row, top)
+        ctk.CTkButton(right, text=btn_text, command=toggle).grid(
+            row=len(fields), column=0, pady=10, sticky="w"
+        )
+
+    def toggle_sold(self, row: dict, window=None):
+        """Toggle the sold flag for a warehouse card and update CSV."""
+
+        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
+        try:
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                rows = list(reader)
+                fieldnames = reader.fieldnames or []
+        except FileNotFoundError:
+            return
+
+        if "sold" not in fieldnames:
+            fieldnames.append("sold")
+
+        target = str(row.get("warehouse_code", ""))
+        for r in rows:
+            if r.get("warehouse_code") == target:
+                current = str(r.get("sold") or "").lower() in {"1", "true", "yes"}
+                r["sold"] = "" if current else "1"
+                row["sold"] = r["sold"]
+                break
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        if window is not None:
+            try:
+                window.destroy()
+            except Exception:
+                pass
+
+        # Refresh main view to reflect the change
+        if hasattr(self, "open_magazyn_window"):
+            self.open_magazyn_window()
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""
