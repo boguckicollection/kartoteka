@@ -1396,9 +1396,13 @@ class CardEditorApp:
     def update_inventory_stats(self):
         """Refresh labels showing total item count and value."""
         count, total = csv_utils.get_inventory_stats()
+        count_text = f"Łączna liczba kart: {count}"
+        total_text = f"Łączna wartość: {total:.2f} PLN"
         for attr, text in [
-            ("inventory_count_label", f"Łączna liczba kart: {count}"),
-            ("inventory_value_label", f"Łączna wartość: {total:.2f} PLN"),
+            ("inventory_count_label", count_text),
+            ("mag_inventory_count_label", count_text),
+            ("inventory_value_label", total_text),
+            ("mag_inventory_value_label", total_text),
         ]:
             widget = getattr(self, attr, None)
             if widget:
@@ -2407,6 +2411,26 @@ class CardEditorApp:
             btn_frame, text="Powrót", command=self.back_to_welcome
         ).pack(side="left", padx=5)
 
+        stats_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
+        stats_frame.pack(pady=(0, 10))
+
+        font = ("Segoe UI", 16, "bold")
+        count, total = csv_utils.get_inventory_stats()
+        self.mag_inventory_count_label = ctk.CTkLabel(
+            stats_frame,
+            text=f"Łączna liczba kart: {count}",
+            text_color=TEXT_COLOR,
+            font=font,
+        )
+        self.mag_inventory_count_label.pack()
+        self.mag_inventory_value_label = ctk.CTkLabel(
+            stats_frame,
+            text=f"Łączna wartość: {total:.2f} PLN",
+            text_color=TEXT_COLOR,
+            font=font,
+        )
+        self.mag_inventory_value_label.pack()
+
         self.refresh_magazyn()
 
     def compute_column_occupancy(self):
@@ -2496,6 +2520,7 @@ class CardEditorApp:
                     fill=TEXT_COLOR,
                     tags="stats",
                 )
+        self.update_inventory_stats()
 
     def show_card_details(self, row: dict):
         """Display details for a selected warehouse card."""
