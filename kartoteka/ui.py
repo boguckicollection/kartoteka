@@ -3429,13 +3429,6 @@ class CardEditorApp:
         self.card_counts = defaultdict(int)
         self.failed_cards = []
         total = len(self.cards)
-        # initialize progress bar for the number of cards
-        if hasattr(self, "progress_bar"):
-            try:
-                self.progress_bar.configure(maximum=total)
-            except Exception:
-                pass
-            self.progress_bar.set(0)
         self.progress_var.set(f"0/{total} (0%)")
         self.log(f"Loaded {len(self.cards)} cards")
         self.show_card()
@@ -3456,11 +3449,6 @@ class CardEditorApp:
         total = len(self.cards) or 1
         percent = int((self.index + 1) / total * 100)
         self.progress_var.set(f"{self.index + 1}/{len(self.cards)} ({percent}%)")
-        if hasattr(self, "progress_bar"):
-            try:
-                self.progress_bar.set(self.index + 1)
-            except Exception:
-                self.progress_bar.set((self.index + 1) / total)
 
         image_path = self.cards[self.index]
         self.current_image_path = image_path
@@ -3533,8 +3521,10 @@ class CardEditorApp:
             skip_analysis = True
 
         folder = os.path.basename(os.path.dirname(image_path))
+        progress_cb = getattr(self, "_update_card_progress", None)
+        if progress_cb:
+            progress_cb(0, hide=True)
         if not skip_analysis:
-            self.start_scan_animation()
             threading.Thread(
                 target=self._analyze_and_fill,
                 args=(image_path, self.index),
@@ -3554,59 +3544,18 @@ class CardEditorApp:
             return f"{name}|{number}|{set_name}"
         return None
 
-    def start_scan_animation(self, index=0):
-        """Show the scanning GIF on top of the image label."""
-        path = os.path.join(os.path.dirname(__file__), "scan.gif")
-        w = self.image_label.winfo_width() or 400
-        h = self.image_label.winfo_height() or 560
-        if os.path.exists(path) and hasattr(self, "current_card_image"):
-            from PIL import ImageSequence
-
-            img = Image.open(path)
-            frames = []
-            durations = []
-            base = (
-                self.current_card_image.convert("RGBA")
-                .resize((w, h))
-                .filter(ImageFilter.GaussianBlur(radius=2))
-            )
-            for frame in ImageSequence.Iterator(img):
-                overlay = frame.convert("RGBA").resize((w, h))
-                composed = Image.alpha_composite(base, overlay)
-                if hasattr(ctk, "CTkImage"):
-                    frames.append(ctk.CTkImage(light_image=composed, size=(w, h)))
-                else:
-                    frames.append(ImageTk.PhotoImage(composed))
-                durations.append(frame.info.get("duration", 100))
-            self.scan_gif_frames = frames
-            self.scan_gif_durations = durations
-            self.scan_gif_size = (w, h)
-        else:
-            self.scan_gif_frames = []
-        if not self.scan_gif_frames:
+    def _update_card_progress(self, value: float, show: bool = False, hide: bool = False):
+        """Update the progress bar for analyzing a single card."""
+        if not hasattr(self, "progress_bar"):
             return
-        self.scan_animation_running = True
-        self._animate_scan_gif(index)
-
-    def _animate_scan_gif(self, index=0):
-        if not getattr(self, "scan_animation_running", False):
-            return
-        frame = self.scan_gif_frames[index]
-        self.image_label.configure(image=frame)
-        next_index = (index + 1) % len(self.scan_gif_frames)
-        delay = self.scan_gif_durations[index] if hasattr(self, "scan_gif_durations") else 100
-        self.scan_after_id = self.image_label.after(delay, self._animate_scan_gif, next_index)
-
-    def stop_scan_animation(self):
-        """Hide the scanning GIF."""
-        self.scan_animation_running = False
-        if hasattr(self, "scan_after_id"):
-            try:
-                self.image_label.after_cancel(self.scan_after_id)
-            except Exception:
-                pass
-        if hasattr(self, "current_card_photo"):
-            self.image_label.configure(image=self.current_card_photo)
+        try:
+            self.progress_bar.set(value)
+            if show and hasattr(self, "progress_frame"):
+                self.progress_frame.grid()
+            if hide and hasattr(self, "progress_frame"):
+                self.progress_frame.grid_remove()
+        except Exception:
+            pass
 
     def update_set_area_preview(self, rect, image):
         """Overlay ``rect`` on ``image`` and display it on ``image_label``."""
@@ -3657,6 +3606,9 @@ class CardEditorApp:
                 translate = lang_var.get() == "JP"
             except Exception:
                 translate = False
+        update_progress = getattr(self, "_update_card_progress", None)
+        if update_progress:
+            self.root.after(0, lambda: update_progress(0, show=True))
         fp_match = None
         if getattr(self, "hash_db", None) and getattr(self, "auto_lookup", False):
             try:
@@ -3666,6 +3618,8 @@ class CardEditorApp:
                 fp_match = self.hash_db.best_match(fp)
             except Exception:
                 fp_match = None
+        if update_progress:
+            self.root.after(0, lambda: update_progress(0.5))
 
         if fp_match:
             meta = fp_match.meta
@@ -3686,13 +3640,17 @@ class CardEditorApp:
                 preview_cb=getattr(self, "update_set_area_preview", None),
                 preview_image=getattr(self, "current_card_image", None),
             )
+        if update_progress:
+            self.root.after(0, lambda: update_progress(1.0))
 
         self.root.after(0, lambda: self._apply_analysis_result(result, idx))
 
     def _apply_analysis_result(self, result, idx):
         if idx != self.index:
             return
-        self.stop_scan_animation()
+        progress_cb = getattr(self, "_update_card_progress", None)
+        if progress_cb:
+            progress_cb(0, hide=True)
         if result:
             name = result.get("name", "")
             number = result.get("number", "")

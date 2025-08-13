@@ -20,7 +20,6 @@ def make_dummy():
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
         root=SimpleNamespace(),
         index=0,
-        stop_scan_animation=lambda: None,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
     )
