@@ -14,12 +14,20 @@ from ctk_mocks import (  # noqa: E402
 )
 
 
-def test_sold_cards_styled(tmp_path):
+def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
+    from kartoteka import csv_utils
+
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;sold\n" "A;1;S1;K1R1P1;1;;\n" "B;2;S2;K1R1P2;1;;1\n",
+        "name;warehouse_code;price;sold\n" "A;K1R1P1;1;\n",
         encoding="utf-8",
     )
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(csv_path))
+    monkeypatch.setattr(csv_utils, "INVENTORY_CSV", str(csv_path))
+
+    first_stats = (5, 123.45)
+    second_stats = (7, 210.0)
+    monkeypatch.setattr(csv_utils, "get_inventory_stats", lambda path=str(csv_path): first_stats)
 
     sys.modules["customtkinter"] = SimpleNamespace(
         CTkFrame=DummyCTkFrame,
@@ -32,10 +40,9 @@ def test_sold_cards_styled(tmp_path):
     importlib.reload(ui)
 
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
-
-    with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
-         patch.object(ui.tk, "Canvas", DummyCanvas), \
-         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
+    with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
+        ui.tk, "Canvas", DummyCanvas
+    ):
         dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
         app = SimpleNamespace(
             root=dummy_root,
@@ -52,7 +59,16 @@ def test_sold_cards_styled(tmp_path):
 
         ui.CardEditorApp.open_magazyn_window(app)
 
-    assert len(app.mag_card_labels) == 1
-    assert len(app.mag_sold_labels) == 1
-    assert app.mag_sold_labels[0].text.startswith("[SOLD]")
-    assert app.mag_sold_labels[0].text_color == "#888888"
+    assert app.mag_inventory_count_label.text == f"Łączna liczba kart: {first_stats[0]}"
+    assert (
+        app.mag_inventory_value_label.text
+        == f"Łączna wartość: {first_stats[1]:.2f} PLN"
+    )
+
+    monkeypatch.setattr(ui.csv_utils, "get_inventory_stats", lambda path=str(csv_path): second_stats)
+    ui.CardEditorApp.update_inventory_stats(app)
+    assert app.mag_inventory_count_label.text == f"Łączna liczba kart: {second_stats[0]}"
+    assert (
+        app.mag_inventory_value_label.text
+        == f"Łączna wartość: {second_stats[1]:.2f} PLN"
+    )
