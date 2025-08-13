@@ -1,7 +1,7 @@
 import os
 import re
 import csv
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, TclError
 from ftp_client import FTPClient
 
 FTP_HOST = os.getenv("FTP_HOST")
@@ -260,7 +260,10 @@ def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
             writer.writerow(format_warehouse_row(row))
 
     if hasattr(app, "update_inventory_stats"):
-        app.update_inventory_stats()
+        try:
+            app.update_inventory_stats()
+        except TclError:
+            pass
 
 
 def send_csv_to_shoper(app, file_path: str):

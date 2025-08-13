@@ -1334,14 +1334,17 @@ class CardEditorApp:
     def update_inventory_stats(self):
         """Refresh labels showing total item count and value."""
         count, total = csv_utils.get_inventory_stats()
-        if getattr(self, "inventory_count_label", None):
-            self.inventory_count_label.configure(
-                text=f"Łączna liczba kart: {count}"
-            )
-        if getattr(self, "inventory_value_label", None):
-            self.inventory_value_label.configure(
-                text=f"Łączna wartość: {total:.2f} PLN"
-            )
+        for attr, text in [
+            ("inventory_count_label", f"Łączna liczba kart: {count}"),
+            ("inventory_value_label", f"Łączna wartość: {total:.2f} PLN"),
+        ]:
+            widget = getattr(self, attr, None)
+            if widget:
+                try:
+                    if widget.winfo_exists():
+                        widget.configure(text=text)
+                except tk.TclError:
+                    pass
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
