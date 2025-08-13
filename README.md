@@ -168,7 +168,9 @@ flowchart TB
 The warehouse CSV uses the following columns: `name`, `number`, `set`, `warehouse_code`, `price`, `image` and `sold`.
 
 ### Layout configuration constants
-Adjust the layout in `kartoteka/ui.py` via:
+Adjust the layout in `kartoteka/ui.py` via central constants. They replace
+previously scattered magic numbers for thumbnail sizes, grid columns, and box
+capacities, making future tweaks much simpler.
 
 - `GRID_COLUMNS` – number of columns per box (default **4**)
 - `BOX_COLUMN_CAPACITY` – slots per column (default **1000**)

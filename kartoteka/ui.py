@@ -2531,7 +2531,7 @@ class CardEditorApp:
 
             col_w = box_w / columns
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            for c in range(1, storage.BOX_COLUMNS.get(box, 4) + 1):
+            for c in range(1, columns + 1):
                 filled = occ.get(box, {}).get(c, 0)
                 free_percent = (col_capacity - filled) / col_capacity * 100
                 x1 = (c - 1) * col_w
