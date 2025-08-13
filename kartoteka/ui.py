@@ -196,6 +196,16 @@ HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
 BORDER_COLOR = "#444444"
 
+# Layout constants to simplify future adjustments
+BOX_THUMB_SIZE = 150  # square thumbnail size for warehouse boxes in pixels
+CARD_THUMB_SIZE = int(64 * 1.3)  # size for card thumbnails in the warehouse list
+GRID_COLUMNS = 4  # number of columns in warehouse grid and per storage box
+BOX_COLUMN_CAPACITY = 1000  # slots per column in a regular box
+BOX_COUNT = 8  # number of standard boxes
+SPECIAL_BOX_NUMBER = 100  # identifier for the large overflow box
+SPECIAL_BOX_CAPACITY = 500  # slots in the special box
+BOX_CAPACITY = GRID_COLUMNS * BOX_COLUMN_CAPACITY  # slots in a standard box
+
 
 
 def normalize(text: str, keep_spaces: bool = False) -> str:
@@ -2293,16 +2303,16 @@ class CardEditorApp:
         img_path = os.path.join(base_dir, "box.png")
         if os.path.exists(img_path):
             img = Image.open(img_path)
-            img.thumbnail((150, 150))
+            img.thumbnail((BOX_THUMB_SIZE, BOX_THUMB_SIZE))
         else:
-            img = Image.new("RGB", (150, 150), "#111111")
+            img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
         self.mag_box_photo = _create_image(img)
 
-        # Optional distinct icon for box 100
-        img100_path = os.path.join(base_dir, "box100.png")
+        # Optional distinct icon for the special overflow box
+        img100_path = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
         if os.path.exists(img100_path):
             img100 = Image.open(img100_path)
-            img100.thumbnail((150, 150))
+            img100.thumbnail((BOX_THUMB_SIZE, BOX_THUMB_SIZE))
         else:
             img100 = img
         self.mag_box100_photo = _create_image(img100)
@@ -2316,7 +2326,7 @@ class CardEditorApp:
         # row0 -> K1 K2 K5 K6
         # row1 -> K3 K4 K7 K8
         # row2 -> K100
-        self.mag_box_order = [1, 2, 5, 6, 3, 4, 7, 8, 100]
+        self.mag_box_order = [1, 2, 5, 6, 3, 4, 7, BOX_COUNT, SPECIAL_BOX_NUMBER]
         self.mag_canvases = []
         self.mag_labels = []
         for i, box_num in enumerate(self.mag_box_order):
@@ -2335,7 +2345,7 @@ class CardEditorApp:
                 highlightthickness=0,
             )
             canvas.config(bg=BG_COLOR)
-            photo_obj = self.mag_box100_photo if box_num == 100 else self.mag_box_photo
+            photo_obj = self.mag_box100_photo if box_num == SPECIAL_BOX_NUMBER else self.mag_box_photo
             if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
                 photo = photo_obj.create_scaled_photo_image(
                     ctk.ScalingTracker.get_widget_scaling(canvas),
@@ -2345,7 +2355,7 @@ class CardEditorApp:
                 photo = photo_obj
             canvas.create_image(0, 0, image=photo, anchor="nw")
             canvas.pack()
-            frame.grid(row=i // 4, column=i % 4, padx=5, pady=5)
+            frame.grid(row=i // GRID_COLUMNS, column=i % GRID_COLUMNS, padx=5, pady=5)
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
@@ -2365,7 +2375,7 @@ class CardEditorApp:
             sold = []
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
-                thumb_size = int(64 * 1.3)
+                thumb_size = CARD_THUMB_SIZE
                 for row in reader:
                     self.mag_card_rows.append(row)
                     img_path = row.get("image") or ""
@@ -2499,7 +2509,7 @@ class CardEditorApp:
             )
             canvas.delete("stats")
             photo_obj = (
-                self.mag_box100_photo if box == 100 else self.mag_box_photo
+                self.mag_box100_photo if box == SPECIAL_BOX_NUMBER else self.mag_box_photo
             )
             if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
                 box_w, box_h = photo_obj.cget("size")
@@ -2511,12 +2521,12 @@ class CardEditorApp:
                 box_w, box_h = photo_obj.width(), photo_obj.height()
                 photo = photo_obj
 
-            if box == 100:
-                capacity = 500
+            if box == SPECIAL_BOX_NUMBER:
+                capacity = SPECIAL_BOX_CAPACITY
                 columns = 1
             else:
-                capacity = 1000
-                columns = 4
+                capacity = BOX_COLUMN_CAPACITY
+                columns = GRID_COLUMNS
 
             col_w = box_w / columns
             canvas.create_image(0, 0, image=photo, anchor="nw")
@@ -3366,25 +3376,29 @@ class CardEditorApp:
             messagebox.showerror("Błąd", "Podaj poprawne wartości liczbowe")
             return
 
-        if box not in {*range(1, 9), 100}:
-            messagebox.showerror("Błąd", "Box musi być w zakresie 1-8 lub 100")
+        if box not in {*range(1, BOX_COUNT + 1), SPECIAL_BOX_NUMBER}:
+            messagebox.showerror(
+                "Błąd", f"Box musi być w zakresie 1-{BOX_COUNT} lub {SPECIAL_BOX_NUMBER}"
+            )
             return
 
-        if box == 100:
-            if column != 1 or not (1 <= pos <= 500):
+        if box == SPECIAL_BOX_NUMBER:
+            if column != 1 or not (1 <= pos <= SPECIAL_BOX_CAPACITY):
                 messagebox.showerror(
-                    "Błąd", "Dla boxu 100 kolumna musi być 1, pozycja 1-500"
+                    "Błąd",
+                    f"Dla boxu {SPECIAL_BOX_NUMBER} kolumna musi być 1, pozycja 1-{SPECIAL_BOX_CAPACITY}",
                 )
                 return
-            self.starting_idx = 8 * 4000 + (pos - 1)
+            self.starting_idx = BOX_COUNT * BOX_CAPACITY + (pos - 1)
         else:
-            if not (1 <= column <= 4 and 1 <= pos <= 1000):
+            if not (1 <= column <= GRID_COLUMNS and 1 <= pos <= BOX_COLUMN_CAPACITY):
                 messagebox.showerror(
-                    "Błąd", "Podaj poprawne wartości (kolumna 1-4, pozycja 1-1000)"
+                    "Błąd",
+                    f"Podaj poprawne wartości (kolumna 1-{GRID_COLUMNS}, pozycja 1-{BOX_COLUMN_CAPACITY})",
                 )
                 return
             self.starting_idx = (
-                (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
+                (box - 1) * BOX_CAPACITY + (column - 1) * BOX_COLUMN_CAPACITY + (pos - 1)
             )
         folder = self.scan_folder_var.get().strip()
         if not folder:
