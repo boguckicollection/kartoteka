@@ -1444,13 +1444,6 @@ class CardEditorApp:
             **kwargs,
         )
 
-    def _on_shoper_tab_changed(self):
-        if (
-            self.shoper_tabs.get() == "Stan magazynowy"
-            and getattr(self, "inventory_tree", None)
-        ):
-            self.load_inventory_csv(self.inventory_tree)
-
     def open_shoper_window(self):
         if not self.shoper_client:
             messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
@@ -1503,109 +1496,13 @@ class CardEditorApp:
                 text="",
             ).grid(row=0, column=0, pady=(0, 10))
 
-        self.shoper_tabs = ctk.CTkTabview(
-            self.shoper_frame, command=self._on_shoper_tab_changed
-        )
+        self.shoper_tabs = ctk.CTkTabview(self.shoper_frame)
         self.shoper_tabs.grid(row=1, column=0, sticky="nsew", pady=5)
-        self.shoper_tabs.add("Wyślij produkt")
-        self.shoper_tabs.add("Stan magazynowy")
         self.shoper_tabs.add("Zamówienia")
-        upload_tab = self.shoper_tabs.tab("Wyślij produkt")
-        inventory_tab = self.shoper_tabs.tab("Stan magazynowy")
         orders_tab = self.shoper_tabs.tab("Zamówienia")
 
-        inventory_tab.columnconfigure(0, weight=1)
-        inventory_tab.rowconfigure(1, weight=1)
         orders_tab.columnconfigure(0, weight=1)
         orders_tab.rowconfigure(0, weight=1)
-        upload_tab.columnconfigure(0, weight=1)
-        upload_tab.rowconfigure(0, weight=1)
-
-        search_frame = tk.Frame(
-            inventory_tab, bg=self.root.cget("background")
-        )
-        search_frame.grid(row=0, column=0, sticky="ew", pady=5)
-        search_frame.columnconfigure(1, weight=1)
-        search_frame.columnconfigure(3, weight=1)
-        search_frame.columnconfigure(5, weight=1)
-        search_frame.columnconfigure(7, weight=1)
-
-        tk.Label(
-            search_frame, text="Szukaj", bg=self.root.cget("background")
-        ).grid(row=0, column=0, sticky="e")
-        self.shoper_search_var = tk.StringVar()
-        ctk.CTkEntry(search_frame, textvariable=self.shoper_search_var, placeholder_text="Nazwa produktu").grid(
-            row=0, column=1, sticky="ew"
-        )
-        tk.Label(
-            search_frame, text="Numer", bg=self.root.cget("background")
-        ).grid(row=0, column=2, sticky="e")
-        self.shoper_number_var = tk.StringVar()
-        ctk.CTkEntry(search_frame, textvariable=self.shoper_number_var, placeholder_text="Kod").grid(
-            row=0, column=3, sticky="ew"
-        )
-        tk.Label(
-            search_frame, text="Set", bg=self.root.cget("background")
-        ).grid(row=0, column=4, sticky="e")
-        self.shoper_set_var = tk.StringVar()
-        ctk.CTkEntry(search_frame, textvariable=self.shoper_set_var, placeholder_text="Set").grid(
-            row=0, column=5, sticky="ew"
-        )
-        tk.Label(
-            search_frame, text="Kategoria", bg=self.root.cget("background")
-        ).grid(row=0, column=6, sticky="e")
-        self.shoper_category_var = tk.StringVar()
-        ctk.CTkEntry(
-            search_frame,
-            textvariable=self.shoper_category_var,
-            placeholder_text="Kategoria",
-        ).grid(row=0, column=7, sticky="ew")
-        tk.Label(
-            search_frame, text="Sortuj", bg=self.root.cget("background")
-        ).grid(row=0, column=8, sticky="e")
-        self.shoper_sort_var = tk.StringVar(value="")
-        ctk.CTkComboBox(
-            search_frame,
-            variable=self.shoper_sort_var,
-            values=["", "name", "-name", "price", "-price"],
-            width=10,
-        ).grid(row=0, column=9, padx=5)
-        self.create_button(
-            search_frame,
-            text="Wyszukaj",
-            command=lambda: self.search_products(output),
-        ).grid(row=0, column=10, padx=5)
-
-        columns = ("code", "name", "stock", "warehouse")
-        output = ttk.Treeview(inventory_tab, columns=columns, show="headings")
-        output.heading("code", text="Kod")
-        output.heading("name", text="Nazwa")
-        output.heading("stock", text="Ilość")
-        output.heading("warehouse", text="Magazyn")
-        output.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        # Automatically display current products from local CSV
-        self.load_inventory_csv(output)
-        self.inventory_tree = output
-
-        self.create_button(
-            inventory_tab,
-            text="Odśwież",
-            command=lambda: self.load_inventory_csv(output),
-        ).grid(row=2, column=0, pady=5)
-
-        upload_output = tk.Text(
-            upload_tab,
-            height=10,
-            bg=self.root.cget("background"),
-            fg="white",
-        )
-        upload_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-
-        self.create_button(
-            upload_tab,
-            text="Wyślij produkt",
-            command=lambda: self.push_product(upload_output),
-        ).grid(row=1, column=0, pady=5)
 
         orders_output = tk.Text(
             orders_tab,
@@ -1614,11 +1511,12 @@ class CardEditorApp:
             fg="white",
         )
         orders_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.orders_output = orders_output
 
         self.create_button(
             orders_tab,
             text="Zamówienia",
-            command=lambda: self.show_orders(orders_output),
+            command=self.show_orders,
         ).grid(row=1, column=0, pady=5)
 
         self.create_button(
@@ -2235,28 +2133,6 @@ class CardEditorApp:
         if self.auction_frame and self.auction_frame.winfo_exists():
             self.auction_frame.after(1000, self._update_auction_status)
 
-    # backward compatibility
-    def fetch_inventory(self, widget):
-        """Deprecated: use load_products_from_shoper."""
-        return self.load_products_from_shoper(widget)
-
-    def open_product_details(self, event=None):
-        tree = event.widget if event else self.inventory_tree
-        selected = tree.selection()
-        if not selected:
-            return
-        item_id = selected[0]
-        product = getattr(self, "inventory_products", {}).get(item_id)
-        if not product:
-            return
-        top = tk.Toplevel(self.root)
-        top.title(f"Produkt {product.get('product_id')}")
-        top.configure(bg=self.root.cget("background"))
-        text = tk.Text(top, bg=self.root.cget("background"), fg="white")
-        text.pack(expand=True, fill="both", padx=10, pady=10)
-        text.insert("1.0", json.dumps(product, indent=2, ensure_ascii=False))
-        self.create_button(top, text="Zamknij", command=top.destroy).pack(pady=5)
-
     def _build_shoper_payload(self, card: dict) -> dict:
         """Map internal card data to the structure expected by the API."""
         name_parts = [card.get("nazwa", "")]
@@ -2292,145 +2168,13 @@ class CardEditorApp:
             payload["images"] = card["image1"]
         return payload
 
-    def load_products_from_shoper(self, widget):
-        try:
-            all_products = []
-            page = 1
-            per_page = 50
-            while True:
-                data = self.shoper_client.get_inventory(page=page, per_page=per_page)
-                products = data.get("list", data)
-                if not products:
-                    break
-                all_products.extend(products)
-                if len(products) < per_page:
-                    break
-                page += 1
-
-            if isinstance(widget, ttk.Treeview):
-                widget.delete(*widget.get_children())
-                self.inventory_products = {}
-                for prod in all_products:
-                    translations = prod.get("translations") or {}
-                    name = ""
-                    if isinstance(translations, dict):
-                        first = next(iter(translations.values()), {})
-                        name = first.get("name", "")
-                    item_id = widget.insert(
-                        "",
-                        "end",
-                        values=(
-                            prod.get("product_id"),
-                            name,
-                            prod.get("code", ""),
-                            prod.get("price", ""),
-                        ),
-                    )
-                    self.inventory_products[item_id] = prod
-            else:
-                widget.delete("1.0", tk.END)
-                lines = []
-                for prod in all_products:
-                    translations = prod.get("translations") or {}
-                    name = ""
-                    if isinstance(translations, dict):
-                        first = next(iter(translations.values()), {})
-                        name = first.get("name", "")
-                    lines.append(f"{prod.get('product_id')}: {name}")
-                if lines:
-                    widget.insert(tk.END, "\n".join(lines))
-                else:
-                    widget.insert(
-                        tk.END,
-                        json.dumps(all_products, indent=2, ensure_ascii=False),
-                    )
-        except Exception as e:
-            messagebox.showerror("Błąd", str(e))
-
-    def load_inventory_csv(self, widget):
-        """Load local inventory data from the CSV file."""
-        try:
-            path = csv_utils.WAREHOUSE_CSV
-            if isinstance(widget, ttk.Treeview):
-                style = ttk.Style(widget)
-                style.configure(
-                    "Inventory.Treeview",
-                    background=BG_COLOR,
-                    fieldbackground=BG_COLOR,
-                    foreground=TEXT_COLOR,
-                )
-                style.map(
-                    "Inventory.Treeview", background=[("selected", HOVER_COLOR)]
-                )
-                style.configure(
-                    "Inventory.Treeview.Heading",
-                    background=ACCENT_COLOR,
-                    foreground=TEXT_COLOR,
-                )
-                style.map(
-                    "Inventory.Treeview.Heading",
-                    background=[("active", HOVER_COLOR)],
-                )
-                widget.configure(style="Inventory.Treeview")
-                widget.delete(*widget.get_children())
-                with open(path, newline="", encoding="utf-8") as f:
-                    reader = csv.DictReader(f, delimiter=";")
-                    for row in reader:
-                        widget.insert(
-                            "",
-                            "end",
-                            values=(
-                                row.get("product_code"),
-                                row.get("name"),
-                                row.get("stock"),
-                                row.get("warehouse_code"),
-                            ),
-                        )
-            else:
-                with open(path, newline="", encoding="utf-8") as f:
-                    data = f.read()
-                widget.delete("1.0", tk.END)
-                widget.insert(tk.END, data)
-        except FileNotFoundError:
-            messagebox.showerror("Błąd", f"Nie znaleziono pliku {path}")
-        except Exception as e:
-            messagebox.showerror("Błąd", str(e))
-
-    def search_products(self, widget):
-        """Search products using the Shoper API."""
-        try:
-            filters = {}
-            term = self.shoper_search_var.get().strip()
-            number = self.shoper_number_var.get().strip()
-            set_name = self.shoper_set_var.get().strip()
-            category = self.shoper_category_var.get().strip()
-            if term:
-                filters["filters[name][like]"] = term
-            if number:
-                filters["filters[code][like]"] = number
-            if set_name:
-                filters["filters[set][like]"] = set_name
-            if category:
-                filters["filters[category]"] = category
-            sort = self.shoper_sort_var.get().strip()
-            data = self.shoper_client.search_products(filters=filters, sort=sort)
-            if isinstance(widget, tk.Text):
-                widget.delete("1.0", tk.END)
-                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
-            else:
-                top = tk.Toplevel(self.root)
-                top.title("Wyniki")
-                top.configure(bg=self.root.cget("background"))
-                text = tk.Text(top, bg=self.root.cget("background"), fg="white")
-                text.pack(expand=True, fill="both", padx=10, pady=10)
-                text.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
-                self.create_button(top, text="Zamknij", command=top.destroy).pack(pady=5)
-        except Exception as e:
-            messagebox.showerror("Błąd", str(e))
-
-    def show_orders(self, widget):
+    def show_orders(self, widget=None):
         """Display new orders with storage location hints."""
         try:
+            if widget is None:
+                widget = getattr(self, "orders_output", None)
+            if widget is None:
+                return
             orders = self.shoper_client.list_orders({"filters[status]": "new"})
             orders_list = orders.get("list", orders)
             choose_nearest_locations(orders_list, self.output_data)
@@ -2445,7 +2189,11 @@ class CardEditorApp:
                         or item.get("product_code")
                         or item.get("code", "")
                     )
-                    locations = [self.location_from_code(c.strip()) for c in str(code).split(";") if c.strip()]
+                    locations = [
+                        self.location_from_code(c.strip())
+                        for c in str(code).split(";")
+                        if c.strip()
+                    ]
                     location = "; ".join(l for l in locations if l)
                     lines.append(
                         f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
