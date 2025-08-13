@@ -47,6 +47,7 @@ def test_export_includes_new_fields(tmp_path):
         assert row["active"] == "1"
         assert row["vat"] == "23%"
         assert row["images 1"] == "img.jpg"
+        assert row["price"] == "10"
         assert "psa10_price" not in reader.fieldnames
 
 
@@ -88,7 +89,8 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
         assert row["name"] == "Pikachu"
         assert row["number"] == "1"
         assert row["set"] == "Base"
-        assert row["image"] == "img.jpg"
         assert row["warehouse_code"] == "K1R1P1"
+        assert row["price"] == "10"
+        assert row["image"] == "img.jpg"
 
 
