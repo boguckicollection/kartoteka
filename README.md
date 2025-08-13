@@ -18,6 +18,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Autocomplete set selection (press <kbd>Tab</kbd> to accept a suggestion)
 - Toggle the **Reverse** switch on the pricing screen when pricing a reverse card
 - Import CSV files and merge duplicates automatically
+- Show warehouse occupancy with dedicated icons for standard boxes and optionally for K100 when `box100.png` is available
 - Automatically updates the list of card sets and downloads new logos on startup
 
 ## Requirements

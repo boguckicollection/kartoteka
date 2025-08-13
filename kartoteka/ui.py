@@ -2289,13 +2289,24 @@ class CardEditorApp:
         self.magazyn_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        img_path = os.path.join(os.path.dirname(__file__), "box.png")
+        base_dir = os.path.dirname(__file__)
+        img_path = os.path.join(base_dir, "box.png")
         if os.path.exists(img_path):
             img = Image.open(img_path)
             img.thumbnail((150, 150))
         else:
             img = Image.new("RGB", (150, 150), "#111111")
         self.mag_box_photo = _create_image(img)
+
+        # Optional distinct icon for box 100
+        img100_path = os.path.join(base_dir, "box100.png")
+        if os.path.exists(img100_path):
+            img100 = Image.open(img100_path)
+            img100.thumbnail((150, 150))
+        else:
+            img100 = img
+        self.mag_box100_photo = _create_image(img100)
+
         box_w, box_h = img.size
 
         container = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -2324,15 +2335,14 @@ class CardEditorApp:
                 highlightthickness=0,
             )
             canvas.config(bg=BG_COLOR)
-            if hasattr(ctk, "CTkImage") and isinstance(
-                self.mag_box_photo, ctk.CTkImage
-            ):
-                photo = self.mag_box_photo.create_scaled_photo_image(
+            photo_obj = self.mag_box100_photo if box_num == 100 else self.mag_box_photo
+            if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
+                photo = photo_obj.create_scaled_photo_image(
                     ctk.ScalingTracker.get_widget_scaling(canvas),
                     ctk.get_appearance_mode(),
                 )
             else:
-                photo = self.mag_box_photo
+                photo = photo_obj
             canvas.create_image(0, 0, image=photo, anchor="nw")
             canvas.pack()
             frame.grid(row=i // 4, column=i % 4, padx=5, pady=5)
@@ -2488,17 +2498,18 @@ class CardEditorApp:
                 else idx + 1
             )
             canvas.delete("stats")
-            if hasattr(ctk, "CTkImage") and isinstance(
-                self.mag_box_photo, ctk.CTkImage
-            ):
-                box_w, box_h = self.mag_box_photo.cget("size")
-                photo = self.mag_box_photo.create_scaled_photo_image(
+            photo_obj = (
+                self.mag_box100_photo if box == 100 else self.mag_box_photo
+            )
+            if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
+                box_w, box_h = photo_obj.cget("size")
+                photo = photo_obj.create_scaled_photo_image(
                     ctk.ScalingTracker.get_widget_scaling(canvas),
                     ctk.get_appearance_mode(),
                 )
             else:
-                box_w, box_h = self.mag_box_photo.width(), self.mag_box_photo.height()
-                photo = self.mag_box_photo
+                box_w, box_h = photo_obj.width(), photo_obj.height()
+                photo = photo_obj
 
             if box == 100:
                 capacity = 500
