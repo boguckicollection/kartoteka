@@ -2474,9 +2474,7 @@ class CardEditorApp:
             self.location_frame = None
 
         self.root.minsize(1000, 700)
-        self.magazyn_frame = tk.Frame(
-            self.root, bg=self.root.cget("background")
-        )
+        self.magazyn_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         img_path = os.path.join(os.path.dirname(__file__), "box.png")
@@ -2487,9 +2485,7 @@ class CardEditorApp:
             img = Image.new("RGB", (150, 150), "#111111")
         self.mag_box_photo = ImageTk.PhotoImage(img)
 
-        container = tk.Frame(
-            self.magazyn_frame, bg=self.root.cget("background")
-        )
+        container = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         container.pack(padx=10, pady=10)
 
         # Order boxes so that the grid layout is:
@@ -2499,25 +2495,28 @@ class CardEditorApp:
         self.mag_canvases = []
         self.mag_labels = []
         for i, box_num in enumerate(self.mag_box_order):
-            frame = tk.Frame(container, bg=self.root.cget("background"))
-            lbl = tk.Label(frame, text=f"K{box_num}", bg=self.root.cget("background"))
+            frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+            lbl = ctk.CTkLabel(
+                frame,
+                text=f"K{box_num}",
+                fg_color=BG_COLOR,
+                text_color=TEXT_COLOR,
+            )
             lbl.pack()
             canvas = tk.Canvas(
                 frame,
                 width=self.mag_box_photo.width(),
                 height=self.mag_box_photo.height(),
-                bg="#111111",
                 highlightthickness=0,
             )
+            canvas.config(bg=BG_COLOR)
             canvas.create_image(0, 0, image=self.mag_box_photo, anchor="nw")
             canvas.pack()
             frame.grid(row=i // 4, column=i % 4, padx=5, pady=5)
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
-        btn_frame = tk.Frame(
-            self.magazyn_frame, bg=self.root.cget("background")
-        )
+        btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
 
         self.create_button(
@@ -2594,6 +2593,7 @@ class CardEditorApp:
                     x_mid,
                     self.mag_box_photo.height() / 2,
                     text=f"C{c}: {free_percent:.0f}%",
+                    fill=TEXT_COLOR,
                     tags="stats",
                 )
 
