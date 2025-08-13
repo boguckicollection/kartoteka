@@ -36,6 +36,38 @@ STORE_FIELDNAMES = [
 WAREHOUSE_FIELDNAMES = ["name", "number", "set", "warehouse_code", "price", "image"]
 
 
+def get_inventory_stats(path: str = WAREHOUSE_CSV):
+    """Return total count and value from the warehouse CSV.
+
+    Parameters
+    ----------
+    path:
+        Optional path to the warehouse CSV. Defaults to ``WAREHOUSE_CSV``.
+
+    Returns
+    -------
+    tuple[int, float]
+        Number of rows and the sum of the ``price`` column.
+    """
+
+    count = 0
+    total = 0.0
+    if not os.path.exists(path):
+        return count, total
+
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        for row in reader:
+            count += 1
+            price_raw = str(row.get("price") or "0").replace(",", ".")
+            try:
+                total += float(price_raw)
+            except ValueError:
+                continue
+
+    return count, total
+
+
 def format_store_row(row):
     """Return a row formatted for the store CSV."""
     formatted_name = row["nazwa"]
@@ -226,6 +258,9 @@ def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
             if row is None:
                 continue
             writer.writerow(format_warehouse_row(row))
+
+    if hasattr(app, "update_inventory_stats"):
+        app.update_inventory_stats()
 
 
 def send_csv_to_shoper(app, file_path: str):
