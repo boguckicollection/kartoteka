@@ -39,6 +39,54 @@ If your version of `ttkbootstrap` is 1.10 or newer, the buttons will display bui
 
 Ensure a `card_prices.csv` file with columns `name`, `number`, `set` and `price` exists in the project directory.
 
+## Fingerprint Database
+
+The application can maintain a tiny SQLite database of image fingerprints to
+recognise duplicate scans. Each entry stores perceptual hashes and optional
+ORB descriptors together with card metadata, allowing previously processed
+images to be matched quickly.
+
+### Dependencies
+
+Fingerprinting relies on [`numpy`](https://numpy.org), [`Pillow`](https://python-pillow.org) and
+[`imagehash`](https://github.com/JohannesBuchner/imagehash). When
+[`opencv-python`](https://pypi.org/project/opencv-python/) is installed, ORB
+features are generated for more accurate comparisons. The database itself uses
+Python's built-in `sqlite3` module.
+
+### Hash generation and storage
+
+`fingerprint.compute_fingerprint` normalises each image and computes a global
+perceptual hash, a difference hash and a grid of tiled pHashes. The resulting
+arrays (and optional ORB descriptors) are serialised to base64 strings with
+`fingerprint.pack_ndarray` and stored in the `cards` table of the fingerprint
+database alongside a JSON `meta` column.
+
+### Duplicate detection during scan
+
+When a new scan is loaded its fingerprint is compared against existing records.
+Distances are calculated by summing Hamming distances of the stored hashes and
+subtracting the number of ORB matches. A low score indicates the scan already
+exists in the database and can be flagged as a duplicate.
+
+### Examples
+
+Initialise a database and store a fingerprint:
+
+```bash
+python - <<'PY'
+from hash_db import HashDB
+db = HashDB('hashes.sqlite')
+db.add_card_from_image('scan.png', meta={'name': 'Sample'})
+PY
+```
+
+Run the fingerprint tests:
+
+```bash
+pytest tests/test_fingerprint_db.py
+```
+
 ## Configuration (.env variables)
 Create a `.env` file with API credentials and optional FTP settings:
 
