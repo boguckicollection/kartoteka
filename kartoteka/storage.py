@@ -6,12 +6,18 @@ from . import csv_utils
 LAST_PRODUCT_CODE_FILE = "last_product_code.txt"
 LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 
-# Total card capacity per storage box.  Standard boxes (1-8) hold 4
-# columns of 1000 cards each.  Box 100 is a shorter overflow box with a
-# single 500-card column.
+# Number of columns per storage box.  Standard boxes (1-8) have four
+# columns, while box 100 is a shorter overflow box with a single column.
+BOX_COLUMNS: dict[int, int] = {b: 4 for b in range(1, 9)}
+BOX_COLUMNS[100] = 1
+
+# Total card capacity per storage box.  Standard columns hold 1000 cards
+# each, the special box 100 has a single 500-card column.
 BOX_COLUMN_CAPACITY = 1000
-BOX_CAPACITY = {b: 4 * BOX_COLUMN_CAPACITY for b in range(1, 9)}
-BOX_CAPACITY[100] = 500
+BOX_CAPACITY: dict[int, int] = {
+    box: (500 if box == 100 else BOX_COLUMNS.get(box, 4) * BOX_COLUMN_CAPACITY)
+    for box in BOX_COLUMNS
+}
 
 
 def load_last_product_code() -> int:
@@ -106,15 +112,15 @@ def compute_column_occupancy():
 
     The result is a nested dictionary mapping ``box -> column -> used
     slots``.  The set of boxes and the number of columns per box are
-    derived from :data:`BOX_CAPACITY` so changes in storage layout only
+    derived from :data:`BOX_COLUMNS` so changes in storage layout only
     require updating that mapping.
     """
 
     occ: dict[int, dict[int, int]] = {}
-    for box, cap in BOX_CAPACITY.items():
-        # Standard boxes have columns of ``BOX_COLUMN_CAPACITY`` slots.
-        columns = max(1, cap // BOX_COLUMN_CAPACITY)
-        occ[box] = {c: 0 for c in range(1, columns + 1)}
+    for box in BOX_CAPACITY:
+        occ[box] = {
+            c: 0 for c in range(1, BOX_COLUMNS.get(box, 4) + 1)
+        }
     try:
         with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
