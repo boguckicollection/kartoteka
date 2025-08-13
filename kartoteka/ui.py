@@ -1394,7 +1394,7 @@ class CardEditorApp:
         ).pack(side="left", padx=10, pady=5)
 
     def update_inventory_stats(self):
-        """Refresh labels showing total item count and value."""
+        """Refresh labels showing total item count and value in the UI."""
         count, total = csv_utils.get_inventory_stats()
         count_text = f"Łączna liczba kart: {count}"
         total_text = f"Łączna wartość: {total:.2f} PLN"
@@ -2414,7 +2414,8 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
 
         stats_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
-        stats_frame.pack(pady=(0, 10))
+        # Center statistics below the action buttons
+        stats_frame.pack(pady=(0, 10), anchor="center")
 
         font = ("Segoe UI", 16, "bold")
         count, total = csv_utils.get_inventory_stats()
@@ -2434,6 +2435,12 @@ class CardEditorApp:
         self.mag_inventory_value_label.pack()
 
         self.refresh_magazyn()
+        # Ensure the statistics reflect the latest warehouse state
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats()
+            except Exception:
+                pass
 
     def compute_column_occupancy(self):
         """Return dictionary of used slots per box column."""
