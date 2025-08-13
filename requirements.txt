@@ -5,3 +5,5 @@ customtkinter
 openai>=1.7.0
 imagehash
 pytesseract
+numpy
+opencv-python
