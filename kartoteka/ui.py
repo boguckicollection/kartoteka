@@ -40,6 +40,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     HashDB = None  # type: ignore[assignment]
 from fingerprint import compute_fingerprint
+from tooltip import Tooltip
 
 ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(ENV_FILE)
@@ -2434,6 +2435,25 @@ class CardEditorApp:
         )
         self.mag_inventory_value_label.pack()
 
+        # legend for color coding in the storage view
+        legend_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
+        legend_frame.pack(pady=(0, 10))
+        legend_items = [
+            ("#ff9800", "≥30% free"),
+            ("#4caf50", "Occupied 100-card segment"),
+            ("#888888", "Sold item"),
+        ]
+        for color, desc in legend_items:
+            swatch = ctk.CTkLabel(legend_frame, text="", width=15, height=15, fg_color=color)
+            swatch.pack(side="left", padx=5)
+            ctk.CTkLabel(
+                legend_frame, text=desc, text_color=TEXT_COLOR
+            ).pack(side="left", padx=(0, 10))
+            try:
+                Tooltip(swatch, desc)
+            except Exception:
+                pass
+
         self.refresh_magazyn()
         # Ensure the statistics reflect the latest warehouse state
         if hasattr(self, "update_inventory_stats"):
@@ -2500,7 +2520,7 @@ class CardEditorApp:
                         0,
                         x1 + col_w,
                         box_h,
-                        fill="#ffcc80",
+                        fill="#ff9800",
                         width=0,
                         tags="stats",
                     )
@@ -2511,7 +2531,7 @@ class CardEditorApp:
                 for i in range(seg_count):
                     y1 = box_h - seg_h * (i + 1)
                     y2 = box_h - seg_h * i
-                    color = "#c8f7c8" if i < filled_sections else ""
+                    color = "#4caf50" if i < filled_sections else ""
                     canvas.create_rectangle(
                         x1,
                         y1,
@@ -2527,6 +2547,7 @@ class CardEditorApp:
                     box_h / 2,
                     text=f"C{c}: {free_percent:.0f}%",
                     fill=TEXT_COLOR,
+                    font=("Inter", 12, "bold"),
                     tags="stats",
                 )
         self.update_inventory_stats()
