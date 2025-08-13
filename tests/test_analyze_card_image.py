@@ -76,9 +76,6 @@ def test_show_card_uses_analyzer(tmp_path):
         lookup_inventory_entry=lambda *a, **k: None,
         update_set_options=lambda *a, **k: None,
     )
-
-    dummy.start_scan_animation = lambda *a, **k: None
-    dummy.stop_scan_animation = lambda *a, **k: None
     dummy.update_set_area_preview = lambda *a, **k: None
     dummy._analyze_and_fill = lambda url, idx: ui.CardEditorApp._apply_analysis_result(
         dummy, ui.analyze_card_image(url, debug=True), idx
@@ -517,7 +514,6 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
         lang_var=DummyVar("JP"),
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
         index=0,
-        stop_scan_animation=lambda: None,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
     )
@@ -554,7 +550,6 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
         lang_var=None,
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
         index=0,
-        stop_scan_animation=lambda: None,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
         hash_db=SimpleNamespace(
@@ -635,9 +630,6 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
 
     dummy.lookup_inventory_entry = ui.CardEditorApp.lookup_inventory_entry.__get__(dummy, ui.CardEditorApp)
 
-    dummy.start_scan_animation = lambda *a, **k: None
-    dummy.stop_scan_animation = lambda *a, **k: None
-
     class DummyImage:
         size = (100, 100)
 
@@ -714,8 +706,6 @@ def test_show_card_skips_fingerprint_without_auto_lookup(tmp_path, monkeypatch):
         hash_db=SimpleNamespace(best_match=lambda *a, **k: None),
     )
 
-    dummy.start_scan_animation = lambda *a, **k: None
-    dummy.stop_scan_animation = lambda *a, **k: None
     dummy._analyze_and_fill = lambda *a, **k: None
 
     fp_mock = MagicMock()
@@ -790,9 +780,6 @@ def test_show_card_fingerprint_lookup_thread(tmp_path, monkeypatch):
         auto_lookup=True,
         hash_db=SimpleNamespace(best_match=best_match),
     )
-
-    dummy.start_scan_animation = lambda *a, **k: None
-    dummy.stop_scan_animation = lambda *a, **k: None
     dummy._analyze_and_fill = ui.CardEditorApp._analyze_and_fill.__get__(
         dummy, ui.CardEditorApp
     )
