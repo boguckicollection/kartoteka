@@ -84,8 +84,11 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert reader.fieldnames == csv_utils.WAREHOUSE_FIELDNAMES
-        assert rows[0]["name"] == "Pikachu 1"
-        assert rows[0]["image"] == "img.jpg"
-        assert rows[0]["warehouse_code"] == "K1R1P1"
+        row = rows[0]
+        assert row["name"] == "Pikachu"
+        assert row["number"] == "1"
+        assert row["set"] == "Base"
+        assert row["image"] == "img.jpg"
+        assert row["warehouse_code"] == "K1R1P1"
 
 

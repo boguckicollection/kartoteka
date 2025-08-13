@@ -33,7 +33,7 @@ STORE_FIELDNAMES = [
     "images 1",
 ]
 
-WAREHOUSE_FIELDNAMES = ["name", "warehouse_code", "image"]
+WAREHOUSE_FIELDNAMES = ["name", "number", "set", "warehouse_code", "image"]
 
 
 def format_store_row(row):
@@ -63,11 +63,10 @@ def format_store_row(row):
 
 def format_warehouse_row(row):
     """Return a row formatted for the warehouse CSV."""
-    name_parts = [row.get("nazwa"), row.get("numer")]
-    formatted_name = " ".join(part for part in name_parts if part)
-
     return {
-        "name": formatted_name,
+        "name": row.get("nazwa", ""),
+        "number": row.get("numer", ""),
+        "set": row.get("set", ""),
         "warehouse_code": row.get("warehouse_code", ""),
         "image": row.get("image1", row.get("images", "")),
     }
