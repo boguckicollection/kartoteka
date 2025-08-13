@@ -567,13 +567,24 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
                 }
             )
         ),
-        current_fingerprint=object(),
+        auto_lookup=True,
+        current_fingerprint=None,
     )
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(
         dummy, ui.CardEditorApp
     )
 
-    with patch.object(ui, "analyze_card_image") as mock_analyze:
+    class DummyImage:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(ui, "compute_fingerprint", lambda img: "fp")
+    with patch.object(ui.Image, "open", return_value=DummyImage()), patch.object(
+        ui, "analyze_card_image"
+    ) as mock_analyze:
         ui.CardEditorApp._analyze_and_fill(dummy, "/tmp/x", 0)
 
     mock_analyze.assert_not_called()
@@ -645,6 +656,166 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     name_entry.insert.assert_called_with(0, "Pikachu")
     num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
+
+
+def test_show_card_skips_fingerprint_without_auto_lookup(tmp_path, monkeypatch):
+    img = tmp_path / "card.jpg"
+    img.write_bytes(b"data")
+
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    name_entry.focus_set = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+
+    class DummyImage:
+        size = (100, 100)
+
+        def thumbnail(self, *a, **k):
+            pass
+
+        def copy(self):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    class DummyThread:
+        def __init__(self, target, args=(), kwargs=None, daemon=None):
+            self.target = target
+            self.args = args
+            self.kwargs = kwargs or {}
+
+        def start(self):
+            self.target(*self.args, **self.kwargs)
+
+    dummy = SimpleNamespace(
+        cards=[str(img)],
+        index=0,
+        image_objects=[],
+        image_label=MagicMock(),
+        progress_var=SimpleNamespace(set=lambda *a, **k: None),
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        type_vars={},
+        card_cache={},
+        file_to_key={},
+        _guess_key_from_filename=lambda *a, **k: None,
+        lookup_inventory_entry=lambda *a, **k: None,
+        update_set_options=lambda *a, **k: None,
+        root=SimpleNamespace(after=lambda *a, **k: None),
+        auto_lookup=False,
+        hash_db=SimpleNamespace(best_match=lambda *a, **k: None),
+    )
+
+    dummy.start_scan_animation = lambda *a, **k: None
+    dummy.stop_scan_animation = lambda *a, **k: None
+    dummy._analyze_and_fill = lambda *a, **k: None
+
+    fp_mock = MagicMock()
+    monkeypatch.setattr(ui, "compute_fingerprint", fp_mock)
+    monkeypatch.setattr(ui, "analyze_card_image", lambda *a, **k: {})
+    monkeypatch.setattr(ui.threading, "Thread", DummyThread)
+    with patch.object(ui.Image, "open", return_value=DummyImage()), patch.object(
+        ui.ImageTk, "PhotoImage", return_value=MagicMock()
+    ):
+        ui.CardEditorApp.show_card(dummy)
+
+    fp_mock.assert_not_called()
+
+
+def test_show_card_fingerprint_lookup_thread(tmp_path, monkeypatch):
+    img = tmp_path / "card.jpg"
+    img.write_bytes(b"data")
+
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    name_entry.focus_set = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+
+    class DummyImage:
+        size = (100, 100)
+
+        def thumbnail(self, *a, **k):
+            pass
+
+        def copy(self):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    class DummyThread:
+        def __init__(self, target, args=(), kwargs=None, daemon=None):
+            self.target = target
+            self.args = args
+            self.kwargs = kwargs or {}
+
+        def start(self):
+            self.target(*self.args, **self.kwargs)
+
+    best_match = MagicMock(
+        return_value=SimpleNamespace(
+            meta={"nazwa": "Pika", "numer": "001", "set": "Set X"}
+        )
+    )
+    dummy = SimpleNamespace(
+        cards=[str(img)],
+        index=0,
+        image_objects=[],
+        image_label=MagicMock(),
+        progress_var=SimpleNamespace(set=lambda *a, **k: None),
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        type_vars={},
+        card_cache={},
+        file_to_key={},
+        _guess_key_from_filename=lambda *a, **k: None,
+        lookup_inventory_entry=lambda *a, **k: None,
+        update_set_options=lambda *a, **k: None,
+        root=SimpleNamespace(after=lambda delay, func: func()),
+        auto_lookup=True,
+        hash_db=SimpleNamespace(best_match=best_match),
+    )
+
+    dummy.start_scan_animation = lambda *a, **k: None
+    dummy.stop_scan_animation = lambda *a, **k: None
+    dummy._analyze_and_fill = ui.CardEditorApp._analyze_and_fill.__get__(
+        dummy, ui.CardEditorApp
+    )
+    dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(
+        dummy, ui.CardEditorApp
+    )
+
+    fp_mock = MagicMock(return_value="fp")
+    analyze_mock = MagicMock(return_value={})
+    monkeypatch.setattr(ui, "compute_fingerprint", fp_mock)
+    monkeypatch.setattr(ui, "analyze_card_image", analyze_mock)
+    monkeypatch.setattr(ui.threading, "Thread", DummyThread)
+    with patch.object(ui.Image, "open", return_value=DummyImage()), patch.object(
+        ui.ImageTk, "PhotoImage", return_value=MagicMock()
+    ):
+        ui.CardEditorApp.show_card(dummy)
+
+    fp_mock.assert_called_once()
+    best_match.assert_called_once_with("fp")
+    analyze_mock.assert_not_called()
+    name_entry.insert.assert_called_with(0, "Pika")
+    num_entry.insert.assert_called_with(0, "1")
+    set_var.set.assert_called_with("Set X")
 
 
 def test_fetch_card_data_auto_set(monkeypatch):
