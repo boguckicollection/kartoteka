@@ -108,6 +108,9 @@ def compute_column_occupancy():
         with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             for row in reader:
+                # Skip sold cards when calculating occupancy
+                if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
+                    continue
                 codes = str(row.get("warehouse_code") or "").split(";")
                 for code in codes:
                     code = code.strip()
