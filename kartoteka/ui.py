@@ -2523,19 +2523,15 @@ class CardEditorApp:
                 box_w, box_h = photo_obj.width(), photo_obj.height()
                 photo = photo_obj
 
-            if box == SPECIAL_BOX_NUMBER:
-                columns = 1
-            else:
-                columns = GRID_COLUMNS
-
+            columns = storage.BOX_COLUMNS.get(box, GRID_COLUMNS)
             total_capacity = storage.BOX_CAPACITY.get(
-                box, GRID_COLUMNS * BOX_COLUMN_CAPACITY
+                box, columns * BOX_COLUMN_CAPACITY
             )
             col_capacity = total_capacity // columns
 
             col_w = box_w / columns
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            for c in range(1, columns + 1):
+            for c in range(1, storage.BOX_COLUMNS.get(box, 4) + 1):
                 filled = occ.get(box, {}).get(c, 0)
                 free_percent = (col_capacity - filled) / col_capacity * 100
                 x1 = (c - 1) * col_w
