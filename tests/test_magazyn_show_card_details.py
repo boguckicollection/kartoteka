@@ -3,6 +3,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
+import csv
+from PIL import Image
 
 # Dummy widgets to simulate customtkinter components
 class _Widget:
@@ -23,11 +25,14 @@ class DummyCTkFrame(_Widget):
 
 
 class DummyCTkLabel(_Widget):
-    def __init__(self, master=None, text="", fg_color=None, text_color=None, **kwargs):
+    def __init__(self, master=None, text="", image=None, fg_color=None, text_color=None, compound=None, anchor=None, **kwargs):
         self.master = master
         self.text = text
+        self.image = image
         self.fg_color = fg_color
         self.text_color = text_color
+        self.compound = compound
+        self.anchor = anchor
         self._bindings = {}
 
     def bind(self, event, callback):
@@ -76,7 +81,30 @@ class DummyCanvas(_Widget):
     def height(self):
         return self.height_val
 
-def test_magazyn_label_colors():
+
+def test_show_card_details_receives_row(tmp_path):
+    # Prepare CSV and image
+    img_path = tmp_path / "card.png"
+    Image.new("RGB", (10, 10), "white").save(img_path)
+    csv_path = tmp_path / "magazyn.csv"
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["name", "number", "set", "warehouse_code", "price", "image"],
+            delimiter=";",
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "name": "Test Card",
+                "number": "001",
+                "set": "Base",
+                "warehouse_code": "K1R1P1",
+                "price": "9.99",
+                "image": str(img_path),
+            }
+        )
+
     sys.modules["customtkinter"] = SimpleNamespace(
         CTkFrame=DummyCTkFrame,
         CTkLabel=DummyCTkLabel,
@@ -90,8 +118,14 @@ def test_magazyn_label_colors():
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
 
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
-         patch.object(ui.tk, "Canvas", DummyCanvas):
+         patch.object(ui.tk, "Canvas", DummyCanvas), \
+         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
         dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+        captured = {}
+
+        def fake_show(row):
+            captured["row"] = row
+
         app = SimpleNamespace(
             root=dummy_root,
             start_frame=None,
@@ -103,10 +137,12 @@ def test_magazyn_label_colors():
             create_button=lambda master, **kwargs: DummyCTkButton(master, **kwargs),
             refresh_magazyn=lambda: None,
             back_to_welcome=lambda: None,
+            show_card_details=fake_show,
         )
 
         ui.CardEditorApp.open_magazyn_window(app)
+        label = app.mag_card_labels[0]
+        label._bindings["<Button-1>"](None)
 
-    label = app.mag_labels[0]
-    assert label.fg_color == ui.BG_COLOR
-    assert label.text_color == ui.TEXT_COLOR
+    assert captured["row"]["name"] == "Test Card"
+    assert captured["row"]["warehouse_code"] == "K1R1P1"

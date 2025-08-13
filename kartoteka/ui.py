@@ -2516,6 +2516,44 @@ class CardEditorApp:
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
+        # List of cards currently in the warehouse
+        self.mag_card_images = []
+        self.mag_card_rows = []
+        self.mag_card_labels = []
+        list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=BG_COLOR)
+        list_frame.pack(expand=True, fill="both", padx=10, pady=10)
+
+        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
+        if os.path.exists(csv_path):
+            with open(csv_path, encoding="utf-8") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                for row in reader:
+                    self.mag_card_rows.append(row)
+                    img_path = row.get("image") or ""
+                    photo = None
+                    if img_path and os.path.exists(img_path):
+                        try:
+                            img = Image.open(img_path)
+                            img.thumbnail((64, 64))
+                            photo = ImageTk.PhotoImage(img)
+                        except Exception:
+                            photo = None
+                    self.mag_card_images.append(photo)
+                    label = ctk.CTkLabel(
+                        list_frame,
+                        image=photo,
+                        text=row.get("name", ""),
+                        compound="left",
+                        anchor="w",
+                    )
+                    label.pack(fill="x", padx=5, pady=2)
+                    label.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
+                    label.bind(
+                        "<Double-Button-1>",
+                        lambda e, r=row: self.show_card_details(r),
+                    )
+                    self.mag_card_labels.append(label)
+
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
 
@@ -2596,6 +2634,37 @@ class CardEditorApp:
                     fill=TEXT_COLOR,
                     tags="stats",
                 )
+
+    def show_card_details(self, row: dict):
+        """Display details for a selected warehouse card."""
+
+        top = ctk.CTkToplevel(self.root)
+        top.title(row.get("name", "Card"))
+
+        img_path = row.get("image") or ""
+        if img_path and os.path.exists(img_path):
+            try:
+                img = Image.open(img_path)
+            except Exception:
+                img = Image.new("RGB", (300, 300), "#111111")
+        else:
+            img = Image.new("RGB", (300, 300), "#111111")
+        img.thumbnail((300, 300))
+        photo = ImageTk.PhotoImage(img)
+        img_lbl = ctk.CTkLabel(top, image=photo, text="")
+        img_lbl.image = photo  # keep reference
+        img_lbl.pack(pady=10)
+
+        fields = [
+            ("name", "Name"),
+            ("number", "Number"),
+            ("set", "Set"),
+            ("price", "Price"),
+            ("warehouse_code", "Warehouse Code"),
+        ]
+        for key, label in fields:
+            val = row.get(key, "")
+            ctk.CTkLabel(top, text=f"{label}: {val}").pack(anchor="w")
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""
