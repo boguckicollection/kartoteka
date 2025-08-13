@@ -439,93 +439,6 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     )
 
     return result
-
-
-def prompt_set_selection(options):
-    """Prompt the user to choose a set by its logo.
-
-    Parameters
-    ----------
-    options:
-        List of ``(set_code, set_name)`` tuples. Only the first four are
-        displayed.
-
-    Returns
-    -------
-    str
-        The selected ``set_code`` or the first option when no selection is
-        made or the dialog cannot be displayed.
-    """
-
-    if not options:
-        return ""
-
-    options = options[:4]
-    selected = {"code": options[0][0]}
-
-    try:
-        root = tk._default_root or tk.Tk()
-        top = ctk.CTkToplevel(root, fg_color=BG_COLOR)
-    except Exception:
-        return selected["code"]
-
-    top.title("Wybierz set")
-    images: list[ImageTk.PhotoImage | None] = []
-
-    def choose(code: str):
-        selected["code"] = code
-        try:
-            top.destroy()
-        except Exception:
-            pass
-
-    for i, (code, name) in enumerate(options):
-        img = None
-        path = os.path.join(SET_LOGO_DIR, f"{code}.png")
-        if os.path.exists(path):
-            try:
-                logo_img = Image.open(path)
-                logo_img.thumbnail((40, 40))
-                img = ImageTk.PhotoImage(logo_img)
-            except Exception:
-                img = None
-        btn = ctk.CTkButton(
-            top,
-            image=img,
-            text="",
-            fg_color=ACCENT_COLOR,
-            text_color=TEXT_COLOR,
-            hover_color=HOVER_COLOR,
-            command=lambda c=code: choose(c),
-        )
-        btn.grid(row=0, column=i, padx=5, pady=5)
-        ctk.CTkLabel(top, text=name, text_color=TEXT_COLOR).grid(
-            row=1, column=i, padx=5, pady=2
-        )
-        images.append(img)
-        top.grid_columnconfigure(i, weight=1, minsize=100)
-
-    # keep references to prevent garbage collection
-    top.images = images
-
-    try:
-        top.update_idletasks()
-        w = top.winfo_width()
-        h = top.winfo_height()
-        min_width = len(options) * 120
-        w = max(w, min_width)
-        x = int(top.winfo_screenwidth() / 2 - w / 2)
-        y = int(top.winfo_screenheight() / 2 - h / 2)
-        top.geometry(f"{w}x{h}+{x}+{y}")
-        top.focus_force()
-        top.grab_set()
-        top.wait_window()
-    except Exception:
-        pass
-
-    return selected["code"]
-
-
 def choose_nearest_locations(order_list, output_data):
     """Assign the nearest warehouse codes to order items.
 
@@ -1152,26 +1065,17 @@ def analyze_card_image(
                     return result
 
                 if len(api_sets) > 1:
+                    set_code, selected_name = api_sets[0]
                     print(
-                        "[INFO] TCGGO API found multiple matches. Prompting user..."
+                        "[INFO] TCGGO API found multiple matches. "
+                        f"Selecting first result: {selected_name}"
                     )
-                    selected_code = prompt_set_selection(api_sets)
-                    name_lookup = get_set_name(selected_code)
-                    selected_name = (
-                        name_lookup
-                        if name_lookup != selected_code
-                        else next(
-                            (n for c, n in api_sets if c == selected_code),
-                            selected_code,
-                        )
-                    )
-                    print(f"[SUCCESS] User selected: {selected_name}")
                     result = {
                         "name": name,
                         "number": number,
                         "total": total,
                         "set": selected_name,
-                        "set_code": selected_code,
+                        "set_code": set_code,
                         "orientation": orientation,
                         "set_format": set_format,
                     }
@@ -3559,24 +3463,6 @@ class CardEditorApp:
                 args=(image_path, self.index),
                 daemon=True,
             ).start()
-        else:
-            if hasattr(self, "prompt_set_selection"):
-                try:
-                    with Image.open(image_path) as im:
-                        rects = get_symbol_rects(*im.size)
-                    matches = []
-                    for r in rects:
-                        matches = identify_set_by_hash(image_path, r)
-                        if matches:
-                            break
-                except Exception:
-                    matches = []
-                options = [(c, n) for c, n, _ in matches]
-                if options:
-                    try:
-                        self.prompt_set_selection(options)
-                    except Exception:
-                        pass
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
@@ -3754,129 +3640,6 @@ class CardEditorApp:
                 except Exception:
                     pass
         return
-
-    def prompt_set_selection(self, options: list[tuple[str, str]]):
-        """Display a dialog with candidate set logos for manual selection.
-
-        Parameters
-        ----------
-        options:
-            List of ``(set_code, set_name)`` tuples. Only the first four are
-            shown.
-
-        Returns
-        -------
-        str
-            Selected ``set_code`` or the first option when no choice is made.
-        """
-
-        if not options:
-            return ""
-
-        options = options[:4]
-
-        # Load logos if they haven't been loaded yet
-        if not getattr(self, "set_logos", None):
-            try:
-                self.load_set_logos()
-            except Exception:
-                pass
-
-        selected = {"code": options[0][0]}
-
-        def apply_selection(code: str):
-            selected["code"] = code
-            name = get_set_name(code) or code
-            if hasattr(self, "set_var"):
-                try:
-                    self.set_var.set(name)
-                except Exception:
-                    pass
-            if "set" in getattr(self, "entries", {}):
-                entry = self.entries["set"]
-                try:
-                    entry.set(name)
-                except Exception:
-                    try:
-                        entry.delete(0, tk.END)
-                        entry.insert(0, name)
-                    except Exception:
-                        pass
-            if hasattr(self, "update_set_options"):
-                try:
-                    self.update_set_options()
-                except Exception:
-                    pass
-
-        # In headless environments, avoid creating GUI windows
-        try:
-            top = ctk.CTkToplevel(self.root, fg_color=BG_COLOR)
-        except Exception:
-            apply_selection(options[0][0])
-            return selected["code"]
-
-        top.title("Wybierz set")
-        images = []
-
-        for i, (code, name) in enumerate(options):
-            img = self.set_logos.get(code)
-            if img is None:
-                path = os.path.join(SET_LOGO_DIR, f"{code}.png")
-                if os.path.exists(path):
-                    try:
-                        logo_img = Image.open(path)
-                        logo_img.thumbnail((40, 40))
-                        img = ImageTk.PhotoImage(logo_img)
-                        self.set_logos[code] = img
-                    except Exception:
-                        img = None
-            if img is not None:
-                btn = ctk.CTkButton(
-                    top,
-                    image=img,
-                    text="",
-                    fg_color=ACCENT_COLOR,
-                    text_color=TEXT_COLOR,
-                    hover_color=HOVER_COLOR,
-                    command=lambda c=code: (apply_selection(c), top.destroy()),
-                )
-                btn.grid(row=0, column=i, padx=5, pady=5)
-                ctk.CTkLabel(top, text=name, text_color=TEXT_COLOR).grid(
-                    row=1, column=i, padx=5, pady=2
-                )
-            else:
-                btn = ctk.CTkButton(
-                    top,
-                    text=name,
-                    fg_color=ACCENT_COLOR,
-                    text_color=TEXT_COLOR,
-                    hover_color=HOVER_COLOR,
-                    command=lambda c=code: (apply_selection(c), top.destroy()),
-                )
-                btn.grid(row=0, column=i, padx=5, pady=5)
-            images.append(img)
-            top.grid_columnconfigure(i, weight=1, minsize=100)
-
-        # keep references to prevent garbage collection
-        top.images = images
-        try:
-            top.update_idletasks()
-            w = top.winfo_width()
-            h = top.winfo_height()
-            min_width = len(options) * 120
-            w = max(w, min_width)
-            screen_w = self.root.winfo_screenwidth()
-            screen_h = self.root.winfo_screenheight()
-            x = int(screen_w / 2 - w / 2)
-            y = int(screen_h / 2 - h / 2)
-            top.geometry(f"{w}x{h}+{x}+{y}")
-            top.transient(self.root)
-            top.grab_set()
-            top.wait_window()
-        except Exception:
-            pass
-
-        return selected["code"]
 
     def generate_location(self, idx):
         return storage.generate_location(idx)
@@ -4516,15 +4279,14 @@ class CardEditorApp:
 
             api_sets = lookup_sets_from_api(name, number, total)
             if api_sets:
+                selected_code, resolved_name = api_sets[0]
                 if len(api_sets) > 1:
-                    self.log(f"Znaleziono {len(api_sets)} pasujących setów, proszę wybrać.")
-                    selected_code = self.prompt_set_selection(api_sets)
-                else:
-                    selected_code = api_sets[0][0]
-                
-                resolved_name = get_set_name(selected_code) or next((n for c, n in api_sets if c == selected_code), "")
+                    self.log(
+                        f"Znaleziono {len(api_sets)} pasujących setów, "
+                        f"wybieram: {resolved_name}."
+                    )
                 self.entries["set"].set(resolved_name)
-                set_name = resolved_name # Zaktualizuj zmienną lokalną
+                set_name = resolved_name  # Zaktualizuj zmienną lokalną
                 if hasattr(self, "update_set_options"):
                     self.update_set_options()
             else:
