@@ -2597,11 +2597,14 @@ class CardEditorApp:
 
         img_path = row.get("image") or ""
         img = _load_image(img_path)
+        text = ""
         if img is None:
+            logger.info("Missing image for %s", img_path)
             img = Image.new("RGB", (300, 300), "#111111")
+            text = "Brak skanu"
         img.thumbnail((300, 300))
         photo = _create_image(img)
-        img_lbl = ctk.CTkLabel(left, image=photo, text="")
+        img_lbl = ctk.CTkLabel(left, image=photo, text=text, compound="center", text_color="white")
         img_lbl.image = photo  # keep reference
         img_lbl.pack()
 
