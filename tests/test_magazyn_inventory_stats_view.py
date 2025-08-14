@@ -25,8 +25,8 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
     monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(csv_path))
     monkeypatch.setattr(csv_utils, "INVENTORY_CSV", str(csv_path))
 
-    first_stats = (5, 123.45)
-    second_stats = (7, 210.0)
+    first_stats = (5, 123.45, 2, 50.0)
+    second_stats = (7, 210.0, 3, 60.0)
     monkeypatch.setattr(csv_utils, "get_inventory_stats", lambda path=str(csv_path): first_stats)
 
     sys.modules["customtkinter"] = SimpleNamespace(
@@ -64,6 +64,11 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
         app.mag_inventory_value_label.text
         == f"Łączna wartość: {first_stats[1]:.2f} PLN"
     )
+    assert app.mag_sold_count_label.text == f"Sprzedane karty: {first_stats[2]}"
+    assert (
+        app.mag_sold_value_label.text
+        == f"Wartość sprzedanych: {first_stats[3]:.2f} PLN"
+    )
 
     monkeypatch.setattr(ui.csv_utils, "get_inventory_stats", lambda path=str(csv_path): second_stats)
     ui.CardEditorApp.update_inventory_stats(app)
@@ -71,4 +76,9 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
     assert (
         app.mag_inventory_value_label.text
         == f"Łączna wartość: {second_stats[1]:.2f} PLN"
+    )
+    assert app.mag_sold_count_label.text == f"Sprzedane karty: {second_stats[2]}"
+    assert (
+        app.mag_sold_value_label.text
+        == f"Wartość sprzedanych: {second_stats[3]:.2f} PLN"
     )

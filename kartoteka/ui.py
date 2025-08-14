@@ -1330,7 +1330,7 @@ class CardEditorApp:
         )
         desc.pack(pady=5)
 
-        count, total_value = csv_utils.get_inventory_stats()
+        count, total_value, _, _ = csv_utils.get_inventory_stats()
         self.inventory_count_label = ctk.CTkLabel(
             self.start_frame,
             text=f"Łączna liczba kart: {count}",
@@ -1414,6 +1414,8 @@ class CardEditorApp:
             "mag_inventory_count_label",
             "inventory_value_label",
             "mag_inventory_value_label",
+            "mag_sold_count_label",
+            "mag_sold_value_label",
         ]:
             widget = getattr(self, attr, None)
             if widget and hasattr(widget, "winfo_exists"):
@@ -1427,11 +1429,16 @@ class CardEditorApp:
         if not widgets:
             return
 
-        count, total = csv_utils.get_inventory_stats()
-        count_text = f"Łączna liczba kart: {count}"
-        total_text = f"Łączna wartość: {total:.2f} PLN"
+        unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
+        unsold_count_text = f"Łączna liczba kart: {unsold_count}"
+        unsold_total_text = f"Łączna wartość: {unsold_total:.2f} PLN"
+        sold_count_text = f"Sprzedane karty: {sold_count}"
+        sold_total_text = f"Wartość sprzedanych: {sold_total:.2f} PLN"
         for attr, widget in widgets:
-            text = count_text if "count" in attr else total_text
+            if "sold" in attr:
+                text = sold_count_text if "count" in attr else sold_total_text
+            else:
+                text = unsold_count_text if "count" in attr else unsold_total_text
             try:
                 widget.configure(text=text)
             except tk.TclError:
@@ -2461,21 +2468,35 @@ class CardEditorApp:
         stats_frame.pack(pady=(0, 10), anchor="center")
 
         font = ("Segoe UI", 16, "bold")
-        count, total = csv_utils.get_inventory_stats()
+        unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
         self.mag_inventory_count_label = ctk.CTkLabel(
             stats_frame,
-            text=f"Łączna liczba kart: {count}",
+            text=f"Łączna liczba kart: {unsold_count}",
             text_color=TEXT_COLOR,
             font=font,
         )
         self.mag_inventory_count_label.pack()
         self.mag_inventory_value_label = ctk.CTkLabel(
             stats_frame,
-            text=f"Łączna wartość: {total:.2f} PLN",
+            text=f"Łączna wartość: {unsold_total:.2f} PLN",
             text_color=TEXT_COLOR,
             font=font,
         )
         self.mag_inventory_value_label.pack()
+        self.mag_sold_count_label = ctk.CTkLabel(
+            stats_frame,
+            text=f"Sprzedane karty: {sold_count}",
+            text_color=TEXT_COLOR,
+            font=font,
+        )
+        self.mag_sold_count_label.pack()
+        self.mag_sold_value_label = ctk.CTkLabel(
+            stats_frame,
+            text=f"Wartość sprzedanych: {sold_total:.2f} PLN",
+            text_color=TEXT_COLOR,
+            font=font,
+        )
+        self.mag_sold_value_label.pack()
 
         # legend for color coding in the storage view
         legend_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
