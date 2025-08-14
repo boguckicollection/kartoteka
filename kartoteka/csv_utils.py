@@ -45,43 +45,48 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
-def get_inventory_stats(path: str = WAREHOUSE_CSV, include_sold: bool = False):
-    """Return total count and value from the warehouse CSV.
+def get_inventory_stats(path: str = WAREHOUSE_CSV):
+    """Return statistics for both unsold and sold items in the warehouse CSV.
 
     Parameters
     ----------
     path:
         Optional path to the warehouse CSV. Defaults to ``WAREHOUSE_CSV``.
-    include_sold:
-        If ``True``, rows marked as sold are included in the totals.
-        Defaults to ``False``.
 
     Returns
     -------
-    tuple[int, float]
-        Number of rows and the sum of the ``price`` column.
+    tuple[int, float, int, float]
+        ``(count_unsold, total_unsold, count_sold, total_sold)`` where each
+        count is the number of rows and each total is the sum of the ``price``
+        column for items in the respective category.
     """
 
-    count = 0
-    total = 0.0
+    count_unsold = 0
+    total_unsold = 0.0
+    count_sold = 0
+    total_sold = 0.0
+
     if not os.path.exists(path):
-        return count, total
+        return count_unsold, total_unsold, count_sold, total_sold
 
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         for row in reader:
-            # Skip rows marked as sold unless requested otherwise
-            sold_flag = str(row.get("sold") or "").lower()
-            if not include_sold and sold_flag in {"1", "true", "yes"}:
-                continue
-            count += 1
+            sold_flag = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
             price_raw = str(row.get("price") or "0").replace(",", ".")
             try:
-                total += float(price_raw)
+                price = float(price_raw)
             except ValueError:
                 continue
 
-    return count, total
+            if sold_flag:
+                count_sold += 1
+                total_sold += price
+            else:
+                count_unsold += 1
+                total_unsold += price
+
+    return count_unsold, total_unsold, count_sold, total_sold
 
 
 def format_store_row(row):
