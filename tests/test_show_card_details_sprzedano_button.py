@@ -1,0 +1,101 @@
+import csv
+import importlib
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+from PIL import Image
+
+
+def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        "name;number;set;warehouse_code;price;image;sold\n" "A;1;S1;K1R1P1;10;;\n",
+        encoding="utf-8",
+    )
+
+    created = {}
+
+    class DummyButton:
+        def __init__(self, master=None, **kwargs):
+            created["kwargs"] = kwargs
+
+        def grid(self, *a, **k):
+            return self
+
+    class DummyFrame:
+        def __init__(self, *a, **k):
+            pass
+
+        def pack(self, *a, **k):
+            return self
+
+        def grid(self, *a, **k):
+            return self
+
+    class DummyLabel(DummyFrame):
+        def __init__(self, master=None, **kwargs):
+            pass
+
+    class DummyToplevel(DummyFrame):
+        def title(self, *a, **k):
+            pass
+
+        def geometry(self, *a, **k):
+            pass
+
+        def minsize(self, *a, **k):
+            pass
+
+        def destroy(self):
+            pass
+
+    sys.modules["customtkinter"] = SimpleNamespace(
+        CTkToplevel=DummyToplevel,
+        CTkFrame=DummyFrame,
+        CTkLabel=DummyLabel,
+        CTkButton=DummyButton,
+    )
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    import kartoteka.ui as ui
+
+    importlib.reload(ui)
+
+    monkeypatch.setattr(ui, "_load_image", lambda p: Image.new("RGB", (10, 10)))
+    monkeypatch.setattr(ui, "_create_image", lambda img: SimpleNamespace())
+    monkeypatch.setattr(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path))
+
+    open_mock = MagicMock()
+    stats_mock = MagicMock()
+    app = SimpleNamespace(
+        root=SimpleNamespace(),
+        open_magazyn_window=open_mock,
+        update_inventory_stats=stats_mock,
+    )
+    app.mark_as_sold = lambda r, w=None: ui.CardEditorApp.mark_as_sold(app, r, w)
+
+    row = {
+        "name": "A",
+        "number": "1",
+        "set": "S1",
+        "price": "10",
+        "warehouse_code": "K1R1P1",
+        "sold": "",
+    }
+
+    ui.CardEditorApp.show_card_details(app, row)
+
+    assert created["kwargs"]["text"] == "Sprzedano"
+
+    # Simulate button press
+    created["kwargs"]["command"]()
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        rows = list(reader)
+        assert rows[0]["sold"] == "1"
+
+    open_mock.assert_called_once()
+    stats_mock.assert_called_once()
+
