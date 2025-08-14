@@ -136,7 +136,10 @@ def test_show_card_details_receives_row(tmp_path):
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
          patch.object(ui.tk, "Canvas", DummyCanvas), \
          patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
-        dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+        dummy_root = SimpleNamespace(
+            minsize=lambda *a, **k: None,
+            title=lambda *a, **k: None,
+        )
         captured = {}
 
         def fake_show(row):

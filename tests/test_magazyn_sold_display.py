@@ -54,7 +54,10 @@ def test_sold_cards_styled(tmp_path):
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
          patch.object(ui.tk, "Canvas", DummyCanvas), \
          patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
-        dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+        dummy_root = SimpleNamespace(
+            minsize=lambda *a, **k: None,
+            title=lambda *a, **k: None,
+        )
         app = SimpleNamespace(
             root=dummy_root,
             start_frame=None,

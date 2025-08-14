@@ -91,7 +91,10 @@ def test_magazyn_label_colors():
 
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
          patch.object(ui.tk, "Canvas", DummyCanvas):
-        dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+        dummy_root = SimpleNamespace(
+            minsize=lambda *a, **k: None,
+            title=lambda *a, **k: None,
+        )
         app = SimpleNamespace(
             root=dummy_root,
             start_frame=None,
