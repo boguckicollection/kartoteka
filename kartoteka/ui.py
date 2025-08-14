@@ -2334,6 +2334,7 @@ class CardEditorApp:
 
     def open_magazyn_window(self):
         """Display storage occupancy inside the main window."""
+        self.root.title("Podgląd magazynu")
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None

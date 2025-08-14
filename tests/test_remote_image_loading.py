@@ -141,7 +141,10 @@ def test_open_magazyn_window_remote_thumbnail(tmp_path):
     placeholder_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
     photo_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
 
-    dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+    dummy_root = SimpleNamespace(
+        minsize=lambda *a, **k: None,
+        title=lambda *a, **k: None,
+    )
 
     app = SimpleNamespace(
         root=dummy_root,
@@ -185,7 +188,10 @@ def test_show_card_details_remote_uses_cache(tmp_path):
 
     photo_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
 
-    dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+    dummy_root = SimpleNamespace(
+        minsize=lambda *a, **k: None,
+        title=lambda *a, **k: None,
+    )
 
     app = SimpleNamespace(
         root=dummy_root,

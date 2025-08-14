@@ -43,7 +43,10 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
         ui.tk, "Canvas", DummyCanvas
     ):
-        dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
+        dummy_root = SimpleNamespace(
+            minsize=lambda *a, **k: None,
+            title=lambda *a, **k: None,
+        )
         app = SimpleNamespace(
             root=dummy_root,
             start_frame=None,
