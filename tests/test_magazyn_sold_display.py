@@ -14,6 +14,22 @@ from ctk_mocks import (  # noqa: E402
 )
 
 
+def _extract_label(widget):
+    """Return the innermost label regardless of wrapping structure."""
+    seen = set()
+    current = widget
+    while id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, dict) and "label" in current:
+            current = current["label"]
+            continue
+        if hasattr(current, "label"):
+            current = current.label
+            continue
+        break
+    return current
+
+
 def test_sold_cards_styled(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
@@ -54,9 +70,10 @@ def test_sold_cards_styled(tmp_path):
 
     assert len(app.mag_card_labels) == 1
     assert len(app.mag_sold_labels) == 1
-    assert app.mag_sold_labels[0].text.startswith("[SOLD]")
-    assert app.mag_sold_labels[0].text_color == "#888888"
-    font = app.mag_sold_labels[0].font
+    sold_label = _extract_label(app.mag_sold_labels[0])
+    assert sold_label.text.startswith("[SOLD]")
+    assert sold_label.text_color == "#888888"
+    font = sold_label.font
     assert getattr(font, "overstrike", False) or (
         isinstance(font, tuple) and "overstrike" in font
     )
