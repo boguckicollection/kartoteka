@@ -2536,7 +2536,7 @@ class CardEditorApp:
                 box_w, box_h = photo_obj.width(), photo_obj.height()
                 photo = photo_obj
 
-            columns = storage.BOX_COLUMNS.get(box, GRID_COLUMNS)
+            columns = storage.BOX_COLUMNS.get(box, 4)
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
@@ -2544,7 +2544,7 @@ class CardEditorApp:
 
             col_w = box_w / columns
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            for c in range(1, columns + 1):
+            for c in range(1, storage.BOX_COLUMNS.get(box, 4) + 1):
                 filled = occ.get(box, {}).get(c, 0)
                 free_percent = (col_capacity - filled) / col_capacity * 100
                 x1 = (c - 1) * col_w
@@ -2560,8 +2560,9 @@ class CardEditorApp:
                         tags="stats",
                     )
                 # Draw proportional capacity sections
-                seg_count = 10
-                filled_sections = int(filled * seg_count / col_capacity)
+                segment_capacity = storage.BOX_COLUMN_CAPACITY // 10
+                seg_count = max(1, col_capacity // segment_capacity)
+                filled_sections = min(seg_count, filled // segment_capacity)
                 seg_h = box_h / seg_count
                 for i in range(seg_count):
                     y1 = box_h - seg_h * (i + 1)

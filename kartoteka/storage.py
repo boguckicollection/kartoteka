@@ -11,8 +11,10 @@ LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 BOX_CAPACITY: dict[int, int] = {**{b: 4000 for b in range(1, 9)}, 100: 500}
 
 # Number of columns per storage box.  All regular boxes (1-8) have four
-# columns, the overflow box ``100`` only one.
-BOX_COLUMNS: dict[int, int] = {box: (1 if box == 100 else 4) for box in BOX_CAPACITY}
+# columns, while the overflow box ``100`` only one.  The mapping is kept
+# explicit so the column layout can be adjusted independently of
+# :data:`BOX_CAPACITY`.
+BOX_COLUMNS: dict[int, int] = {**{b: 4 for b in range(1, 9)}, 100: 1}
 
 # Default per-column capacity for standard boxes.  Used as a fallback when
 # handling boxes outside of :data:`BOX_CAPACITY`.
