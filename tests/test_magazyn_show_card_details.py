@@ -52,6 +52,20 @@ class DummyCTkScrollableFrame(_Widget):
         self.fg_color = fg_color
 
 
+class DummyCTkEntry(_Widget):
+    def __init__(self, master=None, textvariable=None, **kwargs):
+        self.master = master
+        self.textvariable = textvariable
+
+
+class DummyCTkOptionMenu(_Widget):
+    def __init__(self, master=None, variable=None, values=(), command=None, **kwargs):
+        self.master = master
+        self.variable = variable
+        self.values = list(values)
+        self.command = command
+
+
 class DummyCanvas(_Widget):
     def __init__(self, master=None, width=0, height=0, highlightthickness=0):
         self.master = master
@@ -126,6 +140,8 @@ def test_show_card_details_receives_row(tmp_path):
         CTkLabel=DummyCTkLabel,
         CTkButton=DummyCTkButton,
         CTkScrollableFrame=DummyCTkScrollableFrame,
+        CTkEntry=DummyCTkEntry,
+        CTkOptionMenu=DummyCTkOptionMenu,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui

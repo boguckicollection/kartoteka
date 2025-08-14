@@ -8,8 +8,10 @@ sys.path.append(str(Path(__file__).resolve().parent))
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from ctk_mocks import (  # noqa: E402
     DummyCTkButton,
+    DummyCTkEntry,
     DummyCTkFrame,
     DummyCTkLabel,
+    DummyCTkOptionMenu,
     DummyCTkScrollableFrame,
     DummyCanvas,
 )
@@ -41,6 +43,8 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
         CTkLabel=DummyCTkLabel,
         CTkButton=DummyCTkButton,
         CTkScrollableFrame=DummyCTkScrollableFrame,
+        CTkEntry=DummyCTkEntry,
+        CTkOptionMenu=DummyCTkOptionMenu,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui

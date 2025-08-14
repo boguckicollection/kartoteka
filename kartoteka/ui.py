@@ -2433,6 +2433,46 @@ class CardEditorApp:
         self.mag_sold_labels = []
         # image label references for async updates
         self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
+
+        control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
+        control_frame.pack(fill="x", padx=10, pady=(10, 0))
+
+        def _safe_var(value=""):
+            try:
+                return tk.StringVar(value=value)
+            except Exception:
+                class _Var:
+                    def __init__(self, val):
+                        self._val = val
+                        self._callbacks: list[callable] = []
+
+                    def get(self):
+                        return self._val
+
+                    def set(self, val):
+                        self._val = val
+                        for cb in list(self._callbacks):
+                            cb()
+
+                    def trace_add(self, mode, callback):
+                        self._callbacks.append(lambda *a, **k: callback())
+
+                return _Var(value)
+
+        self.mag_search_var = _safe_var()
+        search_entry = ctk.CTkEntry(
+            control_frame,
+            textvariable=self.mag_search_var,
+            placeholder_text="Szukaj",
+        )
+        search_entry.pack(side="left", padx=5, pady=5)
+
+        self.mag_sort_var = _safe_var("name")
+        sort_menu = ctk.CTkOptionMenu(
+            control_frame, variable=self.mag_sort_var, values=["name", "price"]
+        )
+        sort_menu.pack(side="left", padx=5, pady=5)
+
         list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=LIGHT_BG_COLOR)
         list_frame.pack(expand=True, fill="both", padx=10, pady=10)
         # store reference for resize handling
@@ -2440,10 +2480,6 @@ class CardEditorApp:
 
         csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
         if os.path.exists(csv_path):
-            # lists of indices to maintain ordering
-            unsold: list[int] = []
-            sold: list[int] = []
-
             thumb_size = CARD_THUMB_SIZE
             placeholder_img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
             self.mag_placeholder_photo = _create_image(placeholder_img)
@@ -2461,19 +2497,12 @@ class CardEditorApp:
                     if not (row.get("name") and row.get("image")):
                         logger.warning("Skipping row with missing name or image: %s", row)
                         continue
-
                     idx = len(self.mag_card_rows)
                     self.mag_card_rows.append(row)
                     self.mag_card_images.append(self.mag_placeholder_photo)
                     self.mag_card_image_labels.append(None)
 
                     img_path = row.get("image") or ""
-                    is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-                    if is_sold:
-                        sold.append(idx)
-                    else:
-                        unsold.append(idx)
-
                     if urlparse(img_path).scheme in ("http", "https"):
                         def _worker(i=idx, url=img_path):
                             img = _get_thumbnail(url, (thumb_size, thumb_size))
@@ -2504,51 +2533,6 @@ class CardEditorApp:
                         if img is not None:
                             photo = _create_image(img)
                             self.mag_card_images[idx] = photo
-
-            combined = unsold + sold
-            for i, idx in enumerate(combined):
-                row = self.mag_card_rows[idx]
-                if not (row.get("name") and row.get("image")):
-                    logger.warning("Skipping row with missing name or image: %s", row)
-                    continue
-                photo = self.mag_card_images[idx]
-                frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
-                is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-                text = row.get("name", "")
-                color = TEXT_COLOR
-                font = None
-                if is_sold:
-                    text = f"[SOLD] {text}"
-                    color = SOLD_COLOR
-                    if hasattr(ctk, "CTkFont"):
-                        font = ctk.CTkFont(size=20, overstrike=True)
-                    else:
-                        font = ("TkDefaultFont", 20, "overstrike")
-
-                img_label = ctk.CTkLabel(frame, image=photo, text="")
-                img_label.pack()
-                self.mag_card_image_labels[idx] = img_label
-
-                label_kwargs = {"text": text, "text_color": color}
-                if font is not None:
-                    label_kwargs["font"] = font
-                label = ctk.CTkLabel(frame, **label_kwargs)
-                label.pack()
-
-                # defer grid placement to resize handler
-                self.mag_card_frames.append(frame)
-
-                for widget in (img_label, label):
-                    widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
-                    widget.bind(
-                        "<Double-Button-1>",
-                        lambda e, r=row: self.show_card_details(r),
-                    )
-
-                if is_sold:
-                    self.mag_sold_labels.append(label)
-                else:
-                    self.mag_card_labels.append(label)
 
             self._mag_prev_columns = 0
             self._mag_prev_thumb = 0
@@ -2592,10 +2576,86 @@ class CardEditorApp:
                 for i, frame in enumerate(self.mag_card_frames):
                     frame.grid(row=i // columns, column=i % columns, padx=5, pady=5)
 
+            def _update_mag_list(*_):
+                query = self.mag_search_var.get().lower()
+                sort_key = self.mag_sort_var.get()
+                indices = [
+                    i
+                    for i, r in enumerate(self.mag_card_rows)
+                    if query in (r.get("name", "").lower())
+                ]
+                if sort_key == "name":
+                    indices.sort(key=lambda i: self.mag_card_rows[i].get("name", ""))
+                elif sort_key == "price":
+                    def _price(i: int) -> float:
+                        val = str(self.mag_card_rows[i].get("price", "0")).replace(",", ".")
+                        try:
+                            return float(val)
+                        except Exception:
+                            return 0.0
+
+                    indices.sort(key=_price)
+
+                for frame in getattr(self, "mag_card_frames", []):
+                    frame.destroy()
+                self.mag_card_frames = []
+                self.mag_card_labels = []
+                self.mag_sold_labels = []
+                for i in range(len(self.mag_card_image_labels)):
+                    self.mag_card_image_labels[i] = None
+
+                for idx in indices:
+                    row = self.mag_card_rows[idx]
+                    photo = self.mag_card_images[idx]
+                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                    is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                    text = row.get("name", "")
+                    color = TEXT_COLOR
+                    font = None
+                    if is_sold:
+                        text = f"[SOLD] {text}"
+                        color = SOLD_COLOR
+                        if hasattr(ctk, "CTkFont"):
+                            font = ctk.CTkFont(size=20, overstrike=True)
+                        else:
+                            font = ("TkDefaultFont", 20, "overstrike")
+
+                    img_label = ctk.CTkLabel(frame, image=photo, text="")
+                    img_label.pack()
+                    self.mag_card_image_labels[idx] = img_label
+
+                    label_kwargs = {"text": text, "text_color": color}
+                    if font is not None:
+                        label_kwargs["font"] = font
+                    label = ctk.CTkLabel(frame, **label_kwargs)
+                    label.pack()
+
+                    self.mag_card_frames.append(frame)
+
+                    for widget in (img_label, label):
+                        widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
+                        widget.bind(
+                            "<Double-Button-1>",
+                            lambda e, r=row: self.show_card_details(r),
+                        )
+
+                    if is_sold:
+                        self.mag_sold_labels.append(label)
+                    else:
+                        self.mag_card_labels.append(label)
+
+                _relayout_mag_cards()
+
             bind = getattr(self.mag_list_frame, "bind", None)
             if callable(bind):
                 bind("<Configure>", _relayout_mag_cards)
-            _relayout_mag_cards()
+
+            self.mag_search_var.trace_add("write", _update_mag_list)
+            if hasattr(sort_menu, "configure"):
+                sort_menu.configure(command=lambda _: _update_mag_list())
+            else:
+                sort_menu.command = lambda _: _update_mag_list()
+            _update_mag_list()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
