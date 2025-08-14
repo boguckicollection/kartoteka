@@ -217,6 +217,8 @@ except ValueError:
 
 # custom theme colors in grayscale
 BG_COLOR = "#2E2E2E"
+# lighter variant for subtle section backgrounds
+LIGHT_BG_COLOR = "#3A3A3A"
 ACCENT_COLOR = "#666666"
 HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
@@ -2431,7 +2433,7 @@ class CardEditorApp:
         self.mag_sold_labels = []
         # image label references for async updates
         self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
-        list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=BG_COLOR)
+        list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=LIGHT_BG_COLOR)
         list_frame.pack(expand=True, fill="both", padx=10, pady=10)
         # store reference for resize handling
         self.mag_list_frame = list_frame
