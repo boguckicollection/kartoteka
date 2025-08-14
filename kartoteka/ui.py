@@ -2408,10 +2408,14 @@ class CardEditorApp:
                 fg_color=BG_COLOR,
                 text_color=TEXT_COLOR,
             )
+            if box_num == SPECIAL_BOX_NUMBER:
+                canvas_w, canvas_h = img100.size
+            else:
+                canvas_w, canvas_h = box_w, box_h
             canvas = tk.Canvas(
                 frame,
-                width=box_w,
-                height=box_h,
+                width=canvas_w,
+                height=canvas_h,
                 highlightthickness=0,
             )
             canvas.config(bg=BG_COLOR)
