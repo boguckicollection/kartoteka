@@ -32,6 +32,7 @@ class DummyCTkLabel(_Widget):
         fg_color=None,
         text_color=None,
         compound=None,
+        font=None,
         **kwargs,
     ):
         self.master = master
@@ -40,6 +41,7 @@ class DummyCTkLabel(_Widget):
         self.fg_color = fg_color
         self.text_color = text_color
         self.compound = compound
+        self.font = font
         self._bindings = {}
 
     def bind(self, event, callback):
