@@ -27,3 +27,16 @@ def test_inventory_stats_excludes_sold(tmp_path):
     count, total = csv_utils.get_inventory_stats(str(csv_path))
     assert count == 1
     assert total == pytest.approx(10)
+
+
+def test_inventory_stats_includes_sold_when_requested(tmp_path):
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        "name;number;set;warehouse_code;price;image;sold\n"
+        "A;1;S1;K1;10;img1;\n"
+        "B;2;S2;K2;5;img2;1\n",
+        encoding="utf-8",
+    )
+    count, total = csv_utils.get_inventory_stats(str(csv_path), include_sold=True)
+    assert count == 2
+    assert total == pytest.approx(15)
