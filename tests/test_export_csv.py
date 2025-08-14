@@ -92,6 +92,7 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
         assert row["warehouse_code"] == "K1R1P1"
         assert row["price"] == "10"
         assert row["image"] == "img.jpg"
+        assert row["variant"] == "common"
         assert row.get("sold", "") == ""
 
 

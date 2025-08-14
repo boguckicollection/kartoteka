@@ -47,6 +47,7 @@ WAREHOUSE_FIELDNAMES = [
     "warehouse_code",
     "price",
     "image",
+    "variant",
     "sold",
 ]
 
@@ -156,6 +157,14 @@ def format_store_row(row):
 
 def format_warehouse_row(row):
     """Return a row formatted for the warehouse CSV."""
+    types = row.get("types") or {}
+    variant = (
+        "holo"
+        if types.get("Holo")
+        else "reverse"
+        if types.get("Reverse")
+        else row.get("variant", "common")
+    )
     return {
         "name": row.get("nazwa", ""),
         "number": row.get("numer", ""),
@@ -163,6 +172,7 @@ def format_warehouse_row(row):
         "warehouse_code": row.get("warehouse_code", ""),
         "price": row.get("cena") or row.get("price", ""),
         "image": row.get("image1", row.get("images", "")),
+        "variant": variant,
         "sold": row.get("sold", ""),
     }
 
