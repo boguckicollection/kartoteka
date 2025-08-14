@@ -2618,7 +2618,12 @@ class CardEditorApp:
                 indices = [
                     i
                     for i, r in enumerate(self.mag_card_rows)
-                    if query in (r.get("name", "").lower())
+                    if (
+                        query in r.get("name", "").lower()
+                        or query in str(r.get("number", "")).lower()
+                        or query in r.get("set", "").lower()
+                        or query in r.get("warehouse_code", "").lower()
+                    )
                 ]
                 if sort_key == "name":
                     indices.sort(key=lambda i: self.mag_card_rows[i].get("name", ""))
