@@ -2408,6 +2408,13 @@ class CardEditorApp:
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
+        # Canvas item IDs per column for incremental redraws
+        self.mag_canvas_items: list[dict[int, dict[str, object]]] = [
+            {} for _ in self.mag_canvases
+        ]
+        # Previous occupancy values per column
+        self._mag_prev_occupancy: dict[int, dict[int, dict[str, int]]] = {}
+
         # List of cards currently in the warehouse
         self.mag_card_images = []
         self.mag_card_rows = []
@@ -2653,70 +2660,111 @@ class CardEditorApp:
         order = getattr(self, "mag_box_order", None) or []
         for idx, canvas in enumerate(self.mag_canvases):
             box = order[idx] if idx < len(order) else idx + 1
-            canvas.delete("stats")
-            photo_obj = (
-                self.mag_box100_photo if box == SPECIAL_BOX_NUMBER else self.mag_box_photo
-            )
-            if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
-                box_w, box_h = photo_obj.cget("size")
-                photo = photo_obj.create_scaled_photo_image(
-                    ctk.ScalingTracker.get_widget_scaling(canvas),
-                    ctk.get_appearance_mode(),
-                )
-            else:
-                box_w, box_h = photo_obj.width(), photo_obj.height()
-                photo = photo_obj
 
+            box_w = int(canvas.cget("width"))
+            box_h = int(canvas.cget("height"))
             columns = storage.BOX_COLUMNS.get(box, 4)
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
             col_capacity = total_capacity // columns
-
             col_w = box_w / columns
-            canvas.create_image(0, 0, image=photo, anchor="nw")
-            for c in range(1, storage.BOX_COLUMNS.get(box, 4) + 1):
+
+            prev_box = self._mag_prev_occupancy.setdefault(box, {})
+            canvas_items = self.mag_canvas_items[idx]
+
+            for c in range(1, columns + 1):
                 filled = occ.get(box, {}).get(c, 0)
-                free_percent = (col_capacity - filled) / col_capacity * 100
-                x1 = (c - 1) * col_w
-                x_mid = x1 + col_w / 2
-                if free_percent >= 30:
-                    canvas.create_rectangle(
-                        x1,
-                        0,
-                        x1 + col_w,
-                        box_h,
-                        fill="#ff9800",
-                        width=0,
-                        tags="stats",
-                    )
-                # Draw proportional capacity sections
                 segment_capacity = storage.BOX_COLUMN_CAPACITY // 10
                 seg_count = max(1, col_capacity // segment_capacity)
                 filled_sections = min(seg_count, filled // segment_capacity)
+
+                prev_stats = prev_box.get(c)
+                if (
+                    prev_stats
+                    and prev_stats.get("filled") == filled
+                    and prev_stats.get("seg_count") == seg_count
+                    and c in canvas_items
+                ):
+                    continue
+
+                prev_box[c] = {"filled": filled, "seg_count": seg_count}
+
+                x1 = (c - 1) * col_w
+                x2 = x1 + col_w
+                x_mid = x1 + col_w / 2
+                free_percent = (col_capacity - filled) / col_capacity * 100
+                bg_fill = "#ff9800" if free_percent >= 30 else ""
+
+                items = canvas_items.get(c)
                 seg_h = box_h / seg_count
-                for i in range(seg_count):
-                    y1 = box_h - seg_h * (i + 1)
-                    y2 = box_h - seg_h * i
-                    color = "#4caf50" if i < filled_sections else ""
-                    canvas.create_rectangle(
-                        x1,
-                        y1,
-                        x1 + col_w,
-                        y2,
-                        fill=color,
-                        outline="black",
-                        width=1,
-                        tags="stats",
+                if not items:
+                    bg_id = canvas.create_rectangle(
+                        x1, 0, x2, box_h, fill=bg_fill, width=0
                     )
-                canvas.create_text(
-                    x_mid,
-                    box_h / 2,
-                    text=f"C{c}: {free_percent:.0f}%",
-                    fill=TEXT_COLOR,
-                    font=("Inter", 12, "bold"),
-                    tags="stats",
-                )
+                    segments = []
+                    for i in range(seg_count):
+                        y1 = box_h - seg_h * (i + 1)
+                        y2 = box_h - seg_h * i
+                        color = "#4caf50" if i < filled_sections else ""
+                        seg_id = canvas.create_rectangle(
+                            x1,
+                            y1,
+                            x2,
+                            y2,
+                            fill=color,
+                            outline="black",
+                            width=1,
+                        )
+                        segments.append(seg_id)
+                    text_id = canvas.create_text(
+                        x_mid,
+                        box_h / 2,
+                        text=f"C{c}: {free_percent:.0f}%",
+                        fill=TEXT_COLOR,
+                        font=("Inter", 12, "bold"),
+                    )
+                    canvas_items[c] = {
+                        "bg": bg_id,
+                        "segments": segments,
+                        "text": text_id,
+                        "seg_count": seg_count,
+                    }
+                else:
+                    bg_id = items["bg"]
+                    canvas.coords(bg_id, x1, 0, x2, box_h)
+                    canvas.itemconfigure(bg_id, fill=bg_fill)
+
+                    segments = items["segments"]
+                    if seg_count < len(segments):
+                        for seg_id in segments[seg_count:]:
+                            canvas.delete(seg_id)
+                        segments = segments[:seg_count]
+                    elif seg_count > len(segments):
+                        for i in range(len(segments), seg_count):
+                            seg_id = canvas.create_rectangle(
+                                x1,
+                                box_h - seg_h * (i + 1),
+                                x2,
+                                box_h - seg_h * i,
+                                outline="black",
+                                width=1,
+                            )
+                            segments.append(seg_id)
+                    for i, seg_id in enumerate(segments):
+                        y1 = box_h - seg_h * (i + 1)
+                        y2 = box_h - seg_h * i
+                        canvas.coords(seg_id, x1, y1, x2, y2)
+                        color = "#4caf50" if i < filled_sections else ""
+                        canvas.itemconfigure(seg_id, fill=color)
+                    items["segments"] = segments
+                    items["seg_count"] = seg_count
+
+                    text_id = items["text"]
+                    canvas.coords(text_id, x_mid, box_h / 2)
+                    canvas.itemconfigure(
+                        text_id, text=f"C{c}: {free_percent:.0f}%"
+                    )
         self.update_inventory_stats()
 
     def show_card_details(self, row: dict):
