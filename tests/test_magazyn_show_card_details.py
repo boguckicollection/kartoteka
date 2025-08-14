@@ -82,6 +82,22 @@ class DummyCanvas(_Widget):
         return self.height_val
 
 
+def _extract_label(widget):
+    """Return the innermost label regardless of wrapping structure."""
+    seen = set()
+    current = widget
+    while id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, dict) and "label" in current:
+            current = current["label"]
+            continue
+        if hasattr(current, "label"):
+            current = current.label
+            continue
+        break
+    return current
+
+
 def test_show_card_details_receives_row(tmp_path):
     # Prepare CSV and image
     img_path = tmp_path / "card.png"
@@ -141,7 +157,14 @@ def test_show_card_details_receives_row(tmp_path):
         )
 
         ui.CardEditorApp.open_magazyn_window(app)
-        label = app.mag_card_labels[0]
+
+        # mag_canvases should remain defined and contain canvas-like objects
+        assert hasattr(app, "mag_canvases")
+        assert app.mag_canvases
+        canvas_widget = getattr(app.mag_canvases[0], "canvas", app.mag_canvases[0])
+        assert hasattr(canvas_widget, "create_image")
+
+        label = _extract_label(app.mag_card_labels[0])
         label._bindings["<Button-1>"](None)
 
     assert captured["row"]["name"] == "Test Card"
