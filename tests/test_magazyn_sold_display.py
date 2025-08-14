@@ -33,7 +33,9 @@ def _extract_label(widget):
 def test_sold_cards_styled(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;sold\n" "A;1;S1;K1R1P1;1;;\n" "B;2;S2;K1R1P2;1;;1\n",
+        "name;number;set;warehouse_code;price;image;sold\n"
+        "A;1;S1;K1R1P1;1;foo.png;\n"
+        "B;2;S2;K1R1P2;1;foo.png;1\n",
         encoding="utf-8",
     )
 

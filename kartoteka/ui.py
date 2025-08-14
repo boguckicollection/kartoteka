@@ -2439,6 +2439,10 @@ class CardEditorApp:
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
                 for row in reader:
+                    if not (row.get("name") and row.get("image")):
+                        logger.warning("Skipping row with missing name or image: %s", row)
+                        continue
+
                     idx = len(self.mag_card_rows)
                     self.mag_card_rows.append(row)
                     self.mag_card_images.append(self.mag_placeholder_photo)
@@ -2486,6 +2490,9 @@ class CardEditorApp:
             combined = unsold + sold
             for i, idx in enumerate(combined):
                 row = self.mag_card_rows[idx]
+                if not (row.get("name") and row.get("image")):
+                    logger.warning("Skipping row with missing name or image: %s", row)
+                    continue
                 photo = self.mag_card_images[idx]
                 frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
                 is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
