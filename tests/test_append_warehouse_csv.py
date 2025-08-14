@@ -32,3 +32,26 @@ def test_append_warehouse_csv_updates_stats(tmp_path):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert rows[0]["warehouse_code"] == "K1"
+
+
+def test_append_warehouse_csv_writes_variant(tmp_path):
+    path = tmp_path / "magazyn.csv"
+    app = SimpleNamespace(
+        output_data=[
+            {
+                "name": "A",
+                "number": "1",
+                "set": "S",
+                "warehouse_code": "K1",
+                "price": "2",
+                "image": "",
+                "types": {"Holo": True, "Reverse": False},
+            }
+        ],
+        update_inventory_stats=MagicMock(),
+    )
+    csv_utils.append_warehouse_csv(app, path=str(path))
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        row = next(reader)
+        assert row["variant"] == "holo"

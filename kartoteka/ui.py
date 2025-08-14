@@ -4941,9 +4941,9 @@ class CardEditorApp:
         set_name = data.get("set")
         if not data["psa10_price"]:
             data["psa10_price"] = self.fetch_psa10_price(name, number, set_name)
-        data["typ"] = ",".join(
-            [name for name, var in self.type_vars.items() if var.get()]
-        )
+        types = {name: var.get() for name, var in self.type_vars.items()}
+        data["typ"] = ",".join([name for name, selected in types.items() if selected])
+        data["types"] = types
         fp = getattr(self, "current_fingerprint", None)
         if (
             fp is None
@@ -4970,7 +4970,7 @@ class CardEditorApp:
         data["ilość"] = 1
         self.card_cache[key] = {
             "entries": {k: v for k, v in data.items()},
-            "types": {name: var.get() for name, var in self.type_vars.items()},
+            "types": types,
         }
 
         front_path = self.cards[self.index]
