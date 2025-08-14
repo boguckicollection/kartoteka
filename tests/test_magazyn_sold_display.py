@@ -74,7 +74,7 @@ def test_sold_cards_styled(tmp_path):
     assert len(app.mag_sold_labels) == 1
     sold_label = _extract_label(app.mag_sold_labels[0])
     assert sold_label.text.startswith("[SOLD]")
-    assert sold_label.text_color == "#888888"
+    assert sold_label.text_color == ui.SOLD_COLOR
     font = sold_label.font
     assert getattr(font, "overstrike", False) or (
         isinstance(font, tuple) and "overstrike" in font
