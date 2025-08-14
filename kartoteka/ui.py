@@ -176,6 +176,22 @@ def _create_image(img: Image.Image):
     return ImageTk.PhotoImage(img)
 
 
+def _resize_to_width(img: Image.Image, width: int) -> Image.Image:
+    """Return a copy of ``img`` scaled to the given ``width`` preserving aspect.
+
+    The height is calculated from the original image ratio. If the source
+    image is already smaller than ``width`` no upscaling is performed.
+    """
+
+    if width <= 0 or img.width == 0:
+        return img
+    if img.width == width:
+        return img
+    ratio = width / img.width
+    height = max(1, int(img.height * ratio))
+    return img.resize((width, height), Image.Resampling.LANCZOS)
+
+
 def _preprocess_symbol(im: Image.Image) -> Image.Image:
     """Normalize symbol/logo image before hashing."""
     im = ImageOps.fit(im.convert("L"), HASH_SIZE, method=Image.Resampling.LANCZOS)
@@ -2388,11 +2404,10 @@ class CardEditorApp:
             frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
             lbl = ctk.CTkLabel(
                 frame,
-                text=f"K{box_num}",
+                text="",
                 fg_color=BG_COLOR,
                 text_color=TEXT_COLOR,
             )
-            lbl.pack()
             canvas = tk.Canvas(
                 frame,
                 width=box_w,
@@ -2412,7 +2427,8 @@ class CardEditorApp:
             canvas.pack()
             row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
             if box_num == SPECIAL_BOX_NUMBER:
-                col = WAREHOUSE_GRID_COLUMNS // 2
+                row = 0
+                col = WAREHOUSE_GRID_COLUMNS
             frame.grid(row=row, column=col, padx=5, pady=5)
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
@@ -2493,21 +2509,41 @@ class CardEditorApp:
 
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
+                groups: dict[tuple, list[dict]] = {}
                 for row in reader:
                     if not (row.get("name") and row.get("image")):
                         logger.warning("Skipping row with missing name or image: %s", row)
                         continue
+                    variant = row.get("variant") or "common"
+                    sold = str(row.get("sold") or "")
+                    key = (
+                        row.get("name"),
+                        row.get("number"),
+                        row.get("set"),
+                        row.get("image"),
+                        variant,
+                        sold,
+                    )
+                    groups.setdefault(key, []).append(row)
+
+                for rows in groups.values():
+                    combined = dict(rows[0])
+                    combined["warehouse_code"] = ";".join(
+                        r.get("warehouse_code", "") for r in rows if r.get("warehouse_code")
+                    )
+                    combined["_count"] = len(rows)
                     idx = len(self.mag_card_rows)
-                    self.mag_card_rows.append(row)
+                    self.mag_card_rows.append(combined)
                     self.mag_card_images.append(self.mag_placeholder_photo)
                     self.mag_card_image_labels.append(None)
 
-                    img_path = row.get("image") or ""
+                    img_path = combined.get("image") or ""
                     if urlparse(img_path).scheme in ("http", "https"):
                         def _worker(i=idx, url=img_path):
-                            img = _get_thumbnail(url, (thumb_size, thumb_size))
+                            img = _load_image(url)
                             if img is None:
                                 return
+                            img = _resize_to_width(img, thumb_size)
                             photo = _create_image(img)
 
                             def _update() -> None:
@@ -2529,8 +2565,9 @@ class CardEditorApp:
                         th.start()
                         self._image_threads.append(th)
                     else:
-                        img = _get_thumbnail(img_path, (thumb_size, thumb_size))
+                        img = _load_image(img_path)
                         if img is not None:
+                            img = _resize_to_width(img, thumb_size)
                             photo = _create_image(img)
                             self.mag_card_images[idx] = photo
 
@@ -2560,8 +2597,7 @@ class CardEditorApp:
                         path = row.get("image") or ""
                         img = _load_image(path)
                         if img is not None:
-                            img = img.copy()
-                            img.thumbnail((thumb, thumb))
+                            img = _resize_to_width(img.copy(), thumb)
                             photo = _create_image(img)
                         else:
                             photo = self.mag_placeholder_photo
@@ -2623,6 +2659,23 @@ class CardEditorApp:
                     img_label = ctk.CTkLabel(frame, image=photo, text="")
                     img_label.pack()
                     self.mag_card_image_labels[idx] = img_label
+
+                    count = int(row.get("_count", 1))
+                    if count > 1:
+                        badge = ctk.CTkLabel(
+                            frame,
+                            text=str(count),
+                            fg_color="white",
+                            text_color="black",
+                            width=20,
+                            height=20,
+                            corner_radius=10,
+                        )
+                        place = getattr(badge, "place", None)
+                        if callable(place):
+                            place(relx=1.0, rely=0.0, anchor="ne")
+                        else:
+                            badge.pack()
 
                     label_kwargs = {"text": text, "text_color": color}
                     if font is not None:
@@ -2930,6 +2983,9 @@ class CardEditorApp:
         ]
         for i, (key, label) in enumerate(fields):
             val = row.get(key, "")
+            if key == "warehouse_code":
+                codes = [c.strip() for c in str(val).split(";") if c.strip()]
+                val = ", ".join(codes)
             ctk.CTkLabel(
                 right,
                 text=f"{label}: {val}",
