@@ -138,6 +138,7 @@ def test_open_magazyn_window_remote_thumbnail(tmp_path):
     Image.new("RGB", (10, 10), "white").save(img_bytes, format="PNG")
     img_bytes = img_bytes.getvalue()
 
+    placeholder_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
     photo_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
 
     dummy_root = SimpleNamespace(minsize=lambda *a, **k: None)
@@ -158,11 +159,14 @@ def test_open_magazyn_window_remote_thumbnail(tmp_path):
 
     resp = SimpleNamespace(content=img_bytes, raise_for_status=lambda: None)
 
-    with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
+    side_effects = [SimpleNamespace(width=lambda:1, height=lambda:1), SimpleNamespace(width=lambda:1, height=lambda:1), placeholder_mock, photo_mock]
+    with patch.object(ui.ImageTk, "PhotoImage", side_effect=side_effects), \
          patch.object(ui.tk, "Canvas", DummyCanvas), \
          patch.object(ui.requests, "get", return_value=resp) as mock_get, \
          patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
         ui.CardEditorApp.open_magazyn_window(app)
+        for t in app._image_threads:
+            t.join()
 
     assert mock_get.called
     assert app.mag_card_images[0] is photo_mock
@@ -204,6 +208,8 @@ def test_show_card_details_remote_uses_cache(tmp_path):
          patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
         # first load thumbnails
         ui.CardEditorApp.open_magazyn_window(app)
+        for t in app._image_threads:
+            t.join()
         # then show details which should reuse cache and not trigger new request
         ui.CardEditorApp.show_card_details(app, app.mag_card_rows[0])
 
