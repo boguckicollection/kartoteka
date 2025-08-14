@@ -61,6 +61,27 @@ class DummyCTkScrollableFrame(_Widget):
         self.fg_color = fg_color
 
 
+class DummyCTkEntry(_Widget):
+    def __init__(self, master=None, textvariable=None, placeholder_text=None, **kwargs):
+        self.master = master
+        self.textvariable = textvariable
+        self.placeholder_text = placeholder_text
+
+
+class DummyCTkOptionMenu(_Widget):
+    def __init__(self, master=None, variable=None, values=(), command=None, **kwargs):
+        self.master = master
+        self.variable = variable
+        self.values = list(values)
+        self.command = command
+
+    def set(self, value):
+        if self.variable is not None:
+            self.variable.set(value)
+        if callable(self.command):
+            self.command(value)
+
+
 class DummyCanvas(_Widget):
     def __init__(self, master=None, width=0, height=0, highlightthickness=0):
         self.master = master

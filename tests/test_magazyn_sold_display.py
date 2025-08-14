@@ -7,8 +7,10 @@ from unittest.mock import patch
 sys.path.append(str(Path(__file__).resolve().parent))
 from ctk_mocks import (  # noqa: E402
     DummyCTkButton,
+    DummyCTkEntry,
     DummyCTkFrame,
     DummyCTkLabel,
+    DummyCTkOptionMenu,
     DummyCTkScrollableFrame,
     DummyCanvas,
 )
@@ -44,6 +46,8 @@ def test_sold_cards_styled(tmp_path):
         CTkLabel=DummyCTkLabel,
         CTkButton=DummyCTkButton,
         CTkScrollableFrame=DummyCTkScrollableFrame,
+        CTkEntry=DummyCTkEntry,
+        CTkOptionMenu=DummyCTkOptionMenu,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui
