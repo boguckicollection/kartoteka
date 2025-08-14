@@ -1357,6 +1357,8 @@ class CardEditorApp:
         desc.pack(pady=5)
 
         count, total_value, _, _ = csv_utils.get_inventory_stats()
+        if count == 0 and total_value == 0:
+            messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         self.inventory_count_label = ctk.CTkLabel(
             self.start_frame,
             text=f"Łączna liczba kart: {count}",
@@ -1456,6 +1458,8 @@ class CardEditorApp:
             return
 
         unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
+        if unsold_count == 0 and sold_count == 0:
+            messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         unsold_count_text = f"Łączna liczba kart: {unsold_count}"
         unsold_total_text = f"Łączna wartość: {unsold_total:.2f} PLN"
         sold_count_text = f"Sprzedane karty: {sold_count}"
@@ -2537,6 +2541,8 @@ class CardEditorApp:
 
         font = ("Segoe UI", 16, "bold")
         unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
+        if unsold_count == 0 and sold_count == 0:
+            messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         self.mag_inventory_count_label = ctk.CTkLabel(
             stats_frame,
             text=f"Łączna liczba kart: {unsold_count}",
