@@ -90,6 +90,9 @@ _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehas
 # simple cache for downloaded remote images
 _IMAGE_CACHE: dict[str, Optional[bytes]] = {}
 
+# cache for resized thumbnails keyed by source path/URL
+_THUMB_CACHE: dict[str, Image.Image] = {}
+
 
 def _load_image(path: str) -> Optional[Image.Image]:
     """Load image from local path or URL with caching.
@@ -141,6 +144,28 @@ def _load_image(path: str) -> Optional[Image.Image]:
             return None
 
     return None
+
+
+def _get_thumbnail(path: str, size: tuple[int, int]) -> Optional[Image.Image]:
+    """Return a cached resized PIL image for ``path``.
+
+    The image is loaded via :func:`_load_image` and resized using
+    :py:meth:`PIL.Image.Image.thumbnail`. Subsequent calls with the same
+    ``path`` reuse the stored thumbnail to avoid redundant disk or network
+    operations.
+    """
+
+    if not path:
+        return None
+    cached = _THUMB_CACHE.get(path)
+    if cached is not None:
+        return cached
+    img = _load_image(path)
+    if img is None:
+        return None
+    img.thumbnail(size)
+    _THUMB_CACHE[path] = img
+    return img
 
 
 def _create_image(img: Image.Image):
@@ -2322,20 +2347,18 @@ class CardEditorApp:
 
         base_dir = os.path.dirname(__file__)
         img_path = os.path.join(base_dir, "box.png")
-        if os.path.exists(img_path):
-            img = Image.open(img_path)
-            img.thumbnail((BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-        else:
+        img = _get_thumbnail(img_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
+        if img is None:
             img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
+            _THUMB_CACHE[img_path] = img
         self.mag_box_photo = _create_image(img)
 
         # Optional distinct icon for the special overflow box
         img100_path = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
-        if os.path.exists(img100_path):
-            img100 = Image.open(img100_path)
-            img100.thumbnail((BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-        else:
+        img100 = _get_thumbnail(img100_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
+        if img100 is None:
             img100 = img
+            _THUMB_CACHE[img100_path] = img100
         self.mag_box100_photo = _create_image(img100)
 
         box_w, box_h = img.size
@@ -2425,10 +2448,9 @@ class CardEditorApp:
 
                     if urlparse(img_path).scheme in ("http", "https"):
                         def _worker(i=idx, url=img_path):
-                            img = _load_image(url)
+                            img = _get_thumbnail(url, (thumb_size, thumb_size))
                             if img is None:
                                 return
-                            img.thumbnail((thumb_size, thumb_size))
                             photo = _create_image(img)
 
                             def _update() -> None:
@@ -2450,9 +2472,8 @@ class CardEditorApp:
                         th.start()
                         self._image_threads.append(th)
                     else:
-                        img = _load_image(img_path)
+                        img = _get_thumbnail(img_path, (thumb_size, thumb_size))
                         if img is not None:
-                            img.thumbnail((thumb_size, thumb_size))
                             photo = _create_image(img)
                             self.mag_card_images[idx] = photo
 
@@ -2591,6 +2612,29 @@ class CardEditorApp:
         occ = self.compute_column_occupancy()
         if not self.mag_canvases:
             return
+
+        base_dir = os.path.dirname(__file__)
+        if getattr(self, "mag_box_photo", None) is None:
+            path = os.path.join(base_dir, "box.png")
+            img = _get_thumbnail(path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
+            if img is None:
+                img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
+                _THUMB_CACHE[path] = img
+            self.mag_box_photo = _create_image(img)
+        if getattr(self, "mag_box100_photo", None) is None:
+            path100 = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
+            img100 = _get_thumbnail(path100, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
+            if img100 is None:
+                img100 = _THUMB_CACHE.get(os.path.join(base_dir, "box.png"))
+                if img100 is None:
+                    img100 = _get_thumbnail(
+                        os.path.join(base_dir, "box.png"),
+                        (BOX_THUMB_SIZE, BOX_THUMB_SIZE),
+                    )
+            if img100 is None:
+                img100 = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
+                _THUMB_CACHE[path100] = img100
+            self.mag_box100_photo = _create_image(img100)
         for idx, canvas in enumerate(self.mag_canvases):
             box = (
                 self.mag_box_order[idx]
