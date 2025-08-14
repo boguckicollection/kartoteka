@@ -87,7 +87,7 @@ def test_browse_scans_box100(monkeypatch, tmp_path):
 
     ui.CardEditorApp.browse_scans(dummy)
 
-    expected = 8 * 4000 + 4
+    expected = ui.BOX_COUNT * ui.BOX_CAPACITY + 4
     assert dummy.starting_idx == expected
     assert ui.CardEditorApp.next_free_location(dummy) == "K100R1P0005"
 
@@ -115,6 +115,6 @@ def test_browse_scans_sets_starting_idx_for_box100(monkeypatch, tmp_path):
 
     ui.CardEditorApp.browse_scans(dummy)
 
-    assert dummy.starting_idx == 8 * 4000 + 4
+    assert dummy.starting_idx == ui.BOX_COUNT * ui.BOX_CAPACITY + 4
     assert ui.CardEditorApp.next_free_location(dummy) == "K100R1P0005"
 
