@@ -2623,9 +2623,10 @@ class CardEditorApp:
         of the column capacity become green as soon as they are
         occupied.
         """
-        occ = self.compute_column_occupancy()
-        if not self.mag_canvases:
+        if not getattr(self, "mag_canvases", None):
             return
+
+        occ = self.compute_column_occupancy()
 
         base_dir = os.path.dirname(__file__)
         if getattr(self, "mag_box_photo", None) is None:
@@ -2649,12 +2650,9 @@ class CardEditorApp:
                 img100 = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
                 _THUMB_CACHE[path100] = img100
             self.mag_box100_photo = _create_image(img100)
+        order = getattr(self, "mag_box_order", None) or []
         for idx, canvas in enumerate(self.mag_canvases):
-            box = (
-                self.mag_box_order[idx]
-                if hasattr(self, "mag_box_order")
-                else idx + 1
-            )
+            box = order[idx] if idx < len(order) else idx + 1
             canvas.delete("stats")
             photo_obj = (
                 self.mag_box100_photo if box == SPECIAL_BOX_NUMBER else self.mag_box_photo
