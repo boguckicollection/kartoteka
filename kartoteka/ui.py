@@ -2413,14 +2413,22 @@ class CardEditorApp:
                 is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                 text = row.get("name", "")
                 color = TEXT_COLOR
+                font = None
                 if is_sold:
                     text = f"[SOLD] {text}"
                     color = "#888888"
+                    if hasattr(ctk, "CTkFont"):
+                        font = ctk.CTkFont(overstrike=True)
+                    else:
+                        font = ("TkDefaultFont", 12, "overstrike")
 
                 img_label = ctk.CTkLabel(frame, image=photo, text="")
                 img_label.pack()
 
-                label = ctk.CTkLabel(frame, text=text, text_color=color)
+                label_kwargs = {"text": text, "text_color": color}
+                if font is not None:
+                    label_kwargs["font"] = font
+                label = ctk.CTkLabel(frame, **label_kwargs)
                 label.pack()
 
                 frame.grid(row=i // N, column=i % N, padx=5, pady=5)
