@@ -45,13 +45,16 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
-def get_inventory_stats(path: str = WAREHOUSE_CSV):
+def get_inventory_stats(path: str = WAREHOUSE_CSV, include_sold: bool = False):
     """Return total count and value from the warehouse CSV.
 
     Parameters
     ----------
     path:
         Optional path to the warehouse CSV. Defaults to ``WAREHOUSE_CSV``.
+    include_sold:
+        If ``True``, rows marked as sold are included in the totals.
+        Defaults to ``False``.
 
     Returns
     -------
@@ -67,8 +70,9 @@ def get_inventory_stats(path: str = WAREHOUSE_CSV):
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         for row in reader:
-            # Skip rows marked as sold
-            if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
+            # Skip rows marked as sold unless requested otherwise
+            sold_flag = str(row.get("sold") or "").lower()
+            if not include_sold and sold_flag in {"1", "true", "yes"}:
                 continue
             count += 1
             price_raw = str(row.get("price") or "0").replace(",", ".")
