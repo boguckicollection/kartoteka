@@ -222,8 +222,8 @@ TEXT_COLOR = "#FFFFFF"
 BORDER_COLOR = "#444444"
 
 # Layout constants to simplify future adjustments
-BOX_THUMB_SIZE = 150  # square thumbnail size for warehouse boxes in pixels
-CARD_THUMB_SIZE = int(64 * 1.3)  # size for card thumbnails in the warehouse list
+BOX_THUMB_SIZE = 200  # increased square thumbnail size for warehouse boxes in pixels
+CARD_THUMB_SIZE = 128  # larger card thumbnails in the warehouse list
 GRID_COLUMNS = 4  # number of columns in warehouse grid and per storage box
 BOX_COLUMN_CAPACITY = 1000  # slots per column in a regular box
 BOX_COUNT = 8  # number of standard boxes
@@ -1261,7 +1261,7 @@ class CardEditorApp:
         self.root.title("KARTOTEKA")
         # improve default font for all widgets
         self.root.configure(bg=BG_COLOR, fg_color=BG_COLOR)
-        self.root.option_add("*Font", ("Segoe UI", 16))
+        self.root.option_add("*Font", ("Segoe UI", 20))
         self.root.option_add("*Foreground", TEXT_COLOR)
         self.index = 0
         self.cards = []
@@ -1318,7 +1318,7 @@ class CardEditorApp:
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
         # Allow resizing but provide a sensible minimum size
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         self.start_frame = ctk.CTkFrame(
             self.root, fg_color=BG_COLOR, corner_radius=10
         )
@@ -1502,7 +1502,7 @@ class CardEditorApp:
         if getattr(self, "location_frame", None):
             self.location_frame.destroy()
 
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         frame = ctk.CTkFrame(self.root)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
         frame.grid_anchor("center")
@@ -1546,9 +1546,9 @@ class CardEditorApp:
         if master is None:
             master = self.root
         fg_color = kwargs.pop("fg_color", ACCENT_COLOR)
-        width = kwargs.pop("width", 180)
-        height = kwargs.pop("height", 50)
-        font = kwargs.pop("font", ("Segoe UI", 16, "bold"))
+        width = kwargs.pop("width", 200)
+        height = kwargs.pop("height", 60)
+        font = kwargs.pop("font", ("Segoe UI", 20, "bold"))
         return ctk.CTkButton(
             master,
             fg_color=fg_color,
@@ -1592,7 +1592,7 @@ class CardEditorApp:
             self.location_frame.destroy()
             self.location_frame = None
         # Ensure the window has a reasonable minimum size
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
 
         self.shoper_frame = tk.Frame(
             self.root, bg=self.root.cget("background")
@@ -1727,7 +1727,7 @@ class CardEditorApp:
         except Exception as e:
             messagebox.showerror("Błąd", str(e))
 
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         self.auction_frame = tk.Frame(
             self.root, bg=self.root.cget("background")
         )
@@ -2341,7 +2341,7 @@ class CardEditorApp:
             self.location_frame.destroy()
             self.location_frame = None
 
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         self.magazyn_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
@@ -2491,9 +2491,9 @@ class CardEditorApp:
                     text = f"[SOLD] {text}"
                     color = "#888888"
                     if hasattr(ctk, "CTkFont"):
-                        font = ctk.CTkFont(overstrike=True)
+                        font = ctk.CTkFont(size=20, overstrike=True)
                     else:
-                        font = ("TkDefaultFont", 12, "overstrike")
+                        font = ("TkDefaultFont", 20, "overstrike")
 
                 img_label = ctk.CTkLabel(frame, image=photo, text="")
                 img_label.pack()
@@ -2859,7 +2859,7 @@ class CardEditorApp:
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
         # Set a sensible minimum size and allow resizing
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         self.pricing_frame = tk.Frame(
             self.root, bg=self.root.cget("background")
         )
@@ -3126,7 +3126,7 @@ class CardEditorApp:
 
     def setup_editor_ui(self):
         # Provide a minimum size and allow the editor to expand
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         self.frame = tk.Frame(
             self.root, bg=self.root.cget("background")
         )
@@ -3942,7 +3942,7 @@ class CardEditorApp:
 
     def show_loading_screen(self):
         """Display a temporary loading screen during startup."""
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
         self.loading_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.loading_frame.pack(expand=True, fill="both")
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
