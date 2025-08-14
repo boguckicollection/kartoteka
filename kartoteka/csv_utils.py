@@ -1,6 +1,7 @@
 import os
 import re
 import csv
+from typing import Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
 from ftp_client import FTPClient
 
@@ -11,6 +12,11 @@ INVENTORY_CSV = os.getenv(
     "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 )
 WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", INVENTORY_CSV)
+
+# Track last modification time and cached statistics for the warehouse CSV
+WAREHOUSE_CSV_MTIME: Optional[float] = None
+_inventory_stats_cache: Optional[Tuple[int, float, int, float]] = None
+_inventory_stats_path: Optional[str] = None
 
 # column order for exported CSV files
 STORE_FIELDNAMES = [
@@ -45,7 +51,7 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
-def get_inventory_stats(path: str = WAREHOUSE_CSV):
+def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     """Return statistics for both unsold and sold items in the warehouse CSV.
 
     Parameters
@@ -66,8 +72,34 @@ def get_inventory_stats(path: str = WAREHOUSE_CSV):
     count_sold = 0
     total_sold = 0.0
 
+    global WAREHOUSE_CSV_MTIME, _inventory_stats_cache, _inventory_stats_path
+
+    # Determine current modification time if the file exists
+    try:
+        current_mtime = os.path.getmtime(path)
+    except OSError:
+        current_mtime = None
+
+    cache_valid = (
+        not force
+        and _inventory_stats_cache is not None
+        and _inventory_stats_path == path
+        and WAREHOUSE_CSV_MTIME == current_mtime
+    )
+
+    if cache_valid:
+        return _inventory_stats_cache
+
     if not os.path.exists(path):
-        return count_unsold, total_unsold, count_sold, total_sold
+        _inventory_stats_cache = (
+            count_unsold,
+            total_unsold,
+            count_sold,
+            total_sold,
+        )
+        _inventory_stats_path = path
+        WAREHOUSE_CSV_MTIME = current_mtime
+        return _inventory_stats_cache
 
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
@@ -86,7 +118,15 @@ def get_inventory_stats(path: str = WAREHOUSE_CSV):
                 count_unsold += 1
                 total_unsold += price
 
-    return count_unsold, total_unsold, count_sold, total_sold
+    _inventory_stats_cache = (
+        count_unsold,
+        total_unsold,
+        count_sold,
+        total_sold,
+    )
+    _inventory_stats_path = path
+    WAREHOUSE_CSV_MTIME = current_mtime
+    return _inventory_stats_cache
 
 
 def format_store_row(row):
