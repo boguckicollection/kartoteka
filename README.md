@@ -22,6 +22,7 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Display warehouse cards as rows of thumbnails, grey out sold items and move them to the end
 - Toggle a sold flag to exclude cards from occupancy statistics
 - Automatically updates the list of card sets and downloads new logos on startup
+- Customize warehouse status colors through environment variables
 
 ## Requirements
 Install dependencies from `requirements.txt`:
@@ -37,6 +38,15 @@ installed separately.  On Linux, the `opencv-python` wheel requires the
 ```bash
 sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
 ```
+
+## Environment variables
+
+The application reads optional environment variables (or values in the `.env` file)
+to customize warehouse colors:
+
+- `OCCUPIED_COLOR` – color for occupied capacity segments (default `#4caf50`)
+- `FREE_COLOR` – background for columns with ≥30% free capacity (default `#ff9800`)
+- `SOLD_COLOR` – text color for sold items (default `#888888`)
 
 If your version of `ttkbootstrap` is 1.10 or newer, the buttons will display built-in icons.
 On older versions the icons are skipped automatically.

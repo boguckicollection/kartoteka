@@ -222,6 +222,11 @@ HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
 BORDER_COLOR = "#444444"
 
+# status colors for warehouse items; can be overridden via environment variables
+OCCUPIED_COLOR = os.getenv("OCCUPIED_COLOR", "#4caf50")
+FREE_COLOR = os.getenv("FREE_COLOR", "#ff9800")
+SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
+
 # Layout constants to simplify future adjustments
 BOX_THUMB_SIZE = 200  # increased square thumbnail size for warehouse boxes in pixels
 CARD_THUMB_SIZE = 128  # larger card thumbnails in the warehouse list
@@ -2508,7 +2513,7 @@ class CardEditorApp:
                 font = None
                 if is_sold:
                     text = f"[SOLD] {text}"
-                    color = "#888888"
+                    color = SOLD_COLOR
                     if hasattr(ctk, "CTkFont"):
                         font = ctk.CTkFont(size=20, overstrike=True)
                     else:
@@ -2590,9 +2595,9 @@ class CardEditorApp:
         legend_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         legend_frame.pack(pady=(0, 10))
         legend_items = [
-            ("#ff9800", "≥30% free"),
-            ("#4caf50", "Occupied capacity segment"),
-            ("#888888", "Sold item"),
+            (FREE_COLOR, "≥30% free"),
+            (OCCUPIED_COLOR, "Occupied capacity segment"),
+            (SOLD_COLOR, "Sold item"),
         ]
         for color, desc in legend_items:
             swatch = ctk.CTkLabel(legend_frame, text="", width=15, height=15, fg_color=color)
@@ -2694,7 +2699,7 @@ class CardEditorApp:
                 x2 = x1 + col_w
                 x_mid = x1 + col_w / 2
                 free_percent = (col_capacity - filled) / col_capacity * 100
-                bg_fill = "#ff9800" if free_percent >= 30 else ""
+                bg_fill = FREE_COLOR if free_percent >= 30 else ""
 
                 items = canvas_items.get(c)
                 seg_h = box_h / seg_count
@@ -2706,7 +2711,7 @@ class CardEditorApp:
                     for i in range(seg_count):
                         y1 = box_h - seg_h * (i + 1)
                         y2 = box_h - seg_h * i
-                        color = "#4caf50" if i < filled_sections else ""
+                        color = OCCUPIED_COLOR if i < filled_sections else ""
                         seg_id = canvas.create_rectangle(
                             x1,
                             y1,
@@ -2755,7 +2760,7 @@ class CardEditorApp:
                         y1 = box_h - seg_h * (i + 1)
                         y2 = box_h - seg_h * i
                         canvas.coords(seg_id, x1, y1, x2, y2)
-                        color = "#4caf50" if i < filled_sections else ""
+                        color = OCCUPIED_COLOR if i < filled_sections else ""
                         canvas.itemconfigure(seg_id, fill=color)
                     items["segments"] = segments
                     items["seg_count"] = seg_count
