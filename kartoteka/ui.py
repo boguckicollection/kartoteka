@@ -2387,35 +2387,80 @@ class CardEditorApp:
         self.mag_card_labels = []
         # sold card labels for separate styling/testing
         self.mag_sold_labels = []
+        # image label references for async updates
+        self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
         list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=BG_COLOR)
         list_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
         csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
         if os.path.exists(csv_path):
-            unsold = []
-            sold = []
+            # lists of indices to maintain ordering
+            unsold: list[int] = []
+            sold: list[int] = []
+
+            thumb_size = CARD_THUMB_SIZE
+            placeholder_img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
+            self.mag_placeholder_photo = _create_image(placeholder_img)
+
+            # reset containers
+            self.mag_card_rows = []
+            self.mag_card_images = []
+            self.mag_card_image_labels = []
+            self._image_threads = []
+
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
-                thumb_size = CARD_THUMB_SIZE
                 for row in reader:
+                    idx = len(self.mag_card_rows)
                     self.mag_card_rows.append(row)
+                    self.mag_card_images.append(self.mag_placeholder_photo)
+                    self.mag_card_image_labels.append(None)
+
                     img_path = row.get("image") or ""
-                    img = _load_image(img_path)
-                    if img is not None:
-                        img.thumbnail((thumb_size, thumb_size))
+                    is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                    if is_sold:
+                        sold.append(idx)
                     else:
-                        img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
-                    photo = _create_image(img)
-                    self.mag_card_images.append(photo)
-                    if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
-                        sold.append((row, photo))
+                        unsold.append(idx)
+
+                    if urlparse(img_path).scheme in ("http", "https"):
+                        def _worker(i=idx, url=img_path):
+                            img = _load_image(url)
+                            if img is None:
+                                return
+                            img.thumbnail((thumb_size, thumb_size))
+                            photo = _create_image(img)
+
+                            def _update() -> None:
+                                self.mag_card_images[i] = photo
+                                lbl = self.mag_card_image_labels[i]
+                                if lbl is not None:
+                                    if hasattr(lbl, "configure"):
+                                        lbl.configure(image=photo)
+                                    else:  # simple dummy widgets in tests
+                                        lbl.image = photo
+
+                            after = getattr(self.root, "after", None)
+                            if callable(after):
+                                after(0, _update)
+                            else:
+                                _update()
+
+                        th = threading.Thread(target=_worker, daemon=True)
+                        th.start()
+                        self._image_threads.append(th)
                     else:
-                        unsold.append((row, photo))
+                        img = _load_image(img_path)
+                        if img is not None:
+                            img.thumbnail((thumb_size, thumb_size))
+                            photo = _create_image(img)
+                            self.mag_card_images[idx] = photo
 
             N = 4
-            # display unsold first, then sold
             combined = unsold + sold
-            for i, (row, photo) in enumerate(combined):
+            for i, idx in enumerate(combined):
+                row = self.mag_card_rows[idx]
+                photo = self.mag_card_images[idx]
                 frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
                 is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                 text = row.get("name", "")
@@ -2431,6 +2476,7 @@ class CardEditorApp:
 
                 img_label = ctk.CTkLabel(frame, image=photo, text="")
                 img_label.pack()
+                self.mag_card_image_labels[idx] = img_label
 
                 label_kwargs = {"text": text, "text_color": color}
                 if font is not None:
