@@ -2682,7 +2682,10 @@ class CardEditorApp:
                         )
                         place = getattr(badge, "place", None)
                         if callable(place):
-                            place(relx=1.0, rely=0.0, anchor="ne")
+                            place(in_=img_label, relx=1.0, rely=0.0, anchor="ne")
+                            lift = getattr(badge, "lift", None)
+                            if callable(lift):
+                                lift()
                         else:
                             badge.pack()
 
