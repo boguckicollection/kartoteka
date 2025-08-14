@@ -8,13 +8,14 @@ LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 
 # Total card capacity per storage box.  Standard boxes hold 4000 cards in
 # four columns, while the special box ``100`` is a single 500-card column.
-BOX_CAPACITY: dict[int, int] = {**{b: 4000 for b in range(1, 9)}, 100: 500}
+BOX_COUNT = 10  # number of standard boxes
+BOX_CAPACITY: dict[int, int] = {**{b: 4000 for b in range(1, BOX_COUNT + 1)}, 100: 500}
 
-# Number of columns per storage box.  All regular boxes (1-8) have four
+# Number of columns per storage box.  All regular boxes (1-10) have four
 # columns, while the overflow box ``100`` only one.  The mapping is kept
 # explicit so the column layout can be adjusted independently of
 # :data:`BOX_CAPACITY`.
-BOX_COLUMNS: dict[int, int] = {**{b: 4 for b in range(1, 9)}, 100: 1}
+BOX_COLUMNS: dict[int, int] = {**{b: 4 for b in range(1, BOX_COUNT + 1)}, 100: 1}
 
 # Default per-column capacity for standard boxes.  Used as a fallback when
 # handling boxes outside of :data:`BOX_CAPACITY`.
@@ -63,18 +64,18 @@ def location_from_code(code: str) -> str:
 def generate_location(idx):
     """Return a warehouse code for a sequential slot index.
 
-    The first 32 000 indices map to boxes 1-8 (four 1000-card columns each).
+    The first 40 000 indices map to boxes 1-10 (four 1000-card columns each).
     Subsequent indices map to the special box 100 which has a single
     500-card column.
     """
 
-    if idx < 8 * 4000:
+    if idx < BOX_COUNT * 4000:
         pos = idx % 1000 + 1
         column = (idx // 1000) % 4 + 1
         box = (idx // 4000) + 1
         return f"K{box:02d}R{column}P{pos:04d}"
 
-    idx -= 8 * 4000
+    idx -= BOX_COUNT * 4000
     if idx < 500:
         # box 100, only one column
         pos = idx + 1
@@ -97,7 +98,7 @@ def next_free_location(app):
             column = int(match.group(2))
             pos = int(match.group(3))
             if box == 100:
-                idx = 8 * 4000 + (pos - 1)
+                idx = BOX_COUNT * 4000 + (pos - 1)
             else:
                 idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
             used.add(idx)

@@ -228,11 +228,12 @@ FREE_COLOR = os.getenv("FREE_COLOR", "#ff9800")
 SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
 
 # Layout constants to simplify future adjustments
-BOX_THUMB_SIZE = 200  # increased square thumbnail size for warehouse boxes in pixels
+BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
 CARD_THUMB_SIZE = 128  # larger card thumbnails in the warehouse list
-GRID_COLUMNS = 4  # number of columns in warehouse grid and per storage box
+GRID_COLUMNS = 4  # number of columns per storage box
+WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
 BOX_COLUMN_CAPACITY = 1000  # slots per column in a regular box
-BOX_COUNT = 8  # number of standard boxes
+BOX_COUNT = 10  # number of standard boxes
 SPECIAL_BOX_NUMBER = 100  # identifier for the large overflow box
 SPECIAL_BOX_CAPACITY = 500  # slots in the special box
 BOX_CAPACITY = GRID_COLUMNS * BOX_COLUMN_CAPACITY  # slots in a standard box
@@ -2376,11 +2377,8 @@ class CardEditorApp:
         container = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         container.pack(padx=10, pady=10)
 
-        # Order boxes so that the grid layout is:
-        # row0 -> K1 K2 K5 K6
-        # row1 -> K3 K4 K7 K8
-        # row2 -> K100
-        self.mag_box_order = [1, 2, 5, 6, 3, 4, 7, BOX_COUNT, SPECIAL_BOX_NUMBER]
+        # Display cartons in numerical order and place the special overflow box last
+        self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
         self.mag_canvases = []
         self.mag_labels = []
         for i, box_num in enumerate(self.mag_box_order):
@@ -2409,7 +2407,10 @@ class CardEditorApp:
                 photo = photo_obj
             canvas.create_image(0, 0, image=photo, anchor="nw")
             canvas.pack()
-            frame.grid(row=i // GRID_COLUMNS, column=i % GRID_COLUMNS, padx=5, pady=5)
+            row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
+            if box_num == SPECIAL_BOX_NUMBER:
+                col = WAREHOUSE_GRID_COLUMNS // 2
+            frame.grid(row=row, column=col, padx=5, pady=5)
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 

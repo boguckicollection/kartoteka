@@ -28,7 +28,7 @@ def test_compute_column_occupancy_box100(tmp_path, monkeypatch):
 def test_generate_and_next_free_location_box100():
     from kartoteka import storage
 
-    idx = 8 * 4000
+    idx = storage.BOX_COUNT * storage.BOX_CAPACITY[1]
     assert storage.generate_location(idx) == "K100R1P0001"
 
     app = SimpleNamespace(output_data=[{"warehouse_code": "K100R1P0001"}], starting_idx=idx)

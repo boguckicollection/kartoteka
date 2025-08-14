@@ -184,11 +184,12 @@ previously scattered magic numbers for thumbnail sizes, grid columns, and box
 capacities, making future tweaks much simpler.
 
 - `GRID_COLUMNS` – number of columns per box (default **4**)
+- `WAREHOUSE_GRID_COLUMNS` – number of columns in the warehouse grid (default **5**)
 - `BOX_COLUMN_CAPACITY` – slots per column (default **1000**)
-- `BOX_COUNT` – number of standard boxes (default **8**)
+- `BOX_COUNT` – number of standard boxes (default **10**)
 - `SPECIAL_BOX_NUMBER` – overflow box identifier (default **100**)
 - `SPECIAL_BOX_CAPACITY` – slots in the overflow box (default **500**)
-- `BOX_THUMB_SIZE` – pixel size of box thumbnails
+- `BOX_THUMB_SIZE` – pixel size of box thumbnails (default **128**)
 - `CARD_THUMB_SIZE` – pixel size of card thumbnails
 - `BOX_CAPACITY` – total slots per standard box (`GRID_COLUMNS * BOX_COLUMN_CAPACITY`)
 
