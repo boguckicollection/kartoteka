@@ -35,6 +35,7 @@ from urllib.parse import urlencode, urlparse
 import io
 import webbrowser
 import logging
+from gettext import gettext as _
 try:
     from hash_db import HashDB
 except Exception:  # pragma: no cover - optional dependency
@@ -2711,7 +2712,7 @@ class CardEditorApp:
         """Display details for a selected warehouse card."""
 
         top = ctk.CTkToplevel(self.root)
-        top.title(row.get("name", "Card"))
+        top.title(row.get("name", _("Karta")))
         # ensure enough space for side-by-side layout
         if hasattr(top, "geometry"):
             top.geometry("600x400")
