@@ -2432,6 +2432,8 @@ class CardEditorApp:
         self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
         list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=BG_COLOR)
         list_frame.pack(expand=True, fill="both", padx=10, pady=10)
+        # store reference for resize handling
+        self.mag_list_frame = list_frame
 
         csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
         if os.path.exists(csv_path):
@@ -2447,6 +2449,7 @@ class CardEditorApp:
             self.mag_card_rows = []
             self.mag_card_images = []
             self.mag_card_image_labels = []
+            self.mag_card_frames = []
             self._image_threads = []
 
             with open(csv_path, encoding="utf-8") as f:
@@ -2499,7 +2502,6 @@ class CardEditorApp:
                             photo = _create_image(img)
                             self.mag_card_images[idx] = photo
 
-            N = 4
             combined = unsold + sold
             for i, idx in enumerate(combined):
                 row = self.mag_card_rows[idx]
@@ -2530,7 +2532,8 @@ class CardEditorApp:
                 label = ctk.CTkLabel(frame, **label_kwargs)
                 label.pack()
 
-                frame.grid(row=i // N, column=i % N, padx=5, pady=5)
+                # defer grid placement to resize handler
+                self.mag_card_frames.append(frame)
 
                 for widget in (img_label, label):
                     widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
@@ -2543,6 +2546,53 @@ class CardEditorApp:
                     self.mag_sold_labels.append(label)
                 else:
                     self.mag_card_labels.append(label)
+
+            self._mag_prev_columns = 0
+            self._mag_prev_thumb = 0
+
+            def _relayout_mag_cards(event=None):
+                """Recompute thumbnail size and grid layout on resize."""
+                global CARD_THUMB_SIZE
+                width_fn = getattr(self.mag_list_frame, "winfo_width", lambda: 0)
+                width = width_fn()
+                if width <= 1:
+                    return
+                padding = 10  # total horizontal padding per cell (padx=5)
+                columns = max(width // (CARD_THUMB_SIZE + padding), 1)
+                thumb = max((width - padding * columns) // columns, 32)
+                if columns == self._mag_prev_columns and thumb == self._mag_prev_thumb:
+                    return
+                self._mag_prev_columns = columns
+
+                if thumb != self._mag_prev_thumb:
+                    self._mag_prev_thumb = thumb
+                    CARD_THUMB_SIZE = thumb
+                    placeholder = Image.new("RGB", (thumb, thumb), "#111111")
+                    self.mag_placeholder_photo = _create_image(placeholder)
+                    for i, row in enumerate(self.mag_card_rows):
+                        path = row.get("image") or ""
+                        img = _load_image(path)
+                        if img is not None:
+                            img = img.copy()
+                            img.thumbnail((thumb, thumb))
+                            photo = _create_image(img)
+                        else:
+                            photo = self.mag_placeholder_photo
+                        self.mag_card_images[i] = photo
+                        lbl = self.mag_card_image_labels[i]
+                        if lbl is not None:
+                            if hasattr(lbl, "configure"):
+                                lbl.configure(image=photo)
+                            else:
+                                lbl.image = photo
+
+                for i, frame in enumerate(self.mag_card_frames):
+                    frame.grid(row=i // columns, column=i % columns, padx=5, pady=5)
+
+            bind = getattr(self.mag_list_frame, "bind", None)
+            if callable(bind):
+                bind("<Configure>", _relayout_mag_cards)
+            _relayout_mag_cards()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
