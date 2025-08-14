@@ -2646,13 +2646,54 @@ class CardEditorApp:
                 font=("Inter", 16),
             ).grid(row=i, column=0, sticky="w", pady=2)
 
-        # Button to toggle sold status
-        is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-        btn_text = "Mark as available" if is_sold else "Mark as sold"
-        toggle = lambda: self.toggle_sold(row, top)
-        ctk.CTkButton(right, text=btn_text, command=toggle).grid(
-            row=len(fields), column=0, pady=10, sticky="w"
-        )
+        # Button to mark the card as sold
+        ctk.CTkButton(
+            right,
+            text="Sprzedano",
+            command=lambda: self.mark_as_sold(row, top),
+        ).grid(row=len(fields), column=0, pady=10, sticky="w")
+
+    def mark_as_sold(self, row: dict, window=None):
+        """Mark the card as sold, update CSV and refresh views."""
+
+        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
+        try:
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                rows = list(reader)
+                fieldnames = reader.fieldnames or []
+        except FileNotFoundError:
+            return
+
+        if "sold" not in fieldnames:
+            fieldnames.append("sold")
+
+        target = str(row.get("warehouse_code", ""))
+        for r in rows:
+            if r.get("warehouse_code") == target:
+                r["sold"] = "1"
+                row["sold"] = "1"
+                break
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        if window is not None:
+            try:
+                window.destroy()
+            except Exception:
+                pass
+
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats()
+            except Exception:
+                pass
+
+        if hasattr(self, "open_magazyn_window"):
+            self.open_magazyn_window()
 
     def toggle_sold(self, row: dict, window=None):
         """Toggle the sold flag for a warehouse card and update CSV."""
