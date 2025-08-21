@@ -111,11 +111,12 @@ def test_product_code_persists_between_sessions(tmp_path):
             title=lambda *a, **k: None,
             configure=lambda *a, **k: None,
             option_add=lambda *a, **k: None,
+            after=lambda delay, func, *args: func(*args),
         )
 
         with patch.object(ui.CardEditorApp, "load_price_db", lambda self: {}), \
              patch.object(ui.CardEditorApp, "show_loading_screen", lambda self: None), \
-             patch.object(ui.threading, "Thread", lambda *a, **k: SimpleNamespace(start=lambda: None)), \
+             patch.object(ui.CardEditorApp, "startup_tasks", lambda self: None), \
              patch("kartoteka.ui.tk.StringVar", lambda *a, **k: DummyVar(k.get("value", ""))):
             app = ui.CardEditorApp(root)
 

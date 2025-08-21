@@ -88,7 +88,7 @@ def test_update_sets_jp(tmp_path):
 def test_startup_tasks_skips_when_same_month():
     now = datetime.datetime.now()
     dummy = SimpleNamespace(
-        root=SimpleNamespace(after=lambda *a, **k: None),
+        root=SimpleNamespace(after=lambda delay, func, *args: func(*args)),
         load_set_logos=lambda: None,
         finish_startup=lambda: None,
         update_sets=MagicMock(),
@@ -105,7 +105,7 @@ def test_startup_tasks_runs_when_old_month():
     now = datetime.datetime.now()
     prev_month = now.replace(day=1) - datetime.timedelta(days=1)
     dummy = SimpleNamespace(
-        root=SimpleNamespace(after=lambda *a, **k: None),
+        root=SimpleNamespace(after=lambda delay, func, *args: func(*args)),
         load_set_logos=lambda: None,
         finish_startup=lambda: None,
         update_sets=MagicMock(),
