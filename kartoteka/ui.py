@@ -114,7 +114,7 @@ def _load_image(path: str) -> Optional[Image.Image]:
 
     if os.path.exists(path):
         try:
-            return Image.open(path)
+            return Image.open(path).convert("RGBA")
         except Exception as exc:  # pragma: no cover - unlikely
             logger.warning("Failed to open image %s: %s", path, exc)
             return None
@@ -126,7 +126,7 @@ def _load_image(path: str) -> Optional[Image.Image]:
             if cached is None:
                 return None
             try:
-                img = Image.open(io.BytesIO(cached))
+                img = Image.open(io.BytesIO(cached)).convert("RGBA")
                 img.load()
                 return img
             except Exception:
@@ -136,7 +136,7 @@ def _load_image(path: str) -> Optional[Image.Image]:
             resp.raise_for_status()
             data = resp.content
             _IMAGE_CACHE[path] = data
-            img = Image.open(io.BytesIO(data))
+            img = Image.open(io.BytesIO(data)).convert("RGBA")
             img.load()
             return img
         except Exception as exc:
@@ -1351,7 +1351,7 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path)
+            logo_img = Image.open(logo_path).convert("RGBA")
             logo_img.thumbnail((140, 140))
             self.logo_photo = _create_image(logo_img)
             logo_label = ctk.CTkLabel(
@@ -1540,7 +1540,7 @@ class CardEditorApp:
         start_row = 0
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path)
+            logo_img = Image.open(logo_path).convert("RGBA")
             logo_img.thumbnail((200, 80))
             self.location_logo_photo = _create_image(logo_img)
             ctk.CTkLabel(
@@ -1632,7 +1632,7 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path)
+            logo_img = Image.open(logo_path).convert("RGBA")
             logo_img.thumbnail((200, 80))
             self.shoper_logo_photo = _create_image(logo_img)
             ctk.CTkLabel(
@@ -1958,10 +1958,10 @@ class CardEditorApp:
                 if urlparse(path).scheme in ("http", "https"):
                     resp = requests.get(path, timeout=5)
                     resp.raise_for_status()
-                    img = Image.open(io.BytesIO(resp.content))
+                    img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
                 else:
                     if os.path.exists(path):
-                        img = Image.open(path)
+                        img = Image.open(path).convert("RGBA")
                     else:
                         return
                 img.thumbnail((200, 280))
@@ -2260,10 +2260,10 @@ class CardEditorApp:
                         if urlparse(img_path).scheme in ("http", "https"):
                             resp = requests.get(img_path, timeout=5)
                             resp.raise_for_status()
-                            img = Image.open(io.BytesIO(resp.content))
+                            img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
                         else:
                             if os.path.exists(img_path):
-                                img = Image.open(img_path)
+                                img = Image.open(img_path).convert("RGBA")
                             else:
                                 img = None
                         if img is not None:
@@ -3118,7 +3118,7 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path)
+            logo_img = Image.open(logo_path).convert("RGBA")
             logo_img.thumbnail((200, 80))
             self.pricing_logo_photo = _create_image(logo_img)
             ctk.CTkLabel(
@@ -3241,7 +3241,7 @@ class CardEditorApp:
             try:
                 res = requests.get(info["image_url"], timeout=10)
                 if res.status_code == 200:
-                    img = Image.open(io.BytesIO(res.content))
+                    img = Image.open(io.BytesIO(res.content)).convert("RGBA")
                     img.thumbnail((240, 340))
                     self.pricing_photo = _create_image(img)
                     self.result_image_label = ctk.CTkLabel(
@@ -3257,7 +3257,7 @@ class CardEditorApp:
             try:
                 res = requests.get(info["set_logo_url"], timeout=10)
                 if res.status_code == 200:
-                    img = Image.open(io.BytesIO(res.content))
+                    img = Image.open(io.BytesIO(res.content)).convert("RGBA")
                     img.thumbnail((180, 60))
                     self.set_logo_photo = _create_image(img)
                     self.set_logo_label = ctk.CTkLabel(
@@ -3385,7 +3385,7 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path)
+            logo_img = Image.open(logo_path).convert("RGBA")
             logo_img.thumbnail((200, 80))
         self.logo_photo = _create_image(logo_img)
         self.logo_label = ctk.CTkLabel(
@@ -3906,7 +3906,7 @@ class CardEditorApp:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
         try:
-            image = Image.open(image_path)
+            image = Image.open(image_path).convert("RGBA")
         except Exception as e:
             print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
             if getattr(self, "failed_cards", None) is not None:
@@ -4181,8 +4181,7 @@ class CardEditorApp:
             if ALLOWED_SET_CODES and code not in ALLOWED_SET_CODES:
                 continue
             try:
-                img = Image.open(path)
-                img = img.convert("RGBA")
+                img = Image.open(path).convert("RGBA")
                 img.thumbnail((40, 40))
                 self.set_logos[code] = _create_image(img)
             except Exception:
@@ -4195,7 +4194,7 @@ class CardEditorApp:
         self.loading_frame.pack(expand=True, fill="both")
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            img = Image.open(logo_path)
+            img = Image.open(logo_path).convert("RGBA")
             img.thumbnail((300, 150))
             self.loading_logo = _create_image(img)
             ctk.CTkLabel(
@@ -4213,7 +4212,7 @@ class CardEditorApp:
             self.gif_durations = []
             for frame in ImageSequence.Iterator(img):
                 self.gif_frames.append(
-                    _create_image(frame.copy())
+                    _create_image(frame.convert("RGBA"))
                 )
                 self.gif_durations.append(frame.info.get("duration", 100))
 
@@ -4874,7 +4873,7 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path)
+            logo_img = Image.open(logo_path).convert("RGBA")
             logo_img.thumbnail((140, 140))
             top.logo_image = _create_image(logo_img)
             ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
