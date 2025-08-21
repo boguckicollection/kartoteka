@@ -4182,6 +4182,7 @@ class CardEditorApp:
                 continue
             try:
                 img = Image.open(path)
+                img = img.convert("RGBA")
                 img.thumbnail((40, 40))
                 self.set_logos[code] = _create_image(img)
             except Exception:
