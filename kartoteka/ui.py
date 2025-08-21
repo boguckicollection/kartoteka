@@ -2548,9 +2548,9 @@ class CardEditorApp:
                             if img is None:
                                 return
                             img = _resize_to_width(img, thumb_size)
-                            photo = _create_image(img)
 
-                            def _update() -> None:
+                            def _update(img=img) -> None:
+                                photo = _create_image(img)
                                 self.mag_card_images[i] = photo
                                 lbl = self.mag_card_image_labels[i]
                                 if lbl is not None:
