@@ -90,6 +90,9 @@ def test_show_card_uses_analyzer(tmp_path):
         def copy(self):
             return self
 
+        def convert(self, *a, **k):
+            return self
+
     with patch.object(ui.Image, "open", return_value=DummyImage()), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
         patch.object(
@@ -163,6 +166,9 @@ def test_analyze_card_image_hash_preempts_openai(monkeypatch):
         size = (100, 100)
 
         def crop(self, *args, **kwargs):
+            return self
+
+        def convert(self, *a, **k):
             return self
 
     with patch.object(
@@ -576,6 +582,9 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
         def __exit__(self, *args):
             pass
 
+        def convert(self, *a, **k):
+            return self
+
     monkeypatch.setattr(ui, "compute_fingerprint", lambda img: "fp")
     with patch.object(ui.Image, "open", return_value=DummyImage()), patch.object(
         ui, "analyze_card_image"
@@ -639,6 +648,9 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         def copy(self):
             return self
 
+        def convert(self, *a, **k):
+            return self
+
     with patch.object(ui.Image, "open", return_value=DummyImage()), \
          patch.object(ui.ImageTk, "PhotoImage", return_value=MagicMock()), \
          patch.object(ui, "analyze_card_image", return_value={}) as mock_analyze:
@@ -679,6 +691,8 @@ def test_show_card_skips_fingerprint_without_auto_lookup(tmp_path, monkeypatch):
         def __exit__(self, *args):
             pass
 
+        def convert(self, *a, **k):
+            return self
     class DummyThread:
         def __init__(self, target, args=(), kwargs=None, daemon=None):
             self.target = target
@@ -748,6 +762,9 @@ def test_show_card_fingerprint_lookup_thread(tmp_path, monkeypatch):
 
         def __exit__(self, *args):
             pass
+
+        def convert(self, *a, **k):
+            return self
 
     class DummyThread:
         def __init__(self, target, args=(), kwargs=None, daemon=None):
