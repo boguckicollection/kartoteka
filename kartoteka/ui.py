@@ -1338,7 +1338,7 @@ class CardEditorApp:
         self.in_scan = False
         self.current_image_path = ""
         self.show_loading_screen()
-        threading.Thread(target=self.startup_tasks, daemon=True).start()
+        self.root.after(0, self.startup_tasks)
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
@@ -4246,14 +4246,23 @@ class CardEditorApp:
         self.gif_label.after(delay, self.animate_loading_gif, next_index)
 
     def startup_tasks(self):
-        """Run initial setup tasks in the background."""
+        """Run initial setup tasks on the main thread."""
         last_check = storage.load_last_sets_check()
         now = datetime.datetime.now()
+
+        def continue_startup():
+            self.load_set_logos()
+            self.finish_startup()
+
         if not last_check or last_check.year != now.year or last_check.month != now.month:
-            self.update_sets()
-            storage.save_last_sets_check(now)
-        self.root.after(0, self.load_set_logos)
-        self.root.after(1, self.finish_startup)
+            def run_updates():
+                self.update_sets()
+                storage.save_last_sets_check(now)
+                self.root.after(0, continue_startup)
+
+            self.root.after(0, run_updates)
+        else:
+            self.root.after(0, continue_startup)
 
     def finish_startup(self):
         """Finalize initialization after background tasks complete."""
