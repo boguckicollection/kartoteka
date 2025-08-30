@@ -47,6 +47,15 @@ class WebDAVClient:
         except RequestException as exc:  # pragma: no cover - network failure
             raise RuntimeError(f"WebDAV download failed: {exc}") from exc
 
+    def upload_directory(self, directory: str, remote_dir: str = ".") -> None:
+        """Upload all files from ``directory`` to ``remote_dir``."""
+        for entry in os.listdir(directory):
+            path = os.path.join(directory, entry)
+            if not os.path.isfile(path):
+                continue
+            dest = f"{remote_dir.rstrip('/')}/{entry}" if remote_dir not in {"", "."} else entry
+            self.upload_file(path, dest)
+
     def __enter__(self):
         return self
 

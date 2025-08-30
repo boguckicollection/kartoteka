@@ -28,7 +28,7 @@ import pytesseract
 from pathlib import Path
 
 from shoper_client import ShoperClient
-from ftp_client import FTPClient
+from webdav_client import WebDAVClient
 from . import csv_utils, storage
 import threading
 from urllib.parse import urlencode, urlparse
@@ -56,9 +56,9 @@ RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 SHOPER_API_URL = os.getenv("SHOPER_API_URL", "").strip()
 SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN", "").strip()
-FTP_HOST = os.getenv("FTP_HOST")
-FTP_USER = os.getenv("FTP_USER")
-FTP_PASSWORD = os.getenv("FTP_PASSWORD")
+WEBDAV_URL = os.getenv("WEBDAV_URL")
+WEBDAV_USER = os.getenv("WEBDAV_USER")
+WEBDAV_PASSWORD = os.getenv("WEBDAV_PASSWORD")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_API_KEY:
     openai.api_key = OPENAI_API_KEY
@@ -1445,7 +1445,7 @@ class CardEditorApp:
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
-            text="\U0001f4f7 FTP Obrazy",
+            text="\U0001f4f7 WebDAV Obrazy",
             command=self.upload_images_dialog,
             fg_color="#474747",
         ).pack(side="left", padx=10, pady=5)
@@ -5206,25 +5206,27 @@ class CardEditorApp:
         self.root.wait_window(top)
 
     def upload_images_dialog(self):
-        """Upload images from a selected directory via FTP."""
+        """Upload images from a selected directory via WebDAV."""
         directory = filedialog.askdirectory()
         if not directory:
             return
-        host = simpledialog.askstring("FTP", "Serwer", initialvalue=FTP_HOST or "")
-        user = simpledialog.askstring("FTP", "Użytkownik", initialvalue=FTP_USER or "")
-        password = simpledialog.askstring("FTP", "Hasło", show="*", initialvalue=FTP_PASSWORD or "")
-        if not host or not user or not password:
+        url = simpledialog.askstring("WebDAV", "URL", initialvalue=WEBDAV_URL or "")
+        user = simpledialog.askstring("WebDAV", "Użytkownik", initialvalue=WEBDAV_USER or "")
+        password = simpledialog.askstring(
+            "WebDAV", "Hasło", show="*", initialvalue=WEBDAV_PASSWORD or ""
+        )
+        if not url or not user or not password:
             messagebox.showerror("Błąd", "Nie podano pełnych danych logowania")
             return
         try:
-            with FTPClient(host, user, password) as ftp:
-                ftp.upload_directory(directory)
-            messagebox.showinfo("Sukces", "Obrazy zostały wysłane na serwer FTP")
+            with WebDAVClient(url, user, password) as client:
+                client.upload_directory(directory)
+            messagebox.showinfo("Sukces", "Obrazy zostały wysłane na serwer WebDAV")
         except Exception as exc:
             messagebox.showerror("Błąd", f"Nie udało się wysłać obrazów: {exc}")
 
     def send_csv_to_shoper(self, file_path: str):
-        """Send a CSV file using the Shoper API or FTP fallback."""
+        """Send a CSV file using the Shoper API or WebDAV fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
 
 
