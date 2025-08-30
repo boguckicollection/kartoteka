@@ -4270,6 +4270,7 @@ class CardEditorApp:
             self.loading_frame.destroy()
         self.shoper_client = None
         self.ensure_shoper_client()
+        csv_utils.download_warehouse_csv()
         self.setup_welcome_screen()
 
     def ensure_shoper_client(self):
