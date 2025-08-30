@@ -38,6 +38,17 @@ class FTPClient:
         except all_errors as exc:  # pragma: no cover - network failure
             raise RuntimeError(f"FTP upload failed: {exc}") from exc
 
+    def download_file(self, remote_path, local_path=None):
+        """Download a single file from the FTP server."""
+        if self.ftp is None:
+            self.connect()
+        local_path = local_path or os.path.basename(remote_path)
+        try:
+            with open(local_path, "wb") as fh:
+                self.ftp.retrbinary(f"RETR {remote_path}", fh.write)
+        except all_errors as exc:  # pragma: no cover - network failure
+            raise RuntimeError(f"FTP download failed: {exc}") from exc
+
     def upload_directory(self, directory, remote_dir="."):
         """Upload all files from ``directory`` to ``remote_dir``."""
         if self.ftp is None:

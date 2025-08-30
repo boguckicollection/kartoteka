@@ -52,6 +52,15 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
+def download_warehouse_csv():
+    """Download the warehouse CSV from the FTP server."""
+    try:
+        with FTPClient(FTP_HOST, FTP_USER, FTP_PASSWORD) as ftp:
+            ftp.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
+    except Exception:  # pragma: no cover - network failure
+        pass
+
+
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     """Return statistics for both unsold and sold items in the warehouse CSV.
 
