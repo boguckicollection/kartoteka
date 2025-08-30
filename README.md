@@ -114,7 +114,7 @@ pytest tests/test_fingerprint_db.py
 ```
 
 ## Configuration (.env variables)
-Create a `.env` file with API credentials and optional FTP settings:
+Create a `.env` file with API credentials and optional WebDAV settings:
 
 ```bash
 RAPIDAPI_KEY=your-key-here
@@ -122,9 +122,9 @@ RAPIDAPI_HOST=pokemon-tcg-api.p.rapidapi.com
 SHOPER_API_URL=https://your-store.shop/webapi/rest
 SHOPER_API_TOKEN=your-token
 OPENAI_API_KEY=sk-...
-FTP_HOST=example.com
-FTP_USER=username
-FTP_PASSWORD=secret
+WEBDAV_URL=https://example.com/webdav
+WEBDAV_USER=username
+WEBDAV_PASSWORD=secret
 WAREHOUSE_CSV=magazyn.csv
 BASE_IMAGE_URL=https://your-store.shop/upload/images
 HASH_DB_FILE=hashes.sqlite
@@ -137,7 +137,7 @@ HASH_DB_FILE=hashes.sqlite
 **Warning:** This file may contain private API keys and tokens. It is excluded
 from version control via `.gitignore` and should never be shared publicly.
 
-The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `FTP_HOST`, `FTP_USER` and `FTP_PASSWORD` configure optional FTP uploads. `OPENAI_API_KEY` supplies the key for OpenAI Vision to recognise card details from scans. `BASE_IMAGE_URL` should point to the public directory where scans are uploaded so OpenAI can fetch them during analysis and the exported CSV contains correct links. Leading or trailing spaces in `SHOPER_API_URL` and `SHOPER_API_TOKEN` are ignored.
+The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `WEBDAV_URL`, `WEBDAV_USER` and `WEBDAV_PASSWORD` configure optional WebDAV uploads. `OPENAI_API_KEY` supplies the key for OpenAI Vision to recognise card details from scans. `BASE_IMAGE_URL` should point to the public directory where scans are uploaded so OpenAI can fetch them during analysis and the exported CSV contains correct links. Leading or trailing spaces in `SHOPER_API_URL` and `SHOPER_API_TOKEN` are ignored.
 `WAREHOUSE_CSV` controls where the local warehouse CSV is written.
 
 ## Warehouse Layout
@@ -254,7 +254,7 @@ empty. Missing bidding step and duration values default to `1` and `60` seconds
 respectively.
 
 ### CSV and image upload
-After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to FTP using the credentials from `.env`. A copy of every row is also appended to the file specified in `WAREHOUSE_CSV` so the full stock list remains in one place. Use the **FTP Obrazy** button on the welcome screen to upload a folder of images to the configured FTP server.
+After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to WebDAV using the credentials from `.env`. A copy of every row is also appended to the file specified in `WAREHOUSE_CSV` so the full stock list remains in one place. Use the **WebDAV Obrazy** button on the welcome screen to upload a folder of images to the configured WebDAV server.
 
 ## License
 This project is licensed under the terms of the [MIT License](LICENSE).

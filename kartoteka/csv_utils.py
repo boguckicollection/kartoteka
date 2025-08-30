@@ -3,11 +3,7 @@ import re
 import csv
 from typing import Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
-from ftp_client import FTPClient
-
-FTP_HOST = os.getenv("FTP_HOST")
-FTP_USER = os.getenv("FTP_USER")
-FTP_PASSWORD = os.getenv("FTP_PASSWORD")
+from webdav_client import WebDAVClient
 INVENTORY_CSV = os.getenv(
     "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 )
@@ -53,10 +49,10 @@ WAREHOUSE_FIELDNAMES = [
 
 
 def download_warehouse_csv():
-    """Download the warehouse CSV from the FTP server."""
+    """Download the warehouse CSV from the WebDAV server."""
     try:
-        with FTPClient(FTP_HOST, FTP_USER, FTP_PASSWORD) as ftp:
-            ftp.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
+        with WebDAVClient() as client:
+            client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
     except Exception:  # pragma: no cover - network failure
         pass
 
@@ -348,7 +344,7 @@ def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
 
 
 def send_csv_to_shoper(app, file_path: str):
-    """Send a CSV file using the Shoper API or FTP fallback."""
+    """Send a CSV file using the Shoper API or WebDAV fallback."""
     try:
         if getattr(app, "shoper_client", None):
             result = app.shoper_client.import_csv(file_path)
@@ -361,8 +357,12 @@ def send_csv_to_shoper(app, file_path: str):
             else:
                 messagebox.showinfo("Sukces", f"Import zakończony: {status}")
         else:
-            with FTPClient(app.FTP_HOST, app.FTP_USER, app.FTP_PASSWORD) as ftp:
-                ftp.upload_file(file_path)
+            with WebDAVClient(
+                getattr(app, "WEBDAV_URL", None),
+                getattr(app, "WEBDAV_USER", None),
+                getattr(app, "WEBDAV_PASSWORD", None),
+            ) as client:
+                client.upload_file(file_path)
             messagebox.showinfo("Sukces", "Plik CSV został wysłany.")
     except Exception as exc:  # pragma: no cover - network failure
         messagebox.showerror("Błąd", f"Nie udało się wysłać pliku: {exc}")
