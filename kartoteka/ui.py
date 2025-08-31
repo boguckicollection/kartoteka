@@ -42,6 +42,7 @@ except Exception:  # pragma: no cover - optional dependency
     HashDB = None  # type: ignore[assignment]
 from fingerprint import compute_fingerprint
 from tooltip import Tooltip
+from .image_utils import load_rgba_image
 
 ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(ENV_FILE)
@@ -113,11 +114,10 @@ def _load_image(path: str) -> Optional[Image.Image]:
         return None
 
     if os.path.exists(path):
-        try:
-            return Image.open(path).convert("RGBA")
-        except Exception as exc:  # pragma: no cover - unlikely
-            logger.warning("Failed to open image %s: %s", path, exc)
-            return None
+        img = load_rgba_image(path)
+        if img is None:
+            logger.warning("Failed to open image %s", path)
+        return img
 
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
@@ -125,20 +125,19 @@ def _load_image(path: str) -> Optional[Image.Image]:
         if cached is not ...:
             if cached is None:
                 return None
-            try:
-                img = Image.open(io.BytesIO(cached)).convert("RGBA")
-                img.load()
+            img = load_rgba_image(io.BytesIO(cached))
+            if img is not None:
                 return img
-            except Exception:
-                return None
+            return None
         try:
             resp = requests.get(path, timeout=5)
             resp.raise_for_status()
             data = resp.content
             _IMAGE_CACHE[path] = data
-            img = Image.open(io.BytesIO(data)).convert("RGBA")
-            img.load()
-            return img
+            img = load_rgba_image(io.BytesIO(data))
+            if img is not None:
+                return img
+            return None
         except Exception as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
             _IMAGE_CACHE[path] = None
@@ -1362,15 +1361,16 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path).convert("RGBA")
-            logo_img.thumbnail((140, 140))
-            self.logo_photo = _create_image(logo_img)
-            logo_label = ctk.CTkLabel(
-                self.start_frame,
-                image=self.logo_photo,
-                text="",
-            )
-            logo_label.pack(pady=(10, 10))
+            logo_img = load_rgba_image(logo_path)
+            if logo_img:
+                logo_img.thumbnail((140, 140))
+                self.logo_photo = _create_image(logo_img)
+                logo_label = ctk.CTkLabel(
+                    self.start_frame,
+                    image=self.logo_photo,
+                    text="",
+                )
+                logo_label.pack(pady=(10, 10))
 
         greeting = ctk.CTkLabel(
             self.start_frame,
@@ -1550,14 +1550,15 @@ class CardEditorApp:
         start_row = 0
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path).convert("RGBA")
-            logo_img.thumbnail((200, 80))
-            self.location_logo_photo = _create_image(logo_img)
-            ctk.CTkLabel(
-                frame,
-                image=self.location_logo_photo,
-                text="",
-            ).pack(pady=(0, 10))
+            logo_img = load_rgba_image(logo_path)
+            if logo_img:
+                logo_img.thumbnail((200, 80))
+                self.location_logo_photo = _create_image(logo_img)
+                ctk.CTkLabel(
+                    frame,
+                    image=self.location_logo_photo,
+                    text="",
+                ).pack(pady=(0, 10))
 
         form = tk.Frame(frame, bg=self.root.cget("background"))
         form.pack(pady=5)
@@ -1642,14 +1643,15 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path).convert("RGBA")
-            logo_img.thumbnail((200, 80))
-            self.shoper_logo_photo = _create_image(logo_img)
-            ctk.CTkLabel(
-                self.shoper_frame,
-                image=self.shoper_logo_photo,
-                text="",
-            ).grid(row=0, column=0, pady=(0, 10))
+            logo_img = load_rgba_image(logo_path)
+            if logo_img:
+                logo_img.thumbnail((200, 80))
+                self.shoper_logo_photo = _create_image(logo_img)
+                ctk.CTkLabel(
+                    self.shoper_frame,
+                    image=self.shoper_logo_photo,
+                    text="",
+                ).grid(row=0, column=0, pady=(0, 10))
 
         self.shoper_tabs = ctk.CTkTabview(self.shoper_frame)
         self.shoper_tabs.grid(row=1, column=0, sticky="nsew", pady=5)
@@ -1968,12 +1970,14 @@ class CardEditorApp:
                 if urlparse(path).scheme in ("http", "https"):
                     resp = requests.get(path, timeout=5)
                     resp.raise_for_status()
-                    img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                    img = load_rgba_image(io.BytesIO(resp.content))
                 else:
                     if os.path.exists(path):
-                        img = Image.open(path).convert("RGBA")
+                        img = load_rgba_image(path)
                     else:
                         return
+                if img is None:
+                    return
                 img.thumbnail((200, 280))
                 photo = _create_image(img)
                 self.auction_photo = photo
@@ -2270,10 +2274,10 @@ class CardEditorApp:
                         if urlparse(img_path).scheme in ("http", "https"):
                             resp = requests.get(img_path, timeout=5)
                             resp.raise_for_status()
-                            img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                            img = load_rgba_image(io.BytesIO(resp.content))
                         else:
                             if os.path.exists(img_path):
-                                img = Image.open(img_path).convert("RGBA")
+                                img = load_rgba_image(img_path)
                             else:
                                 img = None
                         if img is not None:
@@ -3116,14 +3120,15 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path).convert("RGBA")
-            logo_img.thumbnail((200, 80))
-            self.pricing_logo_photo = _create_image(logo_img)
-            ctk.CTkLabel(
-                self.pricing_frame,
-                image=self.pricing_logo_photo,
-                text="",
-            ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
+            logo_img = load_rgba_image(logo_path)
+            if logo_img:
+                logo_img.thumbnail((200, 80))
+                self.pricing_logo_photo = _create_image(logo_img)
+                ctk.CTkLabel(
+                    self.pricing_frame,
+                    image=self.pricing_logo_photo,
+                    text="",
+                ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
         self.input_frame = tk.Frame(
             self.pricing_frame, bg=self.root.cget("background")
@@ -3239,15 +3244,16 @@ class CardEditorApp:
             try:
                 res = requests.get(info["image_url"], timeout=10)
                 if res.status_code == 200:
-                    img = Image.open(io.BytesIO(res.content)).convert("RGBA")
-                    img.thumbnail((240, 340))
-                    self.pricing_photo = _create_image(img)
-                    self.result_image_label = ctk.CTkLabel(
-                        self.result_frame,
-                        image=self.pricing_photo,
-                        text="",
-                    )
-                    self.result_image_label.pack(pady=5)
+                    img = load_rgba_image(io.BytesIO(res.content))
+                    if img:
+                        img.thumbnail((240, 340))
+                        self.pricing_photo = _create_image(img)
+                        self.result_image_label = ctk.CTkLabel(
+                            self.result_frame,
+                            image=self.pricing_photo,
+                            text="",
+                        )
+                        self.result_image_label.pack(pady=5)
             except Exception as e:
                 print(f"[ERROR] Loading image failed: {e}")
 
@@ -3255,15 +3261,16 @@ class CardEditorApp:
             try:
                 res = requests.get(info["set_logo_url"], timeout=10)
                 if res.status_code == 200:
-                    img = Image.open(io.BytesIO(res.content)).convert("RGBA")
-                    img.thumbnail((180, 60))
-                    self.set_logo_photo = _create_image(img)
-                    self.set_logo_label = ctk.CTkLabel(
-                        self.result_frame,
-                        image=self.set_logo_photo,
-                        text="",
-                    )
-                    self.set_logo_label.pack(pady=5)
+                    img = load_rgba_image(io.BytesIO(res.content))
+                    if img:
+                        img.thumbnail((180, 60))
+                        self.set_logo_photo = _create_image(img)
+                        self.set_logo_label = ctk.CTkLabel(
+                            self.result_frame,
+                            image=self.set_logo_photo,
+                            text="",
+                        )
+                        self.set_logo_label.pack(pady=5)
             except Exception as e:
                 print(f"[ERROR] Loading set logo failed: {e}")
         self.display_price_info(info, is_reverse)
@@ -3382,10 +3389,12 @@ class CardEditorApp:
         self.frame.rowconfigure(2, weight=1)
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
-        if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path).convert("RGBA")
+        logo_img = load_rgba_image(logo_path) if os.path.exists(logo_path) else None
+        if logo_img:
             logo_img.thumbnail((200, 80))
-        self.logo_photo = _create_image(logo_img)
+            self.logo_photo = _create_image(logo_img)
+        else:
+            self.logo_photo = None
         self.logo_label = ctk.CTkLabel(
             self.frame,
             image=self.logo_photo,
@@ -3903,10 +3912,9 @@ class CardEditorApp:
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
-        try:
-            image = Image.open(image_path).convert("RGBA")
-        except Exception as e:
-            print(f"Failed to load image {image_path}: {e}", file=sys.stderr)
+        image = load_rgba_image(image_path)
+        if image is None:
+            print(f"Failed to load image {image_path}", file=sys.stderr)
             if getattr(self, "failed_cards", None) is not None:
                 self.failed_cards.append(image_path)
             self.index += 1
@@ -4178,12 +4186,11 @@ class CardEditorApp:
             code = os.path.splitext(file)[0]
             if ALLOWED_SET_CODES and code not in ALLOWED_SET_CODES:
                 continue
-            try:
-                img = Image.open(path).convert("RGBA")
-                img.thumbnail((40, 40))
-                self.set_logos[code] = _create_image(img)
-            except Exception:
+            img = load_rgba_image(path)
+            if not img:
                 continue
+            img.thumbnail((40, 40))
+            self.set_logos[code] = _create_image(img)
 
     def show_loading_screen(self):
         """Display a temporary loading screen during startup."""
@@ -4192,14 +4199,15 @@ class CardEditorApp:
         self.loading_frame.pack(expand=True, fill="both")
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            img = Image.open(logo_path).convert("RGBA")
-            img.thumbnail((300, 150))
-            self.loading_logo = _create_image(img)
-            ctk.CTkLabel(
-                self.loading_frame,
-                image=self.loading_logo,
-                text="",
-            ).pack(pady=10)
+            img = load_rgba_image(logo_path)
+            if img:
+                img.thumbnail((300, 150))
+                self.loading_logo = _create_image(img)
+                ctk.CTkLabel(
+                    self.loading_frame,
+                    image=self.loading_logo,
+                    text="",
+                ).pack(pady=10)
 
         gif_path = os.path.join(os.path.dirname(__file__), "simple_pokeball.gif")
         if os.path.exists(gif_path):
@@ -4873,10 +4881,11 @@ class CardEditorApp:
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
-            logo_img = Image.open(logo_path).convert("RGBA")
-            logo_img.thumbnail((140, 140))
-            top.logo_image = _create_image(logo_img)
-            ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
+            logo_img = load_rgba_image(logo_path)
+            if logo_img:
+                logo_img.thumbnail((140, 140))
+                top.logo_image = _create_image(logo_img)
+                ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
 
         columns = ("name", "number", "set", "price")
         tree = ttk.Treeview(top, columns=columns, show="headings")
