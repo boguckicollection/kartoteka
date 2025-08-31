@@ -2429,6 +2429,7 @@ class CardEditorApp:
                 photo = photo_obj
             canvas.create_image(0, 0, image=photo, anchor="nw")
             canvas.pack()
+            lbl.pack()
             row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
             if box_num == SPECIAL_BOX_NUMBER:
                 row = 0
@@ -2856,6 +2857,7 @@ class CardEditorApp:
 
             prev_box = self._mag_prev_occupancy.setdefault(box, {})
             canvas_items = self.mag_canvas_items[idx]
+            label_texts: list[str] = []
 
             for c in range(1, columns + 1):
                 filled = occ.get(box, {}).get(c, 0)
@@ -2870,14 +2872,16 @@ class CardEditorApp:
                     and prev_stats.get("seg_count") == seg_count
                     and c in canvas_items
                 ):
+                    occupied_percent = filled / col_capacity * 100
+                    label_texts.append(f"C{c}: {occupied_percent:.0f}%")
                     continue
 
                 prev_box[c] = {"filled": filled, "seg_count": seg_count}
 
                 x1 = (c - 1) * col_w
                 x2 = x1 + col_w
-                x_mid = x1 + col_w / 2
-                free_percent = (col_capacity - filled) / col_capacity * 100
+                occupied_percent = filled / col_capacity * 100
+                free_percent = 100 - occupied_percent
                 bg_fill = FREE_COLOR if free_percent >= 30 else ""
 
                 items = canvas_items.get(c)
@@ -2901,17 +2905,9 @@ class CardEditorApp:
                             width=1,
                         )
                         segments.append(seg_id)
-                    text_id = canvas.create_text(
-                        x_mid,
-                        box_h / 2,
-                        text=f"C{c}: {free_percent:.0f}%",
-                        fill=TEXT_COLOR,
-                        font=("Inter", 12, "bold"),
-                    )
                     canvas_items[c] = {
                         "bg": bg_id,
                         "segments": segments,
-                        "text": text_id,
                         "seg_count": seg_count,
                     }
                 else:
@@ -2944,11 +2940,9 @@ class CardEditorApp:
                     items["segments"] = segments
                     items["seg_count"] = seg_count
 
-                    text_id = items["text"]
-                    canvas.coords(text_id, x_mid, box_h / 2)
-                    canvas.itemconfigure(
-                        text_id, text=f"C{c}: {free_percent:.0f}%"
-                    )
+                label_texts.append(f"C{c}: {occupied_percent:.0f}%")
+
+            self.mag_labels[idx].configure(text=" | ".join(label_texts))
         self.update_inventory_stats()
 
     def show_card_details(self, row: dict):
