@@ -16,15 +16,19 @@ from ctk_mocks import (  # noqa: E402
     DummyCanvas,
 )
 
+import pytest
 
-def test_compute_column_occupancy_box100(tmp_path, monkeypatch):
+
+def test_compute_box_occupancy_box100(tmp_path, monkeypatch):
     from kartoteka import csv_utils, storage
 
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text("name;warehouse_code\nA;K100R1P0001\n", encoding="utf-8")
     monkeypatch.setattr(csv_utils, "INVENTORY_CSV", str(csv_path))
-    occ = storage.compute_column_occupancy()
-    assert occ[100][1] == 1
+    occ = storage.compute_box_occupancy()
+    assert occ[100] == 1
+    percent = occ[100] / storage.BOX_CAPACITY[100] * 100
+    assert percent == pytest.approx(0.2)
 
 
 def test_generate_and_next_free_location_box100():
@@ -79,5 +83,9 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
         ui.CardEditorApp.open_magazyn_window(app)
 
     assert app.mag_box_order[-1] == 100
-    occ = ui.CardEditorApp.compute_column_occupancy(app)
-    assert occ[100][1] == 1
+    occ = ui.CardEditorApp.compute_box_occupancy(app)
+    assert occ[100] == 1
+    from kartoteka import storage
+
+    percent = occ[100] / storage.BOX_CAPACITY[100] * 100
+    assert percent == pytest.approx(0.2)
