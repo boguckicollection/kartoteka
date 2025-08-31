@@ -254,7 +254,7 @@ empty. Missing bidding step and duration values default to `1` and `60` seconds
 respectively.
 
 ### CSV and image upload
-After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to WebDAV using the credentials from `.env`. A copy of every row is also appended to the file specified in `WAREHOUSE_CSV` so the full stock list remains in one place. Use the **WebDAV Obrazy** button on the welcome screen to upload a folder of images to the configured WebDAV server.
+After exporting a CSV file the application prompts to send it directly to Shoper. When Shoper API credentials are configured the file is uploaded via the REST API. If not, the exporter falls back to WebDAV using the credentials from `.env`. A copy of every row is also appended to the file specified in `WAREHOUSE_CSV` so the full stock list remains in one place.
 
 ## License
 This project is licensed under the terms of the [MIT License](LICENSE).

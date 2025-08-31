@@ -1458,12 +1458,6 @@ class CardEditorApp:
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
-            text="\U0001f4f7 WebDAV Obrazy",
-            command=self.upload_images_dialog,
-            fg_color="#474747",
-        ).pack(side="left", padx=10, pady=5)
-        self.create_button(
-            button_frame,
             text="\u2699\ufe0f Konfiguracja",
             command=self.open_config_dialog,
             fg_color="#404040",
@@ -5211,26 +5205,6 @@ class CardEditorApp:
         save_btn.grid(row=2, column=0, columnspan=2, pady=10)
         top.grid_columnconfigure(1, weight=1)
         self.root.wait_window(top)
-
-    def upload_images_dialog(self):
-        """Upload images from a selected directory via WebDAV."""
-        directory = filedialog.askdirectory()
-        if not directory:
-            return
-        url = simpledialog.askstring("WebDAV", "URL", initialvalue=WEBDAV_URL or "")
-        user = simpledialog.askstring("WebDAV", "Użytkownik", initialvalue=WEBDAV_USER or "")
-        password = simpledialog.askstring(
-            "WebDAV", "Hasło", show="*", initialvalue=WEBDAV_PASSWORD or ""
-        )
-        if not url or not user or not password:
-            messagebox.showerror("Błąd", "Nie podano pełnych danych logowania")
-            return
-        try:
-            with WebDAVClient(url, user, password) as client:
-                client.upload_directory(directory)
-            messagebox.showinfo("Sukces", "Obrazy zostały wysłane na serwer WebDAV")
-        except Exception as exc:
-            messagebox.showerror("Błąd", f"Nie udało się wysłać obrazów: {exc}")
 
     def send_csv_to_shoper(self, file_path: str):
         """Send a CSV file using the Shoper API or WebDAV fallback."""
