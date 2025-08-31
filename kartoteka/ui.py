@@ -216,6 +216,7 @@ def load_logo_hashes() -> None:
             continue
         try:
             with Image.open(path) as im:
+                im = im.convert("RGBA")
                 im = _preprocess_symbol(im)
                 _LOGO_HASHES[code] = (
                     imagehash.phash(im),
@@ -4204,10 +4205,11 @@ class CardEditorApp:
         if os.path.exists(gif_path):
             from PIL import ImageSequence
 
-            img = Image.open(gif_path)
+            with Image.open(gif_path) as img:
+                img.convert("RGBA")
             self.gif_frames = []
             self.gif_durations = []
-            for frame in ImageSequence.Iterator(img):
+            for frame in ImageSequence.Iterator(Image.open(gif_path)):
                 self.gif_frames.append(
                     _create_image(frame.convert("RGBA"))
                 )
