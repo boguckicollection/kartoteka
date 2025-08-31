@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 import customtkinter as ctk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk, ImageFilter, ImageOps, ImageDraw
+from PIL import Image, ImageTk, ImageFilter, ImageOps, ImageDraw, UnidentifiedImageError
 import imagehash
 import os
 import csv
@@ -38,7 +38,8 @@ import logging
 from gettext import gettext as _
 try:
     from hash_db import HashDB
-except Exception:  # pragma: no cover - optional dependency
+except ImportError as exc:  # pragma: no cover - optional dependency
+    logging.getLogger(__name__).info("HashDB import failed: %s", exc)
     HashDB = None  # type: ignore[assignment]
 from fingerprint import compute_fingerprint
 from tooltip import Tooltip
@@ -138,7 +139,7 @@ def _load_image(path: str) -> Optional[Image.Image]:
             if img is not None:
                 return img
             return None
-        except Exception as exc:
+        except requests.RequestException as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
             _IMAGE_CACHE[path] = None
             return None
@@ -222,7 +223,8 @@ def load_logo_hashes() -> None:
                     imagehash.dhash(im),
                     imagehash.average_hash(im),
                 )
-        except Exception:
+        except (OSError, UnidentifiedImageError) as exc:
+            logger.warning("Failed to process logo %s: %s", path, exc)
             continue
 
 DEFAULT_LOGO_LIMIT = 20
@@ -513,10 +515,13 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
             return []
         data = response.json()
     except requests.Timeout:
-        print("[ERROR] Request timed out")
+        logger.warning("Request timed out")
         return []
-    except Exception as e:  # pragma: no cover - network/JSON errors
-        print(f"[ERROR] Fetching sets from TCGGO failed: {e}")
+    except requests.RequestException as e:  # pragma: no cover - network/JSON errors
+        logger.warning("Fetching sets from TCGGO failed: %s", e)
+        return []
+    except ValueError as e:
+        logger.warning("Invalid JSON from TCGGO: %s", e)
         return []
 
     if isinstance(data, dict):
@@ -702,7 +707,8 @@ def translate_to_english(text: str) -> str:
             max_tokens=50,
         )
         return resp.choices[0].message.content.strip()
-    except Exception:
+    except openai.OpenAIError as exc:
+        logger.warning("Translation failed: %s", exc)
         return text
 
 
@@ -744,7 +750,8 @@ def load_set_logo_uris(
             if not mime:
                 mime = "image/png"
             logos[code] = f"data:{mime};base64,{b64}"
-        except Exception:
+        except OSError as exc:
+            logger.warning("Failed to load logo %s: %s", path, exc)
             continue
         if limit is not None and len(logos) >= limit:
             break
@@ -851,7 +858,8 @@ def identify_set_by_hash(
                 imagehash.dhash(crop),
                 imagehash.average_hash(crop),
             )
-    except Exception:
+    except (OSError, UnidentifiedImageError) as exc:
+        logger.warning("Failed to process scan %s: %s", scan_path, exc)
         return []
 
     results: list[tuple[str, int]] = []
@@ -904,7 +912,8 @@ def extract_set_code_ocr(
             crop,
             config="--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/-",
         )
-    except Exception:
+    except (OSError, UnidentifiedImageError, pytesseract.TesseractError) as exc:
+        logger.warning("Failed to OCR set code from %s: %s", scan_path, exc)
         return []
 
     candidates: set[str] = set()
@@ -942,8 +951,8 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
                 r.raise_for_status()
                 mime = r.headers.get("Content-Type") or mimetypes.guess_type(path)[0] or "image/jpeg"
                 encoded = base64.b64encode(r.content).decode("utf-8")
-            except Exception as e:
-                print(f"[ERROR] extract_card_info_openai failed to fetch image: {e}")
+            except requests.RequestException as e:
+                logger.warning("extract_card_info_openai failed to fetch image: %s", e)
                 return "", "", "", "", "", ""
         else:
             mime = mimetypes.guess_type(path)[0] or "image/jpeg"
@@ -951,7 +960,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
                 with open(path, "rb") as f:
                     encoded = base64.b64encode(f.read()).decode("utf-8")
             except OSError as e:
-                print(f"[ERROR] extract_card_info_openai failed to read image: {e}")
+                logger.warning("extract_card_info_openai failed to read image: %s", e)
                 return "", "", "", "", "", ""
         data_url = f"data:{mime};base64,{encoded}"
 
@@ -1054,8 +1063,8 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
             if mapped:
                 set_name = mapped
         return name, number, total, set_name, set_code, set_format
-    except Exception as e:
-        print(f"[ERROR] extract_card_info_openai failed: {e}")
+    except openai.OpenAIError as e:
+        logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", ""
 
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
@@ -1094,7 +1103,8 @@ def analyze_card_image(
                 rects = get_symbol_rects(w, h)
                 if rects:
                     rect = rects[0]
-        except Exception:
+        except (OSError, UnidentifiedImageError) as exc:
+            logger.warning("Failed to preprocess %s: %s", local_path, exc)
             rects = []
             rect = None
 
@@ -1116,8 +1126,8 @@ def analyze_card_image(
                     if preview_cb and preview_image is not None:
                         try:
                             preview_cb(candidate, preview_image)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.exception("preview callback failed")
                     potential = identify_set_by_hash(local_path, candidate)
                     if potential:
                         code, name_match, diff = potential[0]
@@ -1140,8 +1150,8 @@ def analyze_card_image(
                             if debug and rect:
                                 result["rect"] = rect
                             return result
-            except Exception as e:
-                print(f"[ERROR] Hash lookup failed: {e}")
+            except (OSError, UnidentifiedImageError, ValueError) as e:
+                logger.warning("Hash lookup failed: %s", e)
 
         # --- PRIORITY 2: OpenAI Vision ---
         api_key = os.getenv("OPENAI_API_KEY")
@@ -1174,8 +1184,8 @@ def analyze_card_image(
                     "[INFO] OpenAI returned partial data. Proceeding to fallback methods."
                 )
 
-            except Exception as e:
-                print(f"[ERROR] OpenAI analysis failed: {e}")
+            except openai.OpenAIError as e:
+                logger.warning("OpenAI analysis failed: %s", e)
                 name = number = total = set_name = ""
                 set_code = ""
         else:
@@ -1223,8 +1233,8 @@ def analyze_card_image(
                         result["rect"] = rect
                     return result
 
-            except Exception as e:
-                print(f"[ERROR] TCGGO API lookup failed: {e}")
+            except (requests.RequestException, ValueError) as e:
+                logger.warning("TCGGO API lookup failed: %s", e)
 
         # --- PRIORITY 4: OCR fallback ---
         if local_path:
@@ -1239,8 +1249,8 @@ def analyze_card_image(
                     if preview_cb and preview_image is not None:
                         try:
                             preview_cb(candidate, preview_image)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.exception("preview callback failed")
                     ocr_codes = extract_set_code_ocr(local_path, candidate)
                     for code in ocr_codes:
                         name_lookup = get_set_name(code)
@@ -1263,8 +1273,8 @@ def analyze_card_image(
                             return result
                         else:
                             print(f"[WARN] OCR produced unknown set code: {code}")
-            except Exception as e:
-                print(f"[ERROR] OCR analysis failed: {e}")
+            except Exception:
+                logger.exception("OCR analysis failed")
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
@@ -1314,7 +1324,8 @@ class CardEditorApp:
                 self.hash_db = HashDB(str(db_path))
             else:
                 self.hash_db = None
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to init hash DB: %s", exc)
             self.hash_db = None
         self.auto_lookup = AUTO_HASH_LOOKUP
         self.current_fingerprint = None
@@ -1610,7 +1621,7 @@ class CardEditorApp:
             resp = self.shoper_client.get_inventory()
             if not resp:
                 raise RuntimeError("404")
-        except Exception as exc:
+        except (requests.RequestException, RuntimeError) as exc:
             msg = str(exc)
             if "404" in msg:
                 messagebox.showerror(
@@ -1689,8 +1700,8 @@ class CardEditorApp:
             if getattr(self, "output_data", None):
                 try:
                     self.save_current_data()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.exception("Failed to save current data")
                 if 0 <= getattr(self, "index", 0) < len(self.output_data):
                     card = self.output_data[self.index]
                 else:
@@ -1724,8 +1735,8 @@ class CardEditorApp:
                         self.shoper_client.add_product_attribute(
                             product_id, attr_id, attr_values
                         )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to set product attributes")
             if isinstance(widget, tk.Text):
                 widget.delete("1.0", tk.END)
                 widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
@@ -1734,7 +1745,8 @@ class CardEditorApp:
                     "Wysłano",
                     json.dumps(data, indent=2, ensure_ascii=False),
                 )
-        except Exception as e:
+        except requests.RequestException as e:
+            logger.exception("Failed to push product")
             messagebox.showerror("Błąd", str(e))
 
     def open_auctions_window(self):
@@ -1766,6 +1778,7 @@ class CardEditorApp:
                 threading.Thread(target=bot.run_bot, daemon=True).start()
                 bot._thread_started = True
         except Exception as e:
+            logger.exception("Failed to start bot")
             messagebox.showerror("Błąd", str(e))
 
         self.root.minsize(1200, 800)
@@ -1790,7 +1803,8 @@ class CardEditorApp:
         except ValueError as exc:
             messagebox.showerror("Błąd", str(exc))
             self.auction_queue = []
-        except Exception as exc:
+        except (OSError, csv.Error, UnicodeDecodeError) as exc:
+            logger.exception("Failed to load auction queue")
             messagebox.showerror("Błąd", str(exc))
             self.auction_queue = []
 
@@ -1982,8 +1996,8 @@ class CardEditorApp:
                 photo = _create_image(img)
                 self.auction_photo = photo
                 self.auction_image_label.configure(image=photo)
-            except Exception:
-                pass
+            except (requests.RequestException, OSError, UnidentifiedImageError) as exc:
+                logger.warning("Failed to load auction image %s: %s", path, exc)
 
         def show_selected(event=None):
             sel = tree.selection()
@@ -2032,7 +2046,8 @@ class CardEditorApp:
                 if codes:
                     try:
                         rows = self.read_inventory_rows(codes, csv_utils.WAREHOUSE_CSV)
-                    except Exception as exc:
+                    except (OSError, csv.Error, UnicodeDecodeError) as exc:
+                        logger.exception("Failed to read inventory rows")
                         messagebox.showerror("Błąd", str(exc))
                         return
             if not rows:
@@ -2041,7 +2056,8 @@ class CardEditorApp:
                     return
                 try:
                     rows = self.read_inventory_rows([], path)
-                except Exception as exc:
+                except (OSError, csv.Error, UnicodeDecodeError) as exc:
+                    logger.exception("Failed to read inventory rows")
                     messagebox.showerror("Błąd", str(exc))
                     return
             self.auction_queue.extend(rows)
@@ -2076,7 +2092,7 @@ class CardEditorApp:
                     )
                     bot.aukcje_kolejka.append(aukcja)
             except Exception:
-                pass
+                logger.exception("Failed to update bot auction queue")
             messagebox.showinfo("Aukcje", "Kolejka zapisana do aukcje.csv")
 
         btn_frame = tk.Frame(win, bg=self.root.cget("background"))
@@ -2105,6 +2121,7 @@ class CardEditorApp:
                     bot.start_next_auction(), bot.bot.loop
                 )
             except Exception as e:
+                logger.exception("Failed to start auction")
                 messagebox.showerror("Błąd", str(e))
 
         def next_card():
@@ -2117,7 +2134,8 @@ class CardEditorApp:
             try:
                 self._load_auction_queue()
                 refresh_tree()
-            except Exception as exc:
+            except (OSError, csv.Error, UnicodeDecodeError, ValueError) as exc:
+                logger.exception("Failed to reload auction queue")
                 messagebox.showerror("Błąd", str(exc))
 
         def toggle_pause():
@@ -2125,7 +2143,8 @@ class CardEditorApp:
                 import bot
                 bot.paused = not bot.paused
                 pause_btn.configure(text="▶ Wznów" if bot.paused else "⏸ Pauza")
-            except Exception as e:
+            except (ImportError, AttributeError) as e:
+                logger.exception("Failed to toggle pause")
                 messagebox.showerror("Błąd", str(e))
 
         self.create_button(
@@ -2261,7 +2280,8 @@ class CardEditorApp:
                             (end - datetime.datetime.utcnow()).total_seconds()
                         )
                         remaining = f"{max(rem, 0)}s"
-                    except Exception:
+                    except (ValueError, TypeError) as exc:
+                        logger.warning("Failed to parse auction time: %s", exc)
                         remaining = ""
 
                 winner = data.get("zwyciezca") or "Brak"
@@ -2285,10 +2305,10 @@ class CardEditorApp:
                             photo = _create_image(img)
                             self.auction_photo = photo
                             self.auction_image_label.configure(image=photo)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    except (requests.RequestException, OSError, UnidentifiedImageError) as exc:
+                        logger.warning("Failed to load current auction image: %s", exc)
+            except Exception as exc:
+                logger.exception("Failed to update auction status")
         if self.auction_frame and self.auction_frame.winfo_exists():
             self.auction_frame.after(1000, self._update_auction_status)
 
@@ -2358,7 +2378,8 @@ class CardEditorApp:
                         f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
                     )
             widget.insert(tk.END, "\n".join(lines))
-        except Exception as e:
+        except requests.RequestException as e:
+            logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
     @staticmethod
     def location_from_code(code: str) -> str:
@@ -2475,7 +2496,7 @@ class CardEditorApp:
         def _safe_var(value=""):
             try:
                 return tk.StringVar(value=value)
-            except Exception:
+            except (tk.TclError, RuntimeError):
                 class _Var:
                     def __init__(self, val):
                         self._val = val
@@ -2651,7 +2672,7 @@ class CardEditorApp:
                         val = str(self.mag_card_rows[i].get("price", "0")).replace(",", ".")
                         try:
                             return float(val)
-                        except Exception:
+                        except ValueError:
                             return 0.0
 
                     indices.sort(key=_price)
@@ -2801,16 +2822,16 @@ class CardEditorApp:
             ).pack(side="left", padx=(0, 10))
             try:
                 Tooltip(swatch, desc)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to create tooltip")
 
         self.refresh_magazyn()
         # Ensure the statistics reflect the latest warehouse state
         if hasattr(self, "update_inventory_stats"):
             try:
                 self.update_inventory_stats()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to update inventory stats")
 
     def compute_box_occupancy(self) -> dict[int, int]:
         """Return dictionary of used slots per storage box."""
@@ -2963,7 +2984,7 @@ class CardEditorApp:
             top.geometry("600x400")
             try:
                 top.minsize(600, 400)
-            except Exception:
+            except tk.TclError:
                 pass
 
         container = ctk.CTkFrame(top)
@@ -3043,14 +3064,14 @@ class CardEditorApp:
         if window is not None:
             try:
                 window.destroy()
-            except Exception:
+            except tk.TclError:
                 pass
 
         if hasattr(self, "update_inventory_stats"):
             try:
                 self.update_inventory_stats()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to update inventory stats")
 
         if hasattr(self, "open_magazyn_window"):
             self.open_magazyn_window()
@@ -3086,15 +3107,15 @@ class CardEditorApp:
         if window is not None:
             try:
                 window.destroy()
-            except Exception:
+            except tk.TclError:
                 pass
 
         # Update inventory statistics after toggling the sold flag
         if hasattr(self, "update_inventory_stats"):
             try:
                 self.update_inventory_stats()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to update inventory stats")
 
         # Refresh main view to reflect the change
         if hasattr(self, "open_magazyn_window"):
@@ -3254,8 +3275,8 @@ class CardEditorApp:
                             text="",
                         )
                         self.result_image_label.pack(pady=5)
-            except Exception as e:
-                print(f"[ERROR] Loading image failed: {e}")
+            except (requests.RequestException, OSError, UnidentifiedImageError) as e:
+                logger.warning("Loading image failed: %s", e)
 
         if info.get("set_logo_url"):
             try:
@@ -3271,8 +3292,8 @@ class CardEditorApp:
                             text="",
                         )
                         self.set_logo_label.pack(pady=5)
-            except Exception as e:
-                print(f"[ERROR] Loading set logo failed: {e}")
+            except (requests.RequestException, OSError, UnidentifiedImageError) as e:
+                logger.warning("Loading set logo failed: %s", e)
         self.display_price_info(info, is_reverse)
 
     def display_price_info(self, info, is_reverse):
@@ -3985,7 +4006,8 @@ class CardEditorApp:
                     fp = compute_fingerprint(img_fp)
                 self.current_fingerprint = fp
                 fp_match = self.hash_db.best_match(fp)
-            except Exception:
+            except (OSError, UnidentifiedImageError, ValueError) as exc:
+                logger.warning("Fingerprint lookup failed for %s: %s", image_path, exc)
                 fp_match = None
 
             if fp_match:
@@ -4039,7 +4061,7 @@ class CardEditorApp:
                 self.progress_frame.grid()
             if hide and hasattr(self, "progress_frame"):
                 self.progress_frame.grid_remove()
-        except Exception:
+        except tk.TclError:
             pass
 
     def update_set_area_preview(self, rect, image):
@@ -4050,7 +4072,7 @@ class CardEditorApp:
             # determine dimensions of the image used for analysis
             with Image.open(getattr(self, "current_image_path", "")) as im:
                 orig_w, orig_h = im.size
-        except Exception:
+        except (OSError, UnidentifiedImageError):
             orig_w, orig_h = image.size
 
         orientation = getattr(self, "_analysis_orientation", 0)
@@ -4086,7 +4108,7 @@ class CardEditorApp:
         if lang_var is not None:
             try:
                 translate = lang_var.get() == "JP"
-            except Exception:
+            except tk.TclError:
                 translate = False
         update_progress = getattr(self, "_update_card_progress", None)
         if update_progress:
@@ -4098,7 +4120,8 @@ class CardEditorApp:
                     fp = compute_fingerprint(img)
                 self.current_fingerprint = fp
                 fp_match = self.hash_db.best_match(fp)
-            except Exception:
+            except (OSError, UnidentifiedImageError, ValueError) as exc:
+                logger.warning("Fingerprint lookup failed for %s: %s", path, exc)
                 fp_match = None
         if update_progress:
             self.root.after(0, lambda: update_progress(0.5))
@@ -4155,7 +4178,7 @@ class CardEditorApp:
                 try:
                     self.update_set_area_preview(rect, self.current_card_image)
                 except Exception:
-                    pass
+                    logger.exception("Failed to update set area preview")
         return
 
     def generate_location(self, idx):
@@ -4303,7 +4326,7 @@ class CardEditorApp:
                 return
             self.shoper_client = client
             SHOPER_API_URL, SHOPER_API_TOKEN = url, token
-        except Exception as exc:
+        except requests.RequestException as exc:
             messagebox.showerror("Błąd", f"Nie można połączyć się z API Shoper: {exc}")
             self.open_config_dialog()
 
@@ -4355,7 +4378,7 @@ class CardEditorApp:
             self.root.update()
             with open(self.sets_file, encoding="utf-8") as f:
                 current_sets = json.load(f)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             current_sets = {}
 
         timeout = getattr(self, "API_TIMEOUT", 30)
@@ -4454,7 +4477,7 @@ class CardEditorApp:
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
-            except Exception:
+            except tk.TclError:
                 pass
 
         try:
@@ -4475,7 +4498,7 @@ class CardEditorApp:
                 }
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
-                print(f"[ERROR] API error: {response.status_code}")
+                logger.warning("API error: %s", response.status_code)
                 return None
 
             cards = response.json()
@@ -4506,24 +4529,33 @@ class CardEditorApp:
                 if price_eur is not None:
                     eur_pln = self.get_exchange_rate()
                     price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
-                    print(
-                        f"[INFO] Cena {best.get('name')} ({number_input}, {set_input}) = {price_pln} PLN"
+                    logger.info(
+                        "Cena %s (%s, %s) = %s PLN",
+                        best.get('name'),
+                        number_input,
+                        set_input,
+                        price_pln,
                     )
                     return price_pln
 
-            print("\n[DEBUG] Nie znaleziono dokładnej karty. Zbliżone:")
+            logger.debug("Nie znaleziono dokładnej karty. Zbliżone:")
             for card in cards:
                 card_number = str(card.get("card_number", "")).lower()
                 card_set = str(card.get("episode", {}).get("name", "")).lower()
                 if number_input == card_number and set_input in card_set:
-                    print(
-                        f"- {card.get('name')} | {card_number} | {card.get('episode', {}).get('name')}"
+                    logger.debug(
+                        "%s | %s | %s",
+                        card.get('name'),
+                        card_number,
+                        card.get('episode', {}).get('name'),
                     )
 
         except requests.Timeout:
-            print("[ERROR] Request timed out")
-        except Exception as e:
-            print(f"[ERROR] Fetching price from TCGGO failed: {e}")
+            logger.warning("Request timed out")
+        except requests.RequestException as e:
+            logger.warning("Fetching price from TCGGO failed: %s", e)
+        except ValueError as e:
+            logger.warning("Invalid JSON from TCGGO: %s", e)
         return None
 
     def fetch_psa10_price(self, name, number, set_name):
@@ -4550,7 +4582,7 @@ class CardEditorApp:
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
-            except Exception:
+            except tk.TclError:
                 pass
 
         try:
@@ -4614,9 +4646,11 @@ class CardEditorApp:
                         return ""
             return ""
         except requests.Timeout:
-            print("[ERROR] Request timed out")
-        except Exception as e:
-            print(f"[ERROR] Fetching PSA10 price failed: {e}")
+            logger.warning("Request timed out")
+        except requests.RequestException as e:
+            logger.warning("Fetching PSA10 price failed: %s", e)
+        except ValueError as e:
+            logger.warning("Invalid JSON from TCGGO: %s", e)
         return ""
 
     def fetch_card_variants(self, name, number, set_name):
@@ -4633,7 +4667,7 @@ class CardEditorApp:
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
-            except Exception:
+            except tk.TclError:
                 pass
 
         try:
@@ -4655,7 +4689,7 @@ class CardEditorApp:
 
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
-                print(f"[ERROR] API error: {response.status_code}")
+                logger.warning("API error: %s", response.status_code)
                 return []
 
             cards = response.json()
@@ -4695,9 +4729,11 @@ class CardEditorApp:
                     )
             return results
         except requests.Timeout:
-            print("[ERROR] Request timed out")
-        except Exception as e:
-            print(f"[ERROR] Fetching variants from TCGGO failed: {e}")
+            logger.warning("Request timed out")
+        except requests.RequestException as e:
+            logger.warning("Fetching variants from TCGGO failed: %s", e)
+        except ValueError as e:
+            logger.warning("Invalid JSON from TCGGO: %s", e)
         return []
 
     def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
@@ -4714,7 +4750,7 @@ class CardEditorApp:
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
-            except Exception:
+            except tk.TclError:
                 pass
 
         try:
@@ -4732,7 +4768,7 @@ class CardEditorApp:
 
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
-                print(f"[ERROR] API error: {response.status_code}")
+                logger.warning("API error: %s", response.status_code)
                 return None
 
             cards = response.json()
@@ -4785,9 +4821,11 @@ class CardEditorApp:
                         "price_pln_80": round(price_pln * 0.8, 2),
                     }
         except requests.Timeout:
-            print("[ERROR] Request timed out")
-        except Exception as e:
-            print(f"[ERROR] Lookup failed: {e}")
+            logger.warning("Request timed out")
+        except requests.RequestException as e:
+            logger.warning("Lookup failed: %s", e)
+        except ValueError as e:
+            logger.warning("Invalid JSON from TCGGO: %s", e)
         return None
 
     # ZMIANA: Logika pobierania ceny nie szuka już setu, jeśli jest on znany.
@@ -4934,9 +4972,9 @@ class CardEditorApp:
             if res.status_code == 200:
                 return res.json()["rates"][0]["mid"]
         except requests.Timeout:
-            print("[ERROR] Exchange rate request timed out")
-        except Exception:
-            pass
+            logger.warning("Exchange rate request timed out")
+        except (requests.RequestException, ValueError, KeyError) as exc:
+            logger.warning("Failed to fetch exchange rate: %s", exc)
         return 4.265
 
     def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
@@ -4974,7 +5012,12 @@ class CardEditorApp:
             try:
                 with Image.open(self.current_image_path) as img:
                     fp = compute_fingerprint(img)
-            except Exception:
+            except (OSError, UnidentifiedImageError, ValueError) as exc:
+                logger.warning(
+                    "Failed to compute fingerprint for %s: %s",
+                    self.current_image_path,
+                    exc,
+                )
                 fp = None
             self.current_fingerprint = fp
         if fp is not None and getattr(self, "hash_db", None):
@@ -4985,8 +5028,8 @@ class CardEditorApp:
             card_id = f"{meta['set']} {meta['numer']}".strip()
             try:
                 self.hash_db.add_card_from_fp(fp, meta, card_id=card_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to store fingerprint")
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}"
         data["ilość"] = 1
         self.card_cache[key] = {
@@ -5149,8 +5192,8 @@ class CardEditorApp:
         if hasattr(self, "update_inventory_stats"):
             try:
                 self.update_inventory_stats()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.exception("Failed to update inventory stats")
 
     def load_csv_data(self):
         """Load a CSV file and merge duplicate rows."""
@@ -5203,7 +5246,7 @@ class CardEditorApp:
                 SHOPER_API_URL, SHOPER_API_TOKEN = url, token
                 messagebox.showinfo("Sukces", "Zapisano konfigurację Shoper API")
                 top.destroy()
-            except Exception as exc:
+            except requests.RequestException as exc:
                 messagebox.showerror(
                     "Błąd", f"Nie można połączyć się z API Shoper: {exc}"
                 )
