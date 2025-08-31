@@ -1387,6 +1387,7 @@ class CardEditorApp:
             wraplength=1400,
             justify="center",
             text_color=TEXT_COLOR,
+            font=("Segoe UI", 18),
         )
         desc.pack(pady=5)
 
@@ -1397,12 +1398,14 @@ class CardEditorApp:
             self.start_frame,
             text=f"Łączna liczba kart: {count}",
             text_color=TEXT_COLOR,
+            font=("Segoe UI", 24, "bold"),
         )
         self.inventory_count_label.pack()
         self.inventory_value_label = ctk.CTkLabel(
             self.start_frame,
             text=f"Łączna wartość: {total_value:.2f} PLN",
-            text_color=TEXT_COLOR,
+            text_color="#FFD700",
+            font=("Segoe UI", 24, "bold"),
         )
         self.inventory_value_label.pack(pady=(0, 5))
 
@@ -1411,7 +1414,7 @@ class CardEditorApp:
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
             wraplength=1400,
             justify="center",
-            font=("Inter", 10),
+            font=("Segoe UI", 14),
             text_color="#CCCCCC",
         )
         author.pack(side="bottom", pady=5)
@@ -2762,7 +2765,7 @@ class CardEditorApp:
         self.mag_inventory_value_label = ctk.CTkLabel(
             stats_frame,
             text=f"Łączna wartość: {unsold_total:.2f} PLN",
-            text_color=TEXT_COLOR,
+            text_color="#FFD700",
             font=font,
         )
         self.mag_inventory_value_label.pack()
