@@ -25,7 +25,8 @@ A small tkinter application for organizing Pokémon card scans and exporting dat
 - Customize warehouse status colors through environment variables
 
 ## Requirements
-Install dependencies from `requirements.txt`:
+Install dependencies from `requirements.txt`. Package versions are pinned to
+known good releases for this application:
 
 ```bash
 pip install -r requirements.txt
