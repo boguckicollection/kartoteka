@@ -240,6 +240,16 @@ HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
 BORDER_COLOR = "#444444"
 
+# vivid colors for start menu buttons
+SCAN_BUTTON_COLOR = "#2ECC71"  # green
+PRICE_BUTTON_COLOR = "#3498DB"  # blue
+SHOPER_BUTTON_COLOR = "#E67E22"  # orange
+MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
+AUCTION_BUTTON_COLOR = "#E74C3C"  # red
+
+# color highlighting current price labels
+CURRENT_PRICE_COLOR = "#FFD700"
+
 # status colors for warehouse items; can be overridden via environment variables
 OCCUPIED_COLOR = os.getenv("OCCUPIED_COLOR", "#4caf50")
 FREE_COLOR = os.getenv("FREE_COLOR", "#ff9800")
@@ -1416,32 +1426,32 @@ class CardEditorApp:
             button_frame,
             text="\U0001f50d Skanuj",
             command=self.show_location_frame,
-            fg_color="#6A6A6A",
+            fg_color=SCAN_BUTTON_COLOR,
         )
         scan_btn.pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
-            fg_color="#636363",
+            fg_color=PRICE_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
-            fg_color="#5C5C5C",
+            fg_color=SHOPER_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f4e6 Magazyn",
             command=self.open_magazyn_window,
-            fg_color="#555555",
+            fg_color=MAGAZYN_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
-            fg_color="#4E4E4E",
+            fg_color=AUCTION_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
             button_frame,
@@ -1867,13 +1877,13 @@ class CardEditorApp:
             status_frame,
             text="Aktualna cena:",
             bg=self.root.cget("background"),
-            fg="white",
+            fg=CURRENT_PRICE_COLOR,
         ).grid(row=0, column=0, padx=2, sticky="e")
         tk.Label(
             status_frame,
             textvariable=self.current_price_var,
             bg=self.root.cget("background"),
-            fg="white",
+            fg=CURRENT_PRICE_COLOR,
         ).grid(row=0, column=1, padx=2, sticky="w")
 
         tk.Label(
