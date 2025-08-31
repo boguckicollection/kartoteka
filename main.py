@@ -1,9 +1,11 @@
 from kartoteka import CardEditorApp, csv_utils
 import customtkinter as ctk
 import tkinter as tk
+import logging
 import os
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()
@@ -11,15 +13,15 @@ if __name__ == "__main__":
     if os.path.exists(ico_path):
         try:
             root.iconbitmap(ico_path)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.exception("Failed to load application icon: %s", exc)
     icon_path = os.path.join(os.path.dirname(__file__), "logo.png")
     if os.path.exists(icon_path):
         root.iconphoto(True, tk.PhotoImage(file=icon_path))
     if not os.path.exists(csv_utils.WAREHOUSE_CSV):
         try:
             csv_utils.download_warehouse_csv()
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.exception("Failed to download warehouse CSV: %s", exc)
     app = CardEditorApp(root)
     root.mainloop()
