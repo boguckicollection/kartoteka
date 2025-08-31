@@ -1,4 +1,4 @@
-from kartoteka import CardEditorApp
+from kartoteka import CardEditorApp, csv_utils
 import customtkinter as ctk
 import tkinter as tk
 import os
@@ -16,5 +16,10 @@ if __name__ == "__main__":
     icon_path = os.path.join(os.path.dirname(__file__), "logo.png")
     if os.path.exists(icon_path):
         root.iconphoto(True, tk.PhotoImage(file=icon_path))
+    if not os.path.exists(csv_utils.WAREHOUSE_CSV):
+        try:
+            csv_utils.download_warehouse_csv()
+        except Exception:
+            pass
     app = CardEditorApp(root)
     root.mainloop()
