@@ -1409,6 +1409,14 @@ class CardEditorApp:
         )
         self.inventory_value_label.pack(pady=(0, 5))
 
+        config_btn = self.create_button(
+            self.start_frame,
+            text="\u2699\ufe0f Konfiguracja",
+            command=self.open_config_dialog,
+            fg_color="#404040",
+        )
+        config_btn.pack(side="bottom", pady=5)
+
         author = ctk.CTkLabel(
             self.start_frame,
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
@@ -1455,12 +1463,6 @@ class CardEditorApp:
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
             fg_color=AUCTION_BUTTON_COLOR,
-        ).pack(side="left", padx=10, pady=5)
-        self.create_button(
-            button_frame,
-            text="\u2699\ufe0f Konfiguracja",
-            command=self.open_config_dialog,
-            fg_color="#404040",
         ).pack(side="left", padx=10, pady=5)
 
     def update_inventory_stats(self):
