@@ -4235,16 +4235,15 @@ class CardEditorApp:
         gif_path = os.path.join(os.path.dirname(__file__), "simple_pokeball.gif")
         if os.path.exists(gif_path):
             from PIL import ImageSequence
-
             with Image.open(gif_path) as img:
                 img.convert("RGBA")
-            self.gif_frames = []
-            self.gif_durations = []
-            for frame in ImageSequence.Iterator(Image.open(gif_path)):
-                self.gif_frames.append(
-                    _create_image(frame.convert("RGBA"))
-                )
-                self.gif_durations.append(frame.info.get("duration", 100))
+                self.gif_frames = []
+                self.gif_durations = []
+                for frame in ImageSequence.Iterator(img):
+                    self.gif_frames.append(
+                        _create_image(frame.convert("RGBA"))
+                    )
+                    self.gif_durations.append(frame.info.get("duration", 100))
 
             self.gif_label = ctk.CTkLabel(
                 self.loading_frame, text=""
