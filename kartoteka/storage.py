@@ -109,20 +109,17 @@ def next_free_location(app):
     return generate_location(idx)
 
 
-def compute_column_occupancy():
-    """Return count of used slots per box column.
+def compute_box_occupancy() -> dict[int, int]:
+    """Return count of used slots per storage box.
 
-    The result is a nested dictionary mapping ``box -> column -> used
-    slots``.  The set of boxes and the number of columns per box are
-    derived from :data:`BOX_COLUMNS` so changes in storage layout only
-    require updating that mapping.
+    The returned mapping contains an entry for each box defined in
+    :data:`BOX_CAPACITY`.  Cards marked as sold are ignored.  This is a
+    simplified variant of the previous :func:`compute_column_occupancy`
+    helper which aggregated usage per column – callers now only care
+    about the total number of used slots in every box.
     """
 
-    occ: dict[int, dict[int, int]] = {}
-    for box in BOX_CAPACITY:
-        occ[box] = {
-            c: 0 for c in range(1, BOX_COLUMNS.get(box, 4) + 1)
-        }
+    occ: dict[int, int] = {box: 0 for box in BOX_CAPACITY}
     try:
         with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
@@ -139,9 +136,8 @@ def compute_column_occupancy():
                     if not m:
                         continue
                     box = int(m.group(1))
-                    c = int(m.group(2))
-                    if box in occ and c in occ[box]:
-                        occ[box][c] += 1
+                    if box in occ:
+                        occ[box] += 1
     except FileNotFoundError:
         pass
     return occ

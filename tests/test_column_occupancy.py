@@ -4,12 +4,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
 def test_split_codes_counted(tmp_path, monkeypatch):
     from kartoteka import csv_utils
+    from kartoteka import storage
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
         'name;warehouse_code\nA;"K1R1P1;K1R1P2"\n', encoding="utf-8"
@@ -19,12 +22,15 @@ def test_split_codes_counted(tmp_path, monkeypatch):
     import kartoteka.ui as ui
     importlib.reload(ui)
     dummy = SimpleNamespace()
-    occ = ui.CardEditorApp.compute_column_occupancy(dummy)
-    assert occ[1][1] == 2
+    occ = ui.CardEditorApp.compute_box_occupancy(dummy)
+    assert occ[1] == 2
+    percent = occ[1] / storage.BOX_CAPACITY[1] * 100
+    assert percent == pytest.approx(0.05)
 
 
 def test_sold_cards_excluded_from_occupancy(tmp_path, monkeypatch):
     from kartoteka import csv_utils
+    from kartoteka import storage
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
         "name;warehouse_code;sold\nA;K1R1P1;\nB;K1R1P2;1\n", encoding="utf-8"
@@ -35,5 +41,7 @@ def test_sold_cards_excluded_from_occupancy(tmp_path, monkeypatch):
     import importlib
     importlib.reload(ui)
     dummy = SimpleNamespace()
-    occ = ui.CardEditorApp.compute_column_occupancy(dummy)
-    assert occ[1][1] == 1
+    occ = ui.CardEditorApp.compute_box_occupancy(dummy)
+    assert occ[1] == 1
+    percent = occ[1] / storage.BOX_CAPACITY[1] * 100
+    assert percent == pytest.approx(0.025)
