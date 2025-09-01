@@ -19,8 +19,8 @@ def test_group_duplicates(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
         "name;number;set;warehouse_code;price;image;variant\n"
-        "A;1;S;K1R1P1;1;foo.png;common\n"
-        "A;1;S;K1R1P2;1;foo.png;common\n",
+        "A;1;S;K1R1P1;1;foo1.png;common\n"
+        "A;1;S;K1R1P2;1;foo2.png;common\n",
         encoding="utf-8",
     )
 
@@ -65,3 +65,4 @@ def test_group_duplicates(tmp_path):
     row = app.mag_card_rows[0]
     assert row["_count"] == 2
     assert row["warehouse_code"] == "K1R1P1;K1R1P2"
+    assert row["image"] == "foo1.png"

@@ -2587,14 +2587,13 @@ class CardEditorApp:
                 reader = csv.DictReader(f, delimiter=";")
                 groups: dict[tuple[str, ...], list[dict]] = defaultdict(list)
                 for row in reader:
-                    if not (row.get("name") and row.get("image")):
-                        logger.warning("Skipping row with missing name or image: %s", row)
+                    if not row.get("name"):
+                        logger.warning("Skipping row with missing name: %s", row)
                         continue
                     key = (
                         row.get("name"),
                         row.get("number"),
                         row.get("set"),
-                        row.get("image"),
                         row.get("variant") or "common",
                         str(row.get("sold") or ""),
                     )
@@ -2602,6 +2601,11 @@ class CardEditorApp:
 
                 for rows in groups.values():
                     combined = dict(rows[0])
+                    combined["image"] = next(
+                        (r.get("image") for r in rows if r.get("image")),
+                        "",
+                    )
+                    combined["variant"] = combined.get("variant") or "common"
                     codes = [
                         r.get("warehouse_code", "") for r in rows if r.get("warehouse_code")
                     ]
