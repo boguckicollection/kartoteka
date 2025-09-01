@@ -37,6 +37,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import sqlite3
+import threading
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
@@ -82,7 +83,8 @@ class HashDB:
 
     def __init__(self, path: str = ":memory:") -> None:
         self.path = path
-        self.conn = sqlite3.connect(self.path)
+        self._lock = threading.Lock()
+        self.conn = sqlite3.connect(self.path, check_same_thread=False)
         # rows as dict-like objects
         self.conn.row_factory = sqlite3.Row
         self._ensure_schema()
@@ -91,27 +93,28 @@ class HashDB:
     # schema handling
     # ------------------------------------------------------------------
     def _ensure_schema(self) -> None:
-        cur = self.conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS cards (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                phash TEXT NOT NULL,
-                dhash TEXT NOT NULL,
-                tile_phash TEXT NOT NULL,
-                orb TEXT,
-                meta TEXT
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    phash TEXT NOT NULL,
+                    dhash TEXT NOT NULL,
+                    tile_phash TEXT NOT NULL,
+                    orb TEXT,
+                    meta TEXT
+                )
+                """
             )
-            """
-        )
-        # prevent storing duplicate fingerprints
-        cur.execute(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_hashes
-            ON cards (phash, dhash, tile_phash, orb)
-            """
-        )
-        self.conn.commit()
+            # prevent storing duplicate fingerprints
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_hashes
+                ON cards (phash, dhash, tile_phash, orb)
+                """
+            )
+            self.conn.commit()
 
     # ------------------------------------------------------------------
     # helpers
@@ -169,33 +172,34 @@ class HashDB:
         meta_dict.update(kwargs)
 
         phash, dhash, tile_phash, orb = self._serialise_fp(fp)
-        cur = self.conn.cursor()
-        # return existing row id if the fingerprint is already stored
-        cur.execute(
-            "SELECT id FROM cards WHERE phash=? AND dhash=? AND tile_phash=? AND orb=?",
-            (phash, dhash, tile_phash, orb),
-        )
-        row = cur.fetchone()
-        if row is not None:
-            return int(row["id"])
-
-        try:
-            cur.execute(
-                "INSERT INTO cards (phash, dhash, tile_phash, orb, meta) VALUES (?, ?, ?, ?, ?)",
-                (phash, dhash, tile_phash, orb, json.dumps(meta_dict, ensure_ascii=False)),
-            )
-            self.conn.commit()
-            return int(cur.lastrowid)
-        except sqlite3.IntegrityError:
-            # another process might have inserted the same fingerprint concurrently
+        with self._lock:
+            cur = self.conn.cursor()
+            # return existing row id if the fingerprint is already stored
             cur.execute(
                 "SELECT id FROM cards WHERE phash=? AND dhash=? AND tile_phash=? AND orb=?",
                 (phash, dhash, tile_phash, orb),
             )
             row = cur.fetchone()
-            if row is None:
-                raise
-            return int(row["id"])
+            if row is not None:
+                return int(row["id"])
+
+            try:
+                cur.execute(
+                    "INSERT INTO cards (phash, dhash, tile_phash, orb, meta) VALUES (?, ?, ?, ?, ?)",
+                    (phash, dhash, tile_phash, orb, json.dumps(meta_dict, ensure_ascii=False)),
+                )
+                self.conn.commit()
+                return int(cur.lastrowid)
+            except sqlite3.IntegrityError:
+                # another process might have inserted the same fingerprint concurrently
+                cur.execute(
+                    "SELECT id FROM cards WHERE phash=? AND dhash=? AND tile_phash=? AND orb=?",
+                    (phash, dhash, tile_phash, orb),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise
+                return int(row["id"])
 
     # ------------------------------------------------------------------
     # query helpers
@@ -226,9 +230,10 @@ class HashDB:
 
         fp_query = self._prepare_fp(source)
 
-        cur = self.conn.cursor()
-        cur.execute("SELECT phash, dhash, tile_phash, orb, meta FROM cards")
-        rows = cur.fetchall()
+        with self._lock:
+            cur = self.conn.cursor()
+            cur.execute("SELECT phash, dhash, tile_phash, orb, meta FROM cards")
+            rows = cur.fetchall()
 
         results: List[Candidate] = []
         for row in rows:
