@@ -3963,9 +3963,10 @@ class CardEditorApp:
         self.progress_var.set(f"{self.index + 1}/{len(self.cards)} ({percent}%)")
 
         image_path = self.cards[self.index]
+        filename = os.path.basename(image_path)
         self.current_image_path = image_path
         self.current_fingerprint = None
-        cache_key = self.file_to_key.get(os.path.basename(image_path))
+        cache_key = self.file_to_key.get(filename)
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
         inv_entry = self.lookup_inventory_entry(cache_key) if cache_key else None
@@ -4029,7 +4030,7 @@ class CardEditorApp:
             skip_analysis = True
             logger.info(
                 "Skipping analysis for %s: inventory entry found for key %s",
-                os.path.basename(image_path),
+                filename,
                 cache_key,
             )
 
@@ -4068,7 +4069,7 @@ class CardEditorApp:
                 skip_analysis = True
                 logger.info(
                     "Skipping analysis for %s: fingerprint match with distance %s",
-                    os.path.basename(image_path),
+                    filename,
                     fp_match.distance,
                 )
                 if progress_cb:
