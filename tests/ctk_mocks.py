@@ -88,6 +88,8 @@ class DummyCanvas(_Widget):
         self.width_val = width
         self.height_val = height
         self.bg = None
+        self.items = {}
+        self._next_id = 1
 
     def config(self, **kwargs):
         if "bg" in kwargs:
@@ -96,14 +98,29 @@ class DummyCanvas(_Widget):
     def create_image(self, *a, **k):
         pass
 
-    def create_rectangle(self, *a, **k):
-        pass
+    def create_rectangle(self, x1, y1, x2, y2, fill="", outline=None, width=1):
+        rid = self._next_id
+        self._next_id += 1
+        self.items[rid] = {"coords": (x1, y1, x2, y2), "fill": fill}
+        return rid
 
     def create_text(self, *a, **k):
         pass
 
-    def delete(self, *a, **k):
-        pass
+    def delete(self, rid):
+        self.items.pop(rid, None)
+
+    def itemconfigure(self, rid, **kwargs):
+        item = self.items.get(rid)
+        if not item:
+            return
+        if "fill" in kwargs:
+            item["fill"] = kwargs["fill"]
+
+    def coords(self, rid, x1, y1, x2, y2):
+        item = self.items.get(rid)
+        if item:
+            item["coords"] = (x1, y1, x2, y2)
 
     def width(self):
         return self.width_val

@@ -2,9 +2,19 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from ctk_mocks import (
+    DummyCTkButton,
+    DummyCTkEntry,
+    DummyCTkFrame,
+    DummyCTkLabel,
+    DummyCTkOptionMenu,
+    DummyCTkScrollableFrame,
+    DummyCanvas,
+)
 
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -26,6 +36,8 @@ def test_split_codes_counted(tmp_path, monkeypatch):
     assert occ[1] == 2
     percent = occ[1] / storage.BOX_CAPACITY[1] * 100
     assert percent == pytest.approx(0.05)
+    col_occ = storage.compute_column_occupancy()
+    assert col_occ[1][1] == 2
 
 
 def test_sold_cards_excluded_from_occupancy(tmp_path, monkeypatch):
@@ -45,3 +57,54 @@ def test_sold_cards_excluded_from_occupancy(tmp_path, monkeypatch):
     assert occ[1] == 1
     percent = occ[1] / storage.BOX_CAPACITY[1] * 100
     assert percent == pytest.approx(0.025)
+    col_occ = storage.compute_column_occupancy()
+    assert col_occ[1][1] == 1
+
+
+def test_refresh_colors_columns_based_on_occupancy(tmp_path, monkeypatch):
+    from kartoteka import csv_utils
+
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text("name;warehouse_code\nA;K1R1P0001\n", encoding="utf-8")
+    monkeypatch.setattr(csv_utils, "INVENTORY_CSV", str(csv_path))
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(csv_path))
+
+    sys.modules["customtkinter"] = SimpleNamespace(
+        CTkFrame=DummyCTkFrame,
+        CTkLabel=DummyCTkLabel,
+        CTkButton=DummyCTkButton,
+        CTkScrollableFrame=DummyCTkScrollableFrame,
+        CTkEntry=DummyCTkEntry,
+        CTkOptionMenu=DummyCTkOptionMenu,
+    )
+    import kartoteka.ui as ui
+    importlib.reload(ui)
+
+    photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
+    with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
+        ui.tk, "Canvas", DummyCanvas
+    ), patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
+        dummy_root = SimpleNamespace(
+            minsize=lambda *a, **k: None,
+            title=lambda *a, **k: None,
+        )
+        app = SimpleNamespace(
+            root=dummy_root,
+            start_frame=None,
+            pricing_frame=None,
+            shoper_frame=None,
+            frame=None,
+            magazyn_frame=None,
+            location_frame=None,
+            create_button=lambda master, **kwargs: DummyCTkButton(master, **kwargs),
+            refresh_magazyn=lambda: None,
+            back_to_welcome=lambda: None,
+            update_inventory_stats=lambda: None,
+        )
+        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.refresh_magazyn(app)
+
+    canvas = app.mag_canvases[0]
+    rects = list(canvas.items.values())
+    assert rects[0]["fill"] == ui.OCCUPIED_COLOR
+    assert all(r["fill"] == "" for r in rects[1:])
