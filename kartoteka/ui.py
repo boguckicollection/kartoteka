@@ -1458,6 +1458,13 @@ class CardEditorApp:
         )
         self.inventory_value_label.pack(pady=(0, 5))
 
+        CardEditorApp.build_box_preview(self, self.start_frame)
+        if hasattr(self, "refresh_magazyn"):
+            try:
+                self.refresh_magazyn()
+            except Exception:
+                logger.exception("Failed to refresh magazyn preview")
+
         config_btn = self.create_button(
             self.start_frame,
             text="\u2699\ufe0f Konfiguracja",
@@ -2493,6 +2500,79 @@ class CardEditorApp:
     def location_from_code(code: str) -> str:
         return storage.location_from_code(code)
 
+    def build_box_preview(self, parent):
+        """Create frames and canvases previewing warehouse boxes."""
+        base_dir = os.path.dirname(__file__)
+        img_path = os.path.join(base_dir, "box.png")
+        img = _get_thumbnail(img_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
+        if img is None:
+            img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
+            _THUMB_CACHE[img_path] = img
+        self.mag_box_photo = _create_image(img)
+
+        img100_path = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
+        img100 = _get_thumbnail(img100_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
+        if img100 is None:
+            img100 = img
+            _THUMB_CACHE[img100_path] = img100
+        self.mag_box100_photo = _create_image(img100)
+
+        box_w, box_h = img.size
+
+        container = ctk.CTkFrame(parent, fg_color=BG_COLOR)
+        container.pack(padx=10, pady=10)
+
+        self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
+        self.mag_canvases = []
+        self.mag_labels = []
+        for i, box_num in enumerate(self.mag_box_order):
+            frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+            lbl = ctk.CTkLabel(
+                frame,
+                text="",
+                fg_color=BG_COLOR,
+                text_color=TEXT_COLOR,
+            )
+            if box_num == SPECIAL_BOX_NUMBER:
+                canvas_w, canvas_h = img100.size
+            else:
+                canvas_w, canvas_h = box_w, box_h
+            canvas = tk.Canvas(
+                frame,
+                width=canvas_w,
+                height=canvas_h,
+                highlightthickness=0,
+            )
+            canvas.config(bg=BG_COLOR)
+            photo_obj = (
+                self.mag_box100_photo if box_num == SPECIAL_BOX_NUMBER else self.mag_box_photo
+            )
+            if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
+                photo = photo_obj.create_scaled_photo_image(
+                    ctk.ScalingTracker.get_widget_scaling(canvas),
+                    ctk.get_appearance_mode(),
+                )
+            else:
+                photo = photo_obj
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas.pack()
+            lbl.pack()
+            row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
+            if box_num == SPECIAL_BOX_NUMBER:
+                row = 0
+                col = WAREHOUSE_GRID_COLUMNS
+            frame.grid(row=row, column=col, padx=5, pady=5)
+            self.mag_canvases.append(canvas)
+            self.mag_labels.append(lbl)
+
+        self.mag_canvas_items = [{} for _ in self.mag_canvases]
+        self._mag_prev_occupancy = {}
+        self.mag_card_images = []
+        self.mag_card_rows = []
+        self.mag_card_labels = []
+        self.mag_sold_labels = []
+        self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
+
     def open_magazyn_window(self):
         """Display storage occupancy inside the main window."""
         self.root.title("Podgląd magazynu")
@@ -2518,85 +2598,7 @@ class CardEditorApp:
         self.magazyn_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        base_dir = os.path.dirname(__file__)
-        img_path = os.path.join(base_dir, "box.png")
-        img = _get_thumbnail(img_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-        if img is None:
-            img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
-            _THUMB_CACHE[img_path] = img
-        self.mag_box_photo = _create_image(img)
-
-        # Optional distinct icon for the special overflow box
-        img100_path = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
-        img100 = _get_thumbnail(img100_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-        if img100 is None:
-            img100 = img
-            _THUMB_CACHE[img100_path] = img100
-        self.mag_box100_photo = _create_image(img100)
-
-        box_w, box_h = img.size
-
-        container = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
-        container.pack(padx=10, pady=10)
-
-        # Display cartons in numerical order and place the special overflow box last
-        self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
-        self.mag_canvases = []
-        self.mag_labels = []
-        for i, box_num in enumerate(self.mag_box_order):
-            frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
-            lbl = ctk.CTkLabel(
-                frame,
-                text="",
-                fg_color=BG_COLOR,
-                text_color=TEXT_COLOR,
-            )
-            if box_num == SPECIAL_BOX_NUMBER:
-                canvas_w, canvas_h = img100.size
-            else:
-                canvas_w, canvas_h = box_w, box_h
-            canvas = tk.Canvas(
-                frame,
-                width=canvas_w,
-                height=canvas_h,
-                highlightthickness=0,
-            )
-            canvas.config(bg=BG_COLOR)
-            photo_obj = self.mag_box100_photo if box_num == SPECIAL_BOX_NUMBER else self.mag_box_photo
-            if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
-                photo = photo_obj.create_scaled_photo_image(
-                    ctk.ScalingTracker.get_widget_scaling(canvas),
-                    ctk.get_appearance_mode(),
-                )
-            else:
-                photo = photo_obj
-            canvas.create_image(0, 0, image=photo, anchor="nw")
-            canvas.pack()
-            lbl.pack()
-            row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
-            if box_num == SPECIAL_BOX_NUMBER:
-                row = 0
-                col = WAREHOUSE_GRID_COLUMNS
-            frame.grid(row=row, column=col, padx=5, pady=5)
-            self.mag_canvases.append(canvas)
-            self.mag_labels.append(lbl)
-
-        # Canvas item IDs for incremental redraws per box
-        self.mag_canvas_items: list[dict[str, object]] = [
-            {} for _ in self.mag_canvases
-        ]
-        # Previous occupancy values per box
-        self._mag_prev_occupancy: dict[int, dict[str, int]] = {}
-
-        # List of cards currently in the warehouse
-        self.mag_card_images = []
-        self.mag_card_rows = []
-        # unsold card labels
-        self.mag_card_labels = []
-        # sold card labels for separate styling/testing
-        self.mag_sold_labels = []
-        # image label references for async updates
-        self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
+        CardEditorApp.build_box_preview(self, self.magazyn_frame)
 
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
