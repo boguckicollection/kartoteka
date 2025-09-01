@@ -71,6 +71,12 @@ def download_warehouse_csv():
         raise
 
 
+def ensure_warehouse_csv():
+    """Ensure the warehouse CSV exists, downloading it if necessary."""
+    if not os.path.exists(WAREHOUSE_CSV):
+        download_warehouse_csv()
+
+
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     """Return statistics for both unsold and sold items in the warehouse CSV.
 
