@@ -3013,6 +3013,16 @@ class CardEditorApp:
         """Display details for a selected warehouse card."""
 
         top = ctk.CTkToplevel(self.root)
+        if hasattr(top, "transient"):
+            top.transient(self.root)
+        if hasattr(top, "grab_set"):
+            top.grab_set()
+        if hasattr(top, "lift"):
+            top.lift()
+        if hasattr(top, "focus_force"):
+            top.focus_force()
+        if hasattr(top, "protocol") and hasattr(top, "grab_release"):
+            top.protocol("WM_DELETE_WINDOW", top.grab_release)
         top.title(row.get("name", _("Karta")))
         # ensure enough space for side-by-side layout
         if hasattr(top, "geometry"):
