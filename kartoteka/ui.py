@@ -70,7 +70,7 @@ PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
-HASH_MATCH_THRESHOLD = 400  # maximum allowed fingerprint distance
+HASH_MATCH_THRESHOLD = 100  # maximum allowed fingerprint distance
 HASH_SIZE = (32, 32)
 PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
 
