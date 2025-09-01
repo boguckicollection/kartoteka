@@ -6,7 +6,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 import tkinter as tk
-from PIL import Image
+from PIL import Image, ImageDraw
 
 sys.modules["customtkinter"] = SimpleNamespace(
     CTkEntry=tk.Entry,
@@ -15,6 +15,7 @@ sys.modules["customtkinter"] = SimpleNamespace(
     CTkToplevel=MagicMock,
 )
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+from hash_db import HashDB
 import kartoteka.ui as ui
 importlib.reload(ui)
 
@@ -596,6 +597,71 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
+
+
+def test_analyze_and_fill_runs_full_pipeline_for_non_matching_card(tmp_path):
+    """Ensure analysis is run when fingerprint distance is non-zero."""
+    # create and store first card fingerprint
+    db = HashDB(str(tmp_path / "hashes.sqlite"))
+
+    def _create_image(path, variant=False):
+        img = Image.new("RGB", (64, 64), "white")
+        draw = ImageDraw.Draw(img)
+        if variant:
+            draw.rectangle([0, 0, 20, 20], fill="black")
+        else:
+            draw.rectangle([16, 16, 48, 48], fill="black")
+        img.save(path)
+        return img
+
+    first = tmp_path / "first.png"
+    _create_image(first)
+    db.add_card_from_image(str(first), meta={"name": "First"})
+
+    second = tmp_path / "second.png"
+    _create_image(second, variant=True)
+
+    name_entry = MagicMock()
+    num_entry = MagicMock()
+    set_var = MagicMock()
+    name_entry.delete = MagicMock()
+    name_entry.insert = MagicMock()
+    num_entry.delete = MagicMock()
+    num_entry.insert = MagicMock()
+    set_var.set = MagicMock()
+
+    dummy = SimpleNamespace(
+        root=SimpleNamespace(after=lambda delay, func: func()),
+        lang_var=None,
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        index=0,
+        update_set_options=lambda: None,
+        update_set_area_preview=lambda *a, **k: None,
+        hash_db=db,
+        auto_lookup=True,
+        current_fingerprint=None,
+    )
+    dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(
+        dummy, ui.CardEditorApp
+    )
+
+    with patch.object(
+        ui,
+        "analyze_card_image",
+        return_value={
+            "name": "Second",
+            "number": "002",
+            "total": "",
+            "set": "",
+            "set_code": "",
+            "orientation": 0,
+            "set_format": "",
+        },
+    ) as mock_analyze:
+        ui.CardEditorApp._analyze_and_fill(dummy, str(second), 0)
+
+    mock_analyze.assert_called_once()
+    name_entry.insert.assert_called_with(0, "Second")
 
 
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):

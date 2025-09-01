@@ -70,7 +70,7 @@ PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
-HASH_MATCH_THRESHOLD = 100  # maximum allowed fingerprint distance
+HASH_MATCH_THRESHOLD = 0  # maximum allowed fingerprint distance
 HASH_SIZE = (32, 32)
 PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
 
@@ -4047,15 +4047,18 @@ class CardEditorApp:
                 with Image.open(image_path) as img_fp:
                     fp = compute_fingerprint(img_fp)
                 self.current_fingerprint = fp
-                fp_match = self.hash_db.best_match(fp, max_distance=HASH_MATCH_THRESHOLD)
+                fp_match = self.hash_db.best_match(
+                    fp, max_distance=HASH_MATCH_THRESHOLD
+                )
             except (OSError, UnidentifiedImageError, ValueError) as exc:
                 logger.warning("Fingerprint lookup failed for %s: %s", image_path, exc)
                 fp_match = None
-
-            if fp_match:
+            if fp_match and fp_match.distance == 0:
                 meta = fp_match.meta
                 name = meta.get("nazwa", meta.get("name", ""))
-                number = sanitize_number(str(meta.get("numer", meta.get("number", ""))))
+                number = sanitize_number(
+                    str(meta.get("numer", meta.get("number", "")))
+                )
                 set_name = meta.get("set", meta.get("set_name", ""))
                 self.entries["nazwa"].insert(0, name)
                 self.entries["numer"].insert(0, number)
@@ -4075,24 +4078,23 @@ class CardEditorApp:
                 if progress_cb:
                     progress_cb(1.0, hide=True)
 
-        if not fp_match:
+        if not skip_analysis:
             if progress_cb:
                 progress_cb(0, hide=True)
-            if not skip_analysis:
-                thread = threading.Thread(
-                    target=self._analyze_and_fill,
-                    args=(image_path, self.index),
-                    daemon=True,
-                )
-                self.current_analysis_thread = thread
-                for btn_name in ("save_button", "next_button"):
-                    btn = getattr(self, btn_name, None)
-                    if btn is not None:
-                        try:
-                            btn.configure(state=tk.DISABLED)
-                        except Exception:
-                            pass
-                thread.start()
+            thread = threading.Thread(
+                target=self._analyze_and_fill,
+                args=(image_path, self.index),
+                daemon=True,
+            )
+            self.current_analysis_thread = thread
+            for btn_name in ("save_button", "next_button"):
+                btn = getattr(self, btn_name, None)
+                if btn is not None:
+                    try:
+                        btn.configure(state=tk.DISABLED)
+                    except Exception:
+                        pass
+            thread.start()
 
         if getattr(self, "current_analysis_thread", None) is None:
             for btn_name in ("save_button", "next_button"):
@@ -4184,14 +4186,16 @@ class CardEditorApp:
                 with Image.open(path) as img:
                     fp = compute_fingerprint(img)
                 self.current_fingerprint = fp
-                fp_match = self.hash_db.best_match(fp, max_distance=HASH_MATCH_THRESHOLD)
+                fp_match = self.hash_db.best_match(
+                    fp, max_distance=HASH_MATCH_THRESHOLD
+                )
             except (OSError, UnidentifiedImageError, ValueError) as exc:
                 logger.warning("Fingerprint lookup failed for %s: %s", path, exc)
                 fp_match = None
         if update_progress:
             self.root.after(0, lambda: update_progress(0.5))
 
-        if fp_match:
+        if fp_match and fp_match.distance == 0:
             meta = fp_match.meta
             result = {
                 "name": meta.get("nazwa", meta.get("name", "")),
