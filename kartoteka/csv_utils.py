@@ -3,11 +3,15 @@ import re
 import csv
 from typing import Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
+
+import requests
+
 from webdav_client import WebDAVClient
 INVENTORY_CSV = os.getenv(
     "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 )
 WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", INVENTORY_CSV)
+WAREHOUSE_CSV_URL = os.getenv("WAREHOUSE_CSV_URL", "")
 
 # Track last modification time and cached statistics for the warehouse CSV
 WAREHOUSE_CSV_MTIME: Optional[float] = None
@@ -49,10 +53,16 @@ WAREHOUSE_FIELDNAMES = [
 
 
 def download_warehouse_csv():
-    """Download the warehouse CSV from the WebDAV server."""
+    """Download the warehouse CSV from HTTP or WebDAV."""
     try:
-        with WebDAVClient() as client:
-            client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
+        if WAREHOUSE_CSV_URL:
+            response = requests.get(WAREHOUSE_CSV_URL, timeout=30)
+            response.raise_for_status()
+            with open(WAREHOUSE_CSV, "wb") as fh:
+                fh.write(response.content)
+        else:
+            with WebDAVClient() as client:
+                client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
     except Exception:  # pragma: no cover - network failure
         pass
 
