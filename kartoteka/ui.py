@@ -3021,8 +3021,14 @@ class CardEditorApp:
             top.lift()
         if hasattr(top, "focus_force"):
             top.focus_force()
-        if hasattr(top, "protocol") and hasattr(top, "grab_release"):
-            top.protocol("WM_DELETE_WINDOW", top.grab_release)
+
+        def close_details():
+            if hasattr(top, "grab_release"):
+                top.grab_release()
+            top.destroy()
+
+        if hasattr(top, "protocol"):
+            top.protocol("WM_DELETE_WINDOW", close_details)
         top.title(row.get("name", _("Karta")))
         # ensure enough space for side-by-side layout
         if hasattr(top, "geometry"):
@@ -3094,6 +3100,14 @@ class CardEditorApp:
             right,
             text="Sprzedano",
             command=lambda: self.mark_as_sold(row, top),
+        ).grid(row=row_idx, column=0, pady=10, sticky="w")
+        row_idx += 1
+
+        # Explicit close button
+        ctk.CTkButton(
+            right,
+            text="Zamknij",
+            command=close_details,
         ).grid(row=row_idx, column=0, pady=10, sticky="w")
 
     def mark_as_sold(self, row: dict, window=None):
