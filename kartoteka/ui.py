@@ -5244,7 +5244,13 @@ class CardEditorApp:
                 pass
             return
         self.save_current_data()
-        self.index += 1
+        if self.index < len(self.cards) - 1:
+            self.index += 1
+        else:
+            try:
+                messagebox.showinfo("Info", "To jest ostatnia karta.")
+            except tk.TclError:
+                pass
         self.show_card()
 
     def previous_card(self):
