@@ -5247,12 +5247,12 @@ class CardEditorApp:
         self.save_current_data()
         if self.index < len(self.cards) - 1:
             self.index += 1
+            self.show_card()
         else:
             try:
                 messagebox.showinfo("Info", "To jest ostatnia karta.")
             except tk.TclError:
                 pass
-        self.show_card()
 
     def previous_card(self):
         """Save current data and display the previous scan."""
