@@ -5,8 +5,12 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-import kartoteka.ui as ui
-from tests.ctk_mocks import DummyCTkFrame, DummyCTkLabel, DummyCTkButton
+from tests.ctk_mocks import (
+    DummyCTkFrame,
+    DummyCTkLabel,
+    DummyCTkButton,
+    DummyCTkOptionMenu,
+)
 
 
 def test_show_card_details_splits_warehouse_codes(monkeypatch):
@@ -15,17 +19,31 @@ def test_show_card_details_splits_warehouse_codes(monkeypatch):
         geometry=lambda *a, **k: None,
         minsize=lambda *a, **k: None,
     )
-    monkeypatch.setattr(ui.ctk, "CTkToplevel", lambda master: top)
-    monkeypatch.setattr(ui.ctk, "CTkFrame", DummyCTkFrame)
     labels = []
+    option_menus = []
 
     class CapturingLabel(DummyCTkLabel):
         def __init__(self, *a, **k):
             super().__init__(*a, **k)
             labels.append(self)
 
-    monkeypatch.setattr(ui.ctk, "CTkLabel", CapturingLabel)
-    monkeypatch.setattr(ui.ctk, "CTkButton", DummyCTkButton)
+    class CapturingOptionMenu(DummyCTkOptionMenu):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            option_menus.append(self)
+
+    sys.modules["customtkinter"] = SimpleNamespace(
+        CTkToplevel=lambda master: top,
+        CTkFrame=DummyCTkFrame,
+        CTkLabel=CapturingLabel,
+        CTkButton=DummyCTkButton,
+        CTkOptionMenu=CapturingOptionMenu,
+    )
+
+    import importlib
+    import kartoteka.ui as ui
+    importlib.reload(ui)
+
     monkeypatch.setattr(ui, "_load_image", lambda path: Image.new("RGB", (1, 1)))
     monkeypatch.setattr(ui, "_create_image", lambda img: SimpleNamespace())
 
@@ -34,5 +52,4 @@ def test_show_card_details_splits_warehouse_codes(monkeypatch):
 
     texts = [lbl.text for lbl in labels]
     assert "Kody magazynowe:" in texts
-    assert "K1" in texts
-    assert "K2" in texts
+    assert option_menus[0].values == ["K1", "K2"]

@@ -23,6 +23,7 @@ import html
 import difflib
 import sys
 from typing import Iterable, Optional
+from types import SimpleNamespace
 from pydantic import BaseModel
 import pytesseract
 from pathlib import Path
@@ -3100,10 +3101,14 @@ class CardEditorApp:
             ("warehouse_code", "Warehouse Code"),
         ]
         row_idx = 0
+        selected_var = None
+        selected_default = ""
         for key, label in fields:
             val = row.get(key, "")
             if key == "warehouse_code":
                 codes = [c.strip() for c in str(val).split(";") if c.strip()]
+                if codes:
+                    selected_default = codes[0]
                 if len(codes) > 1:
                     ctk.CTkLabel(
                         right,
@@ -3111,13 +3116,16 @@ class CardEditorApp:
                         font=("Inter", 16),
                     ).grid(row=row_idx, column=0, sticky="w", pady=2)
                     row_idx += 1
-                    for code in codes:
-                        ctk.CTkLabel(
-                            right,
-                            text=code,
-                            font=("Inter", 16),
-                        ).grid(row=row_idx, column=0, sticky="w", pady=2)
-                        row_idx += 1
+                    try:
+                        selected_var = tk.StringVar(value=selected_default)
+                    except (tk.TclError, RuntimeError):
+                        selected_var = SimpleNamespace(get=lambda: selected_default)
+                    ctk.CTkOptionMenu(
+                        right,
+                        values=codes,
+                        variable=selected_var,
+                    ).grid(row=row_idx, column=0, sticky="w", pady=2)
+                    row_idx += 1
                     continue
                 val = "\n".join(codes)
             ctk.CTkLabel(
@@ -3131,7 +3139,11 @@ class CardEditorApp:
         ctk.CTkButton(
             right,
             text="Sprzedano",
-            command=lambda: self.mark_as_sold(row, top),
+            command=lambda: self.mark_as_sold(
+                row,
+                top,
+                selected_var.get() if selected_var is not None else selected_default,
+            ),
         ).grid(row=row_idx, column=0, pady=10, sticky="w")
         row_idx += 1
 
@@ -3142,7 +3154,12 @@ class CardEditorApp:
             command=close_details,
         ).grid(row=row_idx, column=0, pady=10, sticky="w")
 
-    def mark_as_sold(self, row: dict, window=None):
+    def mark_as_sold(
+        self,
+        row: dict,
+        window=None,
+        warehouse_code: Optional[str] = None,
+    ):
         """Mark the card as sold, update CSV and refresh views."""
 
         csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
@@ -3157,17 +3174,31 @@ class CardEditorApp:
         if "sold" not in fieldnames:
             fieldnames.append("sold")
 
-        target = str(row.get("warehouse_code", ""))
+        codes = [
+            c.strip()
+            for c in str(row.get("warehouse_code", "")).split(";")
+            if c.strip()
+        ]
+        target = warehouse_code or (codes[0] if codes else "")
         for r in rows:
             if r.get("warehouse_code") == target:
                 r["sold"] = "1"
-                row["sold"] = "1"
                 break
 
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
             writer.writerows(rows)
+
+        if target in codes:
+            codes.remove(target)
+            row["warehouse_code"] = ";".join(codes)
+        if "_count" in row:
+            try:
+                row["_count"] = max(int(row.get("_count", 1)) - 1, 0)
+            except Exception:
+                row["_count"] = max(len(codes), 0)
+        row["sold"] = "1" if not codes else ""
 
         if window is not None:
             try:
@@ -3178,7 +3209,7 @@ class CardEditorApp:
         if hasattr(self, "update_inventory_stats"):
             try:
                 self.update_inventory_stats()
-            except Exception as exc:
+            except Exception:
                 logger.exception("Failed to update inventory stats")
 
         if hasattr(self, "open_magazyn_window"):
