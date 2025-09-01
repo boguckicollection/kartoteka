@@ -15,11 +15,11 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    created = {}
+    created = []
 
     class DummyButton:
         def __init__(self, master=None, **kwargs):
-            created["kwargs"] = kwargs
+            created.append(kwargs)
 
         def grid(self, *a, **k):
             return self
@@ -86,10 +86,10 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
 
     ui.CardEditorApp.show_card_details(app, row)
 
-    assert created["kwargs"]["text"] == "Sprzedano"
+    sprzedano_btn = next(b for b in created if b["text"] == "Sprzedano")
 
     # Simulate button press
-    created["kwargs"]["command"]()
+    sprzedano_btn["command"]()
 
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
