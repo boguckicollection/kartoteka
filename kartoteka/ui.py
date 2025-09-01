@@ -2565,6 +2565,14 @@ class CardEditorApp:
         )
         sort_menu.pack(side="left", padx=5, pady=5)
 
+        self.mag_sold_filter_var = _safe_var("all")
+        sold_filter_menu = ctk.CTkOptionMenu(
+            control_frame,
+            variable=self.mag_sold_filter_var,
+            values=["all", "sold", "unsold"],
+        )
+        sold_filter_menu.pack(side="left", padx=5, pady=5)
+
         list_frame = ctk.CTkScrollableFrame(self.magazyn_frame, fg_color=LIGHT_BG_COLOR)
         list_frame.pack(expand=True, fill="both", padx=10, pady=10)
         # store reference for resize handling
@@ -2694,16 +2702,28 @@ class CardEditorApp:
             def _update_mag_list(*_):
                 query = self.mag_search_var.get().lower()
                 sort_key = self.mag_sort_var.get()
-                indices = [
-                    i
-                    for i, r in enumerate(self.mag_card_rows)
-                    if (
-                        query in r.get("name", "").lower()
-                        or query in str(r.get("number", "")).lower()
-                        or query in r.get("set", "").lower()
-                        or query in r.get("warehouse_code", "").lower()
+                status_filter = self.mag_sold_filter_var.get()
+
+                def _matches(row: dict) -> bool:
+                    is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                    if status_filter == "sold" and not is_sold:
+                        return False
+                    if status_filter == "unsold" and is_sold:
+                        return False
+                    price_str = str(row.get("price", "")).replace(",", ".")
+                    variant = (row.get("variant") or "").lower()
+                    return (
+                        query in row.get("name", "").lower()
+                        or query in str(row.get("number", "")).lower()
+                        or query in row.get("set", "").lower()
+                        or query in row.get("warehouse_code", "").lower()
+                        or query in variant
+                        or query in price_str
+                        or (query == "sold" and is_sold)
+                        or (query == "unsold" and not is_sold)
                     )
-                ]
+
+                indices = [i for i, r in enumerate(self.mag_card_rows) if _matches(r)]
                 if sort_key == "name":
                     indices.sort(key=lambda i: self.mag_card_rows[i].get("name", ""))
                 elif sort_key == "price":
@@ -2791,10 +2811,15 @@ class CardEditorApp:
                 bind("<Configure>", _relayout_mag_cards)
 
             self.mag_search_var.trace_add("write", _update_mag_list)
+            self.mag_sold_filter_var.trace_add("write", _update_mag_list)
             if hasattr(sort_menu, "configure"):
                 sort_menu.configure(command=lambda _: _update_mag_list())
             else:
                 sort_menu.command = lambda _: _update_mag_list()
+            if hasattr(sold_filter_menu, "configure"):
+                sold_filter_menu.configure(command=lambda _: _update_mag_list())
+            else:
+                sold_filter_menu.command = lambda _: _update_mag_list()
             _update_mag_list()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
