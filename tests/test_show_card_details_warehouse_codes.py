@@ -99,7 +99,12 @@ def test_show_card_details_updates_labels_for_multiple_codes(monkeypatch):
     ui.CardEditorApp.show_card_details(app, {"warehouse_code": "K1R1P1;K2R2P2"})
 
     texts = [lbl.text for lbl in labels]
+    # initial labels correspond to the first code
     assert "Kody magazynowe:" in texts
+    assert "Karton: 1" in texts
+    assert "Kolumna: 1" in texts
+    assert "Pozycja: 1" in texts
+    # option menu should expose raw codes for backend usage
     assert option_menus[0].values == ["K1R1P1", "K2R2P2"]
 
     option_menus[0].set("K2R2P2")
