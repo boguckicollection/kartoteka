@@ -875,7 +875,7 @@ def identify_set_by_hash(
 
 
 def extract_set_code_ocr(
-    scan_path: str, rect: tuple[int, int, int, int]
+    scan_path: str, rect: tuple[int, int, int, int], debug: bool = False
 ) -> list[str]:
     """Extract potential set codes from the scan using OCR.
 
@@ -886,6 +886,9 @@ def extract_set_code_ocr(
     rect:
         Bounding box ``(left, upper, right, lower)`` containing the expected
         location of the set code.
+    debug:
+        When ``True``, save intermediate crop to ``OCR`` directory for
+        diagnostic purposes. Errors during saving are ignored.
 
     Returns
     -------
@@ -899,12 +902,16 @@ def extract_set_code_ocr(
             crop = im.crop(rect)
             h = crop.height
             crop = crop.crop((0, int(h * 0.6), crop.width, h))
-        from pathlib import Path
+        if debug:
+            try:
+                from pathlib import Path
 
-        debug_dir = Path("OCR")
-        debug_dir.mkdir(exist_ok=True)
-        debug_file = debug_dir / f"{Path(scan_path).stem}_set_crop.png"
-        crop.convert("RGB").save(debug_file)
+                debug_dir = Path("OCR")
+                debug_dir.mkdir(exist_ok=True)
+                debug_file = debug_dir / f"{Path(scan_path).stem}_set_crop.png"
+                crop.convert("RGB").save(debug_file)
+            except OSError as exc:  # pragma: no cover - debug only
+                logger.debug("Failed to save debug image for %s: %s", scan_path, exc)
         crop = crop.convert("L")
         crop = ImageOps.autocontrast(crop)
         crop = crop.resize((crop.width * 4, crop.height * 4))
@@ -1251,7 +1258,7 @@ def analyze_card_image(
                             preview_cb(candidate, preview_image)
                         except Exception as exc:
                             logger.exception("preview callback failed")
-                    ocr_codes = extract_set_code_ocr(local_path, candidate)
+                    ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
                     for code in ocr_codes:
                         name_lookup = get_set_name(code)
                         if name_lookup and name_lookup != code:
