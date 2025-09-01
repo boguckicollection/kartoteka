@@ -11,7 +11,7 @@ from webdav_client import WebDAVClient
 def test_download_file(monkeypatch, tmp_path):
     called = {}
 
-    def fake_get(url, auth):
+    def fake_get(url, auth, timeout=None):
         called['url'] = url
         called['auth'] = auth
         return types.SimpleNamespace(status_code=200, content=b'data', text='')
@@ -31,7 +31,7 @@ def test_download_file(monkeypatch, tmp_path):
 def test_upload_file(monkeypatch, tmp_path):
     called = {}
 
-    def fake_put(url, data, auth):
+    def fake_put(url, data, auth, timeout=None):
         called['url'] = url
         called['auth'] = auth
         called['data'] = data.read()
