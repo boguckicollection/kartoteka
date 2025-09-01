@@ -24,7 +24,9 @@ class WebDAVClient:
         url = self._make_url(remote_name)
         try:
             with open(local_path, "rb") as fh:
-                response = requests.put(url, data=fh, auth=(self.user, self.password))
+                response = requests.put(
+                    url, data=fh, auth=(self.user, self.password), timeout=30
+                )
             if response.status_code not in (200, 201):
                 raise RuntimeError(
                     f"WebDAV upload failed: {response.status_code} {response.text}"
@@ -37,7 +39,9 @@ class WebDAVClient:
         local_path = local_path or os.path.basename(remote_name)
         url = self._make_url(remote_name)
         try:
-            response = requests.get(url, auth=(self.user, self.password))
+            response = requests.get(
+                url, auth=(self.user, self.password), timeout=30
+            )
             if response.status_code != 200:
                 raise RuntimeError(
                     f"WebDAV download failed: {response.status_code} {response.text}"
