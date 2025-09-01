@@ -83,3 +83,34 @@ def test_download_warehouse_csv_http_error_logs(monkeypatch, tmp_path, caplog):
         csv_utils.download_warehouse_csv()
 
     assert "Failed to download warehouse CSV" in caplog.text
+
+
+def test_download_warehouse_csv_webdav_error(monkeypatch, tmp_path, caplog):
+    class FailingWebDAVClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+        def download_file(self, remote_path, local_path=None):
+            raise RuntimeError("connection failed")
+
+    monkeypatch.setattr(csv_utils, "WebDAVClient", FailingWebDAVClient)
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV_URL", "")
+    path = tmp_path / "mag.csv"
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(path))
+
+    called = {}
+
+    def dummy_retry(title, message):
+        called["asked"] = True
+        return False
+
+    monkeypatch.setattr(csv_utils.messagebox, "askretrycancel", dummy_retry)
+
+    with caplog.at_level(logging.WARNING):
+        csv_utils.download_warehouse_csv()
+
+    assert "Failed to download warehouse CSV" in caplog.text
+    assert called["asked"]

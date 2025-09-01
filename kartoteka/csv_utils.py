@@ -64,7 +64,20 @@ def download_warehouse_csv():
                 fh.write(response.content)
         else:
             with WebDAVClient() as client:
-                client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
+                try:
+                    client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
+                except RuntimeError as exc:
+                    logging.warning("Failed to download warehouse CSV: %s", exc)
+                    try:
+                        retry = messagebox.askretrycancel(
+                            "Download Failed",
+                            "Nie udało się pobrać magazynu. Spróbować ponownie?",
+                        )
+                    except TclError:
+                        retry = False
+                    if retry:
+                        return download_warehouse_csv()
+                    return
     except RequestException as exc:  # pragma: no cover - network failure
         logging.warning("Failed to download warehouse CSV: %s", exc)
     except Exception:
