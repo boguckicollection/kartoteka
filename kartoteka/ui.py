@@ -1393,6 +1393,7 @@ class CardEditorApp:
         self.auction_queue = []
         self.in_scan = False
         self.current_image_path = ""
+        self.current_analysis_thread = None
         self.show_loading_screen()
         self.root.after(0, self.startup_tasks)
 
@@ -4077,11 +4078,29 @@ class CardEditorApp:
             if progress_cb:
                 progress_cb(0, hide=True)
             if not skip_analysis:
-                threading.Thread(
+                thread = threading.Thread(
                     target=self._analyze_and_fill,
                     args=(image_path, self.index),
                     daemon=True,
-                ).start()
+                )
+                self.current_analysis_thread = thread
+                for btn_name in ("save_button", "next_button"):
+                    btn = getattr(self, btn_name, None)
+                    if btn is not None:
+                        try:
+                            btn.configure(state=tk.DISABLED)
+                        except Exception:
+                            pass
+                thread.start()
+
+        if getattr(self, "current_analysis_thread", None) is None:
+            for btn_name in ("save_button", "next_button"):
+                btn = getattr(self, btn_name, None)
+                if btn is not None:
+                    try:
+                        btn.configure(state=tk.NORMAL)
+                    except Exception:
+                        pass
 
         # focus the name entry so the user can start typing immediately
         self.entries["nazwa"].focus_set()
@@ -4224,6 +4243,14 @@ class CardEditorApp:
                     self.update_set_area_preview(rect, self.current_card_image)
                 except Exception:
                     logger.exception("Failed to update set area preview")
+        for btn_name in ("save_button", "next_button"):
+            btn = getattr(self, btn_name, None)
+            if btn is not None:
+                try:
+                    btn.configure(state=tk.NORMAL)
+                except Exception:
+                    pass
+        self.current_analysis_thread = None
         return
 
     def generate_location(self, idx):
@@ -5210,6 +5237,12 @@ class CardEditorApp:
 
     def save_and_next(self):
         """Save the current card data and display the next scan."""
+        if getattr(self, "current_analysis_thread", None):
+            try:
+                messagebox.showwarning("Info", "Trwa analiza karty, poczekaj.")
+            except tk.TclError:
+                pass
+            return
         self.save_current_data()
         self.index += 1
         self.show_card()
