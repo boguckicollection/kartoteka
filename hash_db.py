@@ -250,11 +250,25 @@ class HashDB:
         results.sort(key=lambda c: c.distance)
         return results[:limit]
 
-    def best_match(self, source) -> Optional[Candidate]:
-        """Return the single best match for ``source`` or ``None``."""
+    def best_match(self, source, max_distance: Optional[int] = None) -> Optional[Candidate]:
+        """Return the single best match for ``source`` or ``None``.
+
+        Parameters
+        ----------
+        source:
+            Fingerprint mapping or image path used for the lookup.
+        max_distance:
+            Optional maximum allowed distance for a match.  If the best
+            candidate exceeds this distance, ``None`` is returned instead.
+        """
 
         candidates = self.candidates(source, limit=1)
-        return candidates[0] if candidates else None
+        if not candidates:
+            return None
+        best = candidates[0]
+        if max_distance is not None and best.distance > max_distance:
+            return None
+        return best
 
 
 __all__ = ["HashDB", "Candidate"]
