@@ -429,7 +429,7 @@ def test_analyze_card_image_debug_rect(tmp_path, monkeypatch):
     monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
     monkeypatch.setattr(ui, "identify_set_by_hash", lambda *a, **k: [])
     result = ui.analyze_card_image(str(img_path), debug=True)
-    assert result["orientation"] == 90
+    assert result["orientation"] == 0
     rect = result.get("rect")
     assert isinstance(rect, tuple) and len(rect) == 4
 
@@ -445,7 +445,7 @@ def test_analyze_card_image_orientation(tmp_path, monkeypatch):
          patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image(str(img_path))
 
-    assert result["orientation"] == 90
+    assert result["orientation"] == 0
 
 
 def test_preview_callback_called(tmp_path, monkeypatch):
@@ -479,7 +479,7 @@ def test_analyze_card_image_horizontal_scan(tmp_path, monkeypatch):
     img_path = tmp_path / "horizontal.png"
     Image.new("RGB", (400, 200), color="white").save(img_path)
 
-    expected_rect = ui.get_symbol_rects(200, 400)[0]
+    expected_rect = ui.get_symbol_rects(400, 200)[0]
 
     def fake_hash(path, rect):
         assert rect == expected_rect
@@ -494,7 +494,7 @@ def test_analyze_card_image_horizontal_scan(tmp_path, monkeypatch):
 
     assert result["set"] == SV01_NAME
     assert result["set_code"] == SV01_CODE
-    assert result["orientation"] == 90
+    assert result["orientation"] == 0
 
 
 def test_analyze_and_fill_translates_for_jp(monkeypatch):

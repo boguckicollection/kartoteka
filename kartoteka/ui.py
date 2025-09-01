@@ -1091,15 +1091,15 @@ def analyze_card_image(
     if local_path and os.path.exists(local_path):
         try:
             with Image.open(local_path) as im:
+                exif_orientation = im.getexif().get(0x0112, 1)
+                im = ImageOps.exif_transpose(im)
                 w, h = im.size
-                orientation = 90 if w > h else 0
-                if orientation == 90:
-                    im = im.rotate(90, expand=True)
+                orientation = 90 if exif_orientation in (6, 8) else 0
+                if exif_orientation != 1:
                     rotated_path = local_path + ".rot.jpg"
                     im.save(rotated_path)
                     local_path = rotated_path
                     path = rotated_path
-                    w, h = im.size
                 rects = get_symbol_rects(w, h)
                 if rects:
                     rect = rects[0]
