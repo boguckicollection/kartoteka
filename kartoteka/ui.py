@@ -4060,8 +4060,11 @@ class CardEditorApp:
                     str(meta.get("numer", meta.get("number", "")))
                 )
                 set_name = meta.get("set", meta.get("set_name", ""))
+                self.entries["nazwa"].delete(0, tk.END)
+                self.entries["numer"].delete(0, tk.END)
                 self.entries["nazwa"].insert(0, name)
                 self.entries["numer"].insert(0, number)
+                self.entries["set"].set("")
                 self.entries["set"].set(set_name)
                 if isinstance(meta.get("typ"), str):
                     for name in meta["typ"].split(","):
