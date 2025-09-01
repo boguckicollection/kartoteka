@@ -20,6 +20,9 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
     class DummyButton:
         def __init__(self, master=None, **kwargs):
             created.append(kwargs)
+        
+        def pack(self, *a, **k):
+            return self
 
         def grid(self, *a, **k):
             return self
