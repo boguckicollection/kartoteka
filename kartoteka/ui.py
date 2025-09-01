@@ -3061,23 +3061,40 @@ class CardEditorApp:
             ("price", "Price"),
             ("warehouse_code", "Warehouse Code"),
         ]
-        for i, (key, label) in enumerate(fields):
+        row_idx = 0
+        for key, label in fields:
             val = row.get(key, "")
             if key == "warehouse_code":
                 codes = [c.strip() for c in str(val).split(";") if c.strip()]
-                val = ", ".join(codes)
+                if len(codes) > 1:
+                    ctk.CTkLabel(
+                        right,
+                        text=_("Kody magazynowe:"),
+                        font=("Inter", 16),
+                    ).grid(row=row_idx, column=0, sticky="w", pady=2)
+                    row_idx += 1
+                    for code in codes:
+                        ctk.CTkLabel(
+                            right,
+                            text=code,
+                            font=("Inter", 16),
+                        ).grid(row=row_idx, column=0, sticky="w", pady=2)
+                        row_idx += 1
+                    continue
+                val = "\n".join(codes)
             ctk.CTkLabel(
                 right,
                 text=f"{label}: {val}",
                 font=("Inter", 16),
-            ).grid(row=i, column=0, sticky="w", pady=2)
+            ).grid(row=row_idx, column=0, sticky="w", pady=2)
+            row_idx += 1
 
         # Button to mark the card as sold
         ctk.CTkButton(
             right,
             text="Sprzedano",
             command=lambda: self.mark_as_sold(row, top),
-        ).grid(row=len(fields), column=0, pady=10, sticky="w")
+        ).grid(row=row_idx, column=0, pady=10, sticky="w")
 
     def mark_as_sold(self, row: dict, window=None):
         """Mark the card as sold, update CSV and refresh views."""
