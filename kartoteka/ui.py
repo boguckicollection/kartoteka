@@ -4026,6 +4026,11 @@ class CardEditorApp:
             self.entries["set"].set(inv_entry.get("set", ""))
             self.update_set_options()
             skip_analysis = True
+            logger.info(
+                "Skipping analysis for %s: inventory entry found for key %s",
+                os.path.basename(image_path),
+                cache_key,
+            )
 
         folder = os.path.basename(os.path.dirname(image_path))
         progress_cb = getattr(self, "_update_card_progress", None)
@@ -4060,6 +4065,11 @@ class CardEditorApp:
                             self.type_vars[name].set(True)
                 self.update_set_options()
                 skip_analysis = True
+                logger.info(
+                    "Skipping analysis for %s: fingerprint match with distance %s",
+                    os.path.basename(image_path),
+                    fp_match.distance,
+                )
                 if progress_cb:
                     progress_cb(1.0, hide=True)
 
