@@ -4658,14 +4658,30 @@ class CardEditorApp:
                 set_match = set_input in card_set or card_set.startswith(set_input)
 
                 if name_match and number_match and set_match:
-                    psa10 = (
-                        card.get("prices", {})
-                        .get("cardmarket", {})
-                        .get("graded", {})
-                        .get("psa", {})
-                        .get("psa10")
-                    )
                     try:
+                        graded = (
+                            card.get("prices", {})
+                            .get("cardmarket", {})
+                            .get("graded")
+                        )
+                        psa10 = None
+                        if isinstance(graded, list):
+                            for entry in graded:
+                                if (
+                                    isinstance(entry, dict)
+                                    and str(entry.get("company", "")).lower() == "psa"
+                                    and str(entry.get("grade", ""))
+                                    .replace(" ", "")
+                                    .lower()
+                                    in {"psa10", "10"}
+                                ):
+                                    psa10 = entry.get("price")
+                                    break
+                        elif isinstance(graded, dict):
+                            psa10 = (
+                                graded.get("psa", {})
+                                .get("psa10")
+                            )
                         if psa10 is None:
                             return ""
                         rate = self.get_exchange_rate()
@@ -4675,7 +4691,7 @@ class CardEditorApp:
                             if price_pln.is_integer()
                             else str(price_pln)
                         )
-                    except (TypeError, ValueError):
+                    except (AttributeError, TypeError, ValueError):
                         return ""
             return ""
         except requests.Timeout:
