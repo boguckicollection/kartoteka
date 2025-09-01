@@ -2741,8 +2741,7 @@ class CardEditorApp:
                 self.mag_card_frames = []
                 self.mag_card_labels = []
                 self.mag_sold_labels = []
-                for i in range(len(self.mag_card_image_labels)):
-                    self.mag_card_image_labels[i] = None
+                displayed = set(indices)
 
                 for idx in indices:
                     row = self.mag_card_rows[idx]
@@ -2803,6 +2802,10 @@ class CardEditorApp:
                         self.mag_sold_labels.append(label)
                     else:
                         self.mag_card_labels.append(label)
+
+                for i in range(len(self.mag_card_image_labels)):
+                    if i not in displayed:
+                        self.mag_card_image_labels[i] = None
 
                 _relayout_mag_cards()
 
