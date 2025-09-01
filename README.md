@@ -127,6 +127,7 @@ WEBDAV_URL=https://example.com/webdav
 WEBDAV_USER=username
 WEBDAV_PASSWORD=secret
 WAREHOUSE_CSV=magazyn.csv
+WAREHOUSE_CSV_URL=https://sklep839679.shoparena.pl/upload/magazyn.csv
 BASE_IMAGE_URL=https://your-store.shop/upload/images
 HASH_DB_FILE=hashes.sqlite
 ```
@@ -134,12 +135,18 @@ HASH_DB_FILE=hashes.sqlite
 - `OPENAI_API_KEY` – API key used by OpenAI Vision to extract card details from scans.
 - `HASH_DB_FILE` – path to a writable SQLite file used for fingerprint storage.
   The application stores fingerprints in this file on each scan and reuses it across sessions for automatic card recognition. When unset duplicate detection is disabled.
+- `WAREHOUSE_CSV_URL` – direct link to the warehouse CSV. If the local `WAREHOUSE_CSV`
+  file is missing the application downloads it from this URL, for example
+  `https://sklep839679.shoparena.pl/upload/magazyn.csv`. When this variable is
+  not set the downloader falls back to WebDAV.
 
 **Warning:** This file may contain private API keys and tokens. It is excluded
 from version control via `.gitignore` and should never be shared publicly.
 
 The `RAPIDAPI_*` variables are used when a card price is not found in the local database. `SHOPER_API_URL` and `SHOPER_API_TOKEN` configure access to your Shoper store for the **Porządkuj** window. The application expects the `/webapi/rest` endpoint and will append it automatically if it is missing. `WEBDAV_URL`, `WEBDAV_USER` and `WEBDAV_PASSWORD` configure optional WebDAV uploads. `OPENAI_API_KEY` supplies the key for OpenAI Vision to recognise card details from scans. `BASE_IMAGE_URL` should point to the public directory where scans are uploaded so OpenAI can fetch them during analysis and the exported CSV contains correct links. Leading or trailing spaces in `SHOPER_API_URL` and `SHOPER_API_TOKEN` are ignored.
-`WAREHOUSE_CSV` controls where the local warehouse CSV is written.
+`WAREHOUSE_CSV` controls where the local warehouse CSV is written. If
+`WAREHOUSE_CSV_URL` is provided the file is fetched from the URL whenever the
+local copy is missing.
 
 ## Warehouse Layout
 The warehouse view arranges eight standard boxes in two rows followed by a special overflow box:
