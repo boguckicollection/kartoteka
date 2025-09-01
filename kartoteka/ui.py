@@ -3180,25 +3180,86 @@ class CardEditorApp:
                 codes = [c.strip() for c in str(val).split(";") if c.strip()]
                 if codes:
                     selected_default = codes[0]
-                if len(codes) > 1:
+                    pattern = re.compile(r"K(\d+)R(\d+)P(\d+)")
+                    parsed = []
+                    for code in codes:
+                        m = pattern.fullmatch(code)
+                        if m:
+                            parsed.append((code, m.group(1), m.group(2), m.group(3)))
+                        else:  # pragma: no cover - unexpected format
+                            parsed.append((code, "", "", ""))
+
+                    if len(parsed) > 1:
+                        ctk.CTkLabel(
+                            right,
+                            text=_("Kody magazynowe:"),
+                            font=("Inter", 16),
+                        ).grid(row=row_idx, column=0, sticky="w", pady=2)
+                        row_idx += 1
+                        try:
+                            selected_var = tk.StringVar(value=selected_default)
+                        except (tk.TclError, RuntimeError):
+                            selected_var = SimpleNamespace(get=lambda: selected_default)
+
+                        def update_labels(selected: str) -> None:
+                            info = next((p for p in parsed if p[0] == selected), parsed[0])
+                            karton_lbl.configure(text=f"Karton: {info[1]}")
+                            kolumna_lbl.configure(text=f"Kolumna: {info[2]}")
+                            pozycja_lbl.configure(text=f"Pozycja: {info[3]}")
+
+                        ctk.CTkOptionMenu(
+                            right,
+                            values=[p[0] for p in parsed],
+                            variable=selected_var,
+                            command=update_labels,
+                        ).grid(row=row_idx, column=0, sticky="w", pady=2)
+                        row_idx += 1
+
+                        karton_lbl = ctk.CTkLabel(
+                            right,
+                            text=f"Karton: {parsed[0][1]}",
+                            font=("Inter", 16),
+                        )
+                        karton_lbl.grid(row=row_idx, column=0, sticky="w", pady=2)
+                        row_idx += 1
+                        kolumna_lbl = ctk.CTkLabel(
+                            right,
+                            text=f"Kolumna: {parsed[0][2]}",
+                            font=("Inter", 16),
+                        )
+                        kolumna_lbl.grid(row=row_idx, column=0, sticky="w", pady=2)
+                        row_idx += 1
+                        pozycja_lbl = ctk.CTkLabel(
+                            right,
+                            text=f"Pozycja: {parsed[0][3]}",
+                            font=("Inter", 16),
+                        )
+                        pozycja_lbl.grid(row=row_idx, column=0, sticky="w", pady=2)
+                        row_idx += 1
+                        continue
+
+                    # single code
+                    c = parsed[0]
                     ctk.CTkLabel(
                         right,
-                        text=_("Kody magazynowe:"),
+                        text=f"Karton: {c[1]}",
                         font=("Inter", 16),
                     ).grid(row=row_idx, column=0, sticky="w", pady=2)
                     row_idx += 1
-                    try:
-                        selected_var = tk.StringVar(value=selected_default)
-                    except (tk.TclError, RuntimeError):
-                        selected_var = SimpleNamespace(get=lambda: selected_default)
-                    ctk.CTkOptionMenu(
+                    ctk.CTkLabel(
                         right,
-                        values=codes,
-                        variable=selected_var,
+                        text=f"Kolumna: {c[2]}",
+                        font=("Inter", 16),
+                    ).grid(row=row_idx, column=0, sticky="w", pady=2)
+                    row_idx += 1
+                    ctk.CTkLabel(
+                        right,
+                        text=f"Pozycja: {c[3]}",
+                        font=("Inter", 16),
                     ).grid(row=row_idx, column=0, sticky="w", pady=2)
                     row_idx += 1
                     continue
-                val = "\n".join(codes)
+
             ctk.CTkLabel(
                 right,
                 text=f"{label}: {val}",
