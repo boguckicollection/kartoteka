@@ -5169,8 +5169,18 @@ class CardEditorApp:
     def save_current_data(self):
         """Store the data for the currently displayed card without changing
         the index."""
-        data = {k: v.get() for k, v in self.entries.items()}
+        data: dict[str, str] = {}
+        for k, v in self.entries.items():
+            try:
+                if hasattr(v, "winfo_exists") and not v.winfo_exists():
+                    continue
+                data[k] = v.get()
+            except tk.TclError:
+                continue
         data.setdefault("psa10_price", "")
+        data.setdefault("nazwa", "")
+        data.setdefault("numer", "")
+        data.setdefault("set", "")
         name = data.get("nazwa")
         number = data.get("numer")
         set_name = data.get("set")
