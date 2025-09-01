@@ -3134,6 +3134,8 @@ class CardEditorApp:
         if hasattr(top, "protocol"):
             top.protocol("WM_DELETE_WINDOW", close_details)
         top.title(row.get("name", _("Karta")))
+        if hasattr(top, "overrideredirect"):
+            top.overrideredirect(True)
         # ensure enough space for side-by-side layout
         if hasattr(top, "geometry"):
             top.geometry("600x400")
@@ -3267,24 +3269,24 @@ class CardEditorApp:
             ).grid(row=row_idx, column=0, sticky="w", pady=2)
             row_idx += 1
 
-        # Button to mark the card as sold
+        buttons_frame = ctk.CTkFrame(top)
+        buttons_frame.pack(side="bottom", pady=10)
+
         ctk.CTkButton(
-            right,
+            buttons_frame,
             text="Sprzedano",
             command=lambda: self.mark_as_sold(
                 row,
                 top,
                 selected_var.get() if selected_var is not None else selected_default,
             ),
-        ).grid(row=row_idx, column=0, pady=10, sticky="w")
-        row_idx += 1
+        ).pack(side="left", padx=5)
 
-        # Explicit close button
         ctk.CTkButton(
-            right,
+            buttons_frame,
             text="Zamknij",
             command=close_details,
-        ).grid(row=row_idx, column=0, pady=10, sticky="w")
+        ).pack(side="left", padx=5)
 
     def mark_as_sold(
         self,
