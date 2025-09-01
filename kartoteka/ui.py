@@ -2585,28 +2585,27 @@ class CardEditorApp:
 
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter=";")
-                groups: dict[tuple, list[dict]] = {}
+                groups: dict[tuple[str, ...], list[dict]] = defaultdict(list)
                 for row in reader:
                     if not (row.get("name") and row.get("image")):
                         logger.warning("Skipping row with missing name or image: %s", row)
                         continue
-                    variant = row.get("variant") or "common"
-                    sold = str(row.get("sold") or "")
                     key = (
                         row.get("name"),
                         row.get("number"),
                         row.get("set"),
                         row.get("image"),
-                        variant,
-                        sold,
+                        row.get("variant") or "common",
+                        str(row.get("sold") or ""),
                     )
-                    groups.setdefault(key, []).append(row)
+                    groups[key].append(row)
 
                 for rows in groups.values():
                     combined = dict(rows[0])
-                    combined["warehouse_code"] = ";".join(
+                    codes = [
                         r.get("warehouse_code", "") for r in rows if r.get("warehouse_code")
-                    )
+                    ]
+                    combined["warehouse_code"] = ";".join(dict.fromkeys(codes))
                     combined["_count"] = len(rows)
                     idx = len(self.mag_card_rows)
                     self.mag_card_rows.append(combined)
