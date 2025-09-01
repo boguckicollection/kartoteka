@@ -1,7 +1,10 @@
 import sys
 from pathlib import Path
+import logging
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from requests import RequestException
 
 from kartoteka import csv_utils
 
@@ -64,3 +67,19 @@ def test_download_warehouse_csv_http(monkeypatch, tmp_path):
 
     assert called["url"] == url
     assert path.read_bytes() == data
+
+
+def test_download_warehouse_csv_http_error_logs(monkeypatch, tmp_path, caplog):
+    def failing_get(url, timeout=30):
+        raise RequestException("network down")
+
+    monkeypatch.setattr(csv_utils.requests, "get", failing_get)
+    url = "http://example.com/mag.csv"
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV_URL", url)
+    path = tmp_path / "mag.csv"
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(path))
+
+    with caplog.at_level(logging.WARNING):
+        csv_utils.download_warehouse_csv()
+
+    assert "Failed to download warehouse CSV" in caplog.text

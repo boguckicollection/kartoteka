@@ -4,7 +4,9 @@ import csv
 from typing import Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
 
+import logging
 import requests
+from requests import RequestException
 
 from webdav_client import WebDAVClient
 INVENTORY_CSV = os.getenv(
@@ -63,8 +65,10 @@ def download_warehouse_csv():
         else:
             with WebDAVClient() as client:
                 client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
-    except Exception:  # pragma: no cover - network failure
-        pass
+    except RequestException as exc:  # pragma: no cover - network failure
+        logging.warning("Failed to download warehouse CSV: %s", exc)
+    except Exception:
+        raise
 
 
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
