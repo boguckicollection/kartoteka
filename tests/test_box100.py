@@ -62,7 +62,7 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
         ui.tk, "Canvas", DummyCanvas
-    ):
+    ), patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
         dummy_root = SimpleNamespace(
             minsize=lambda *a, **k: None,
             title=lambda *a, **k: None,
@@ -78,9 +78,11 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
             create_button=lambda master, **kwargs: DummyCTkButton(master, **kwargs),
             refresh_magazyn=lambda: None,
             back_to_welcome=lambda: None,
+            update_inventory_stats=lambda: None,
         )
 
         ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.refresh_magazyn(app)
 
     assert app.mag_box_order[-1] == 100
     occ = ui.CardEditorApp.compute_box_occupancy(app)
@@ -89,3 +91,7 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
 
     percent = occ[100] / storage.BOX_CAPACITY[100] * 100
     assert percent == pytest.approx(0.2)
+
+    canvas = app.mag_canvases[-1]
+    rect = list(canvas.items.values())[0]
+    assert rect["fill"] == ui.OCCUPIED_COLOR

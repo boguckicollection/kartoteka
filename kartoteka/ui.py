@@ -1383,7 +1383,6 @@ class CardEditorApp:
         self.location_frame = None
         self.auction_frame = None
         self.mag_canvases = []
-        self.mag_box_photo = None
         self.log_widget = None
         self.cheat_frame = None
         self.set_logos = {}
@@ -2502,22 +2501,8 @@ class CardEditorApp:
 
     def build_box_preview(self, parent):
         """Create frames and canvases previewing warehouse boxes."""
-        base_dir = os.path.dirname(__file__)
-        img_path = os.path.join(base_dir, "box.png")
-        img = _get_thumbnail(img_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-        if img is None:
-            img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
-            _THUMB_CACHE[img_path] = img
-        self.mag_box_photo = _create_image(img)
-
-        img100_path = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
-        img100 = _get_thumbnail(img100_path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-        if img100 is None:
-            img100 = img
-            _THUMB_CACHE[img100_path] = img100
-        self.mag_box100_photo = _create_image(img100)
-
-        box_w, box_h = img.size
+        box_w = BOX_THUMB_SIZE
+        box_h = BOX_THUMB_SIZE
 
         container = ctk.CTkFrame(parent, fg_color=BG_COLOR)
         container.pack(padx=10, pady=10)
@@ -2533,28 +2518,13 @@ class CardEditorApp:
                 fg_color=BG_COLOR,
                 text_color=TEXT_COLOR,
             )
-            if box_num == SPECIAL_BOX_NUMBER:
-                canvas_w, canvas_h = img100.size
-            else:
-                canvas_w, canvas_h = box_w, box_h
             canvas = tk.Canvas(
                 frame,
-                width=canvas_w,
-                height=canvas_h,
+                width=box_w,
+                height=box_h,
                 highlightthickness=0,
             )
             canvas.config(bg=BG_COLOR)
-            photo_obj = (
-                self.mag_box100_photo if box_num == SPECIAL_BOX_NUMBER else self.mag_box_photo
-            )
-            if hasattr(ctk, "CTkImage") and isinstance(photo_obj, ctk.CTkImage):
-                photo = photo_obj.create_scaled_photo_image(
-                    ctk.ScalingTracker.get_widget_scaling(canvas),
-                    ctk.get_appearance_mode(),
-                )
-            else:
-                photo = photo_obj
-            canvas.create_image(0, 0, image=photo, anchor="nw")
             canvas.pack()
             lbl.pack()
             row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
@@ -2565,8 +2535,7 @@ class CardEditorApp:
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
-        self.mag_canvas_items = [{} for _ in self.mag_canvases]
-        self._mag_prev_occupancy = {}
+        self.mag_canvas_items = [[] for _ in self.mag_canvases]
         self.mag_card_images = []
         self.mag_card_rows = []
         self.mag_card_labels = []
@@ -2984,135 +2953,73 @@ class CardEditorApp:
         self.refresh_magazyn()
 
     def refresh_magazyn(self):
-        """Refresh storage view and color code capacity usage.
-
-        A column's background turns orange when 30% or more of its
-        capacity is still free.  Individual segments representing 10%
-        of the column capacity become green as soon as they are
-        occupied.
-        """
+        """Refresh storage view and color occupied columns."""
         if not getattr(self, "mag_canvases", None):
             return
 
-        occ = self.compute_box_occupancy()
-
-        base_dir = os.path.dirname(__file__)
-        if getattr(self, "mag_box_photo", None) is None:
-            path = os.path.join(base_dir, "box.png")
-            img = _get_thumbnail(path, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-            if img is None:
-                img = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
-                _THUMB_CACHE[path] = img
-            self.mag_box_photo = _create_image(img)
-        if getattr(self, "mag_box100_photo", None) is None:
-            path100 = os.path.join(base_dir, f"box{SPECIAL_BOX_NUMBER}.png")
-            img100 = _get_thumbnail(path100, (BOX_THUMB_SIZE, BOX_THUMB_SIZE))
-            if img100 is None:
-                img100 = _THUMB_CACHE.get(os.path.join(base_dir, "box.png"))
-                if img100 is None:
-                    img100 = _get_thumbnail(
-                        os.path.join(base_dir, "box.png"),
-                        (BOX_THUMB_SIZE, BOX_THUMB_SIZE),
-                    )
-            if img100 is None:
-                img100 = Image.new("RGB", (BOX_THUMB_SIZE, BOX_THUMB_SIZE), "#111111")
-                _THUMB_CACHE[path100] = img100
-            self.mag_box100_photo = _create_image(img100)
+        col_occ = storage.compute_column_occupancy()
         order = getattr(self, "mag_box_order", None) or []
+
         for idx, canvas in enumerate(self.mag_canvases):
             box = order[idx] if idx < len(order) else idx + 1
+            box_w = BOX_THUMB_SIZE
+            box_h = BOX_THUMB_SIZE
+            columns = storage.BOX_COLUMNS.get(box, 4)
 
-            box_w = int(canvas.cget("width"))
-            box_h = int(canvas.cget("height"))
+            counts = [
+                col_occ.get(box, {}).get(col, 0) for col in range(1, columns + 1)
+            ]
             total_capacity = storage.BOX_CAPACITY.get(
-                box,
-                storage.BOX_COLUMNS.get(box, 4) * storage.BOX_COLUMN_CAPACITY,
+                box, columns * storage.BOX_COLUMN_CAPACITY
             )
+            filled = sum(counts)
+            occupied_percent = filled / total_capacity * 100 if total_capacity else 0
 
-            filled = occ.get(box, 0)
-            segment_capacity = storage.BOX_COLUMN_CAPACITY // 10
-            seg_count = max(1, total_capacity // segment_capacity)
-            filled_sections = min(seg_count, filled // segment_capacity)
+            rects = self.mag_canvas_items[idx]
+            col_w = box_w / columns
 
-            prev_stats = self._mag_prev_occupancy.get(box)
-            canvas_items = self.mag_canvas_items[idx]
-            if (
-                prev_stats
-                and prev_stats.get("filled") == filled
-                and prev_stats.get("seg_count") == seg_count
-                and canvas_items
-            ):
-                occupied_percent = filled / total_capacity * 100
-                self.mag_labels[idx].configure(
-                    text=f"K{box}: {occupied_percent:.0f}%"
-                )
-                continue
-
-            self._mag_prev_occupancy[box] = {
-                "filled": filled,
-                "seg_count": seg_count,
-            }
-
-            x1 = 0
-            x2 = box_w
-            occupied_percent = filled / total_capacity * 100
-            free_percent = 100 - occupied_percent
-            bg_fill = FREE_COLOR if free_percent >= 30 else ""
-
-            seg_h = box_h / seg_count
-            if not canvas_items:
-                bg_id = canvas.create_rectangle(x1, 0, x2, box_h, fill=bg_fill, width=0)
-                segments = []
-                for i in range(seg_count):
-                    y1 = box_h - seg_h * (i + 1)
-                    y2 = box_h - seg_h * i
-                    color = OCCUPIED_COLOR if i < filled_sections else ""
-                    seg_id = canvas.create_rectangle(
+            if not rects:
+                for col in range(columns):
+                    x1 = col * col_w
+                    x2 = (col + 1) * col_w
+                    fill = OCCUPIED_COLOR if counts[col] > 0 else ""
+                    rect_id = canvas.create_rectangle(
                         x1,
-                        y1,
+                        0,
                         x2,
-                        y2,
-                        fill=color,
+                        box_h,
+                        fill=fill,
                         outline="black",
                         width=1,
                     )
-                    segments.append(seg_id)
-                self.mag_canvas_items[idx] = {
-                    "bg": bg_id,
-                    "segments": segments,
-                    "seg_count": seg_count,
-                }
+                    rects.append(rect_id)
             else:
-                bg_id = canvas_items["bg"]
-                canvas.coords(bg_id, x1, 0, x2, box_h)
-                canvas.itemconfigure(bg_id, fill=bg_fill)
-
-                segments = canvas_items["segments"]
-                if seg_count < len(segments):
-                    for seg_id in segments[seg_count:]:
-                        canvas.delete(seg_id)
-                    segments = segments[:seg_count]
-                elif seg_count > len(segments):
-                    for i in range(len(segments), seg_count):
-                        seg_id = canvas.create_rectangle(
+                if columns < len(rects):
+                    for rid in rects[columns:]:
+                        canvas.delete(rid)
+                    rects[:] = rects[:columns]
+                elif columns > len(rects):
+                    for col in range(len(rects), columns):
+                        x1 = col * col_w
+                        x2 = (col + 1) * col_w
+                        rect_id = canvas.create_rectangle(
                             x1,
-                            box_h - seg_h * (i + 1),
+                            0,
                             x2,
-                            box_h - seg_h * i,
+                            box_h,
                             outline="black",
                             width=1,
                         )
-                        segments.append(seg_id)
-                for i, seg_id in enumerate(segments):
-                    y1 = box_h - seg_h * (i + 1)
-                    y2 = box_h - seg_h * i
-                    canvas.coords(seg_id, x1, y1, x2, y2)
-                    color = OCCUPIED_COLOR if i < filled_sections else ""
-                    canvas.itemconfigure(seg_id, fill=color)
-                canvas_items["segments"] = segments
-                canvas_items["seg_count"] = seg_count
+                        rects.append(rect_id)
+                for col, rid in enumerate(rects):
+                    x1 = col * col_w
+                    x2 = (col + 1) * col_w
+                    canvas.coords(rid, x1, 0, x2, box_h)
+                    fill = OCCUPIED_COLOR if counts[col] > 0 else ""
+                    canvas.itemconfigure(rid, fill=fill)
 
             self.mag_labels[idx].configure(text=f"K{box}: {occupied_percent:.0f}%")
+
         self.update_inventory_stats()
 
     def show_card_details(self, row: dict):

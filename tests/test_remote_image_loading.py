@@ -178,11 +178,19 @@ def test_open_magazyn_window_remote_thumbnail(tmp_path):
 
     resp = SimpleNamespace(content=img_bytes, raise_for_status=lambda: None)
 
-    side_effects = [SimpleNamespace(width=lambda:1, height=lambda:1), SimpleNamespace(width=lambda:1, height=lambda:1), placeholder_mock, photo_mock]
-    with patch.object(ui.ImageTk, "PhotoImage", side_effect=side_effects), \
+    calls = iter([placeholder_mock, photo_mock])
+
+    def _photo_side_effect(*a, **k):
+        try:
+            return next(calls)
+        except StopIteration:
+            return photo_mock
+
+    with patch.object(ui.ImageTk, "PhotoImage", side_effect=_photo_side_effect), \
          patch.object(ui.tk, "Canvas", DummyCanvas), \
          patch.object(ui.requests, "get", return_value=resp) as mock_get, \
-         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
+         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)), \
+         patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
         ui.CardEditorApp.open_magazyn_window(app)
         for t in app._image_threads:
             t.join()

@@ -109,22 +109,22 @@ def next_free_location(app):
     return generate_location(idx)
 
 
-def compute_box_occupancy() -> dict[int, int]:
-    """Return count of used slots per storage box.
+def compute_column_occupancy() -> dict[int, dict[int, int]]:
+    """Return count of used slots per column in each storage box.
 
-    The returned mapping contains an entry for each box defined in
-    :data:`BOX_CAPACITY`.  Cards marked as sold are ignored.  This is a
-    simplified variant of the previous :func:`compute_column_occupancy`
-    helper which aggregated usage per column – callers now only care
-    about the total number of used slots in every box.
+    The returned mapping is a nested dictionary where the first key is the
+    box number and the second key the column number.  Cards marked as sold are
+    ignored.  Missing boxes or columns are represented with zero counts.
     """
 
-    occ: dict[int, int] = {box: 0 for box in BOX_CAPACITY}
+    occ: dict[int, dict[int, int]] = {
+        box: {col: 0 for col in range(1, BOX_COLUMNS.get(box, 4) + 1)}
+        for box in BOX_COLUMNS
+    }
     try:
         with open(csv_utils.INVENTORY_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             for row in reader:
-                # Skip sold cards when calculating occupancy
                 if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
                     continue
                 codes = str(row.get("warehouse_code") or "").split(";")
@@ -136,11 +136,28 @@ def compute_box_occupancy() -> dict[int, int]:
                     if not m:
                         continue
                     box = int(m.group(1))
-                    if box in occ:
-                        occ[box] += 1
+                    col = int(m.group(2))
+                    occ.setdefault(box, {})
+                    occ[box][col] = occ[box].get(col, 0) + 1
     except FileNotFoundError:
         pass
+
+    for box, cols in BOX_COLUMNS.items():
+        box_occ = occ.setdefault(box, {})
+        for col in range(1, cols + 1):
+            box_occ.setdefault(col, 0)
     return occ
+
+
+def compute_box_occupancy() -> dict[int, int]:
+    """Return count of used slots per storage box.
+
+    This helper aggregates the per-column data from
+    :func:`compute_column_occupancy` into totals for each box.
+    """
+
+    col_occ = compute_column_occupancy()
+    return {box: sum(cols.values()) for box, cols in col_occ.items()}
 
 
 def repack_column(box: int, column: int):
