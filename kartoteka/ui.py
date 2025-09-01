@@ -200,11 +200,21 @@ def _preprocess_symbol(im: Image.Image) -> Image.Image:
     return im.convert("1")
 
 
-def load_logo_hashes() -> None:
-    """Populate the global `_LOGO_HASHES` cache with preprocessed hashes."""
+def load_logo_hashes() -> bool:
+    """Populate the global `_LOGO_HASHES` cache with preprocessed hashes.
+
+    Returns
+    -------
+    bool
+        ``True`` if at least one logo hash was loaded, ``False`` otherwise.
+    """
+
     _LOGO_HASHES.clear()
     if not os.path.isdir(SET_LOGO_DIR):
-        return
+        logger.warning(
+            "Logo directory '%s' does not exist", SET_LOGO_DIR
+        )
+        return False
     for file in os.listdir(SET_LOGO_DIR):
         if not file.lower().endswith(".png"):
             continue
@@ -226,6 +236,12 @@ def load_logo_hashes() -> None:
         except (OSError, UnidentifiedImageError) as exc:
             logger.warning("Failed to process logo %s: %s", path, exc)
             continue
+    if not _LOGO_HASHES:
+        logger.warning(
+            "No logos loaded from '%s'; check SET_LOGO_DIR", SET_LOGO_DIR
+        )
+        return False
+    return True
 
 DEFAULT_LOGO_LIMIT = 20
 try:
@@ -401,8 +417,15 @@ ALLOWED_ERAS = {
 ALLOWED_SET_CODES: set[str] = set()
 
 
-def refresh_logo_cache() -> None:
-    """Regenerate ``ALLOWED_SET_CODES`` and reload logo hashes."""
+def refresh_logo_cache() -> bool:
+    """Regenerate ``ALLOWED_SET_CODES`` and reload logo hashes.
+
+    Returns
+    -------
+    bool
+        ``True`` when logo hashes were loaded successfully.
+    """
+
     global ALLOWED_SET_CODES
     ALLOWED_SET_CODES = {
         item["code"]
@@ -410,7 +433,13 @@ def refresh_logo_cache() -> None:
         if era in ALLOWED_ERAS
         for item in sets
     }
-    load_logo_hashes()
+    success = load_logo_hashes()
+    if not success:
+        messagebox.showwarning(
+            "Logotypy",
+            f"Brak logotypów w katalogu '{SET_LOGO_DIR}' lub błędna ścieżka.",
+        )
+    return success
 
 
 refresh_logo_cache()
@@ -844,9 +873,7 @@ def identify_set_by_hash(
         When matching fails, an empty list is returned.
     """
 
-    if not _LOGO_HASHES:
-        load_logo_hashes()
-    if not _LOGO_HASHES:
+    if not _LOGO_HASHES and not load_logo_hashes():
         return []
 
     try:
