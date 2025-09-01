@@ -1725,6 +1725,12 @@ class CardEditorApp:
         ).grid(row=1, column=0, pady=5)
 
         self.create_button(
+            orders_tab,
+            text="Potwierdź zamówienie",
+            command=self.confirm_order,
+        ).grid(row=2, column=0, pady=5)
+
+        self.create_button(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
@@ -2393,6 +2399,7 @@ class CardEditorApp:
                 return
             orders = self.shoper_client.list_orders({"filters[status]": "new"})
             orders_list = orders.get("list", orders)
+            self.pending_orders = orders_list
             choose_nearest_locations(orders_list, self.output_data)
             widget.delete("1.0", tk.END)
             lines = []
@@ -2418,6 +2425,70 @@ class CardEditorApp:
         except requests.RequestException as e:
             logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
+
+    def complete_order(self, order: dict):
+        """Mark warehouse codes from ``order`` as sold.
+
+        After updating the CSV the inventory statistics are recalculated and
+        the warehouse view is refreshed.
+        """
+
+        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
+        try:
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                rows = list(reader)
+                fieldnames = reader.fieldnames or []
+        except FileNotFoundError:
+            return
+
+        if "sold" not in fieldnames:
+            fieldnames.append("sold")
+
+        codes_to_mark = {
+            c.strip()
+            for item in order.get("products", [])
+            for c in str(
+                item.get("warehouse_code")
+                or item.get("product_code")
+                or item.get("code", "")
+            ).split(";")
+            if c.strip()
+        }
+
+        if not codes_to_mark:
+            return
+
+        for r in rows:
+            if r.get("warehouse_code") in codes_to_mark:
+                r["sold"] = "1"
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats()
+            except Exception:
+                logger.exception("Failed to update inventory stats")
+
+        if hasattr(self, "open_magazyn_window"):
+            try:
+                self.open_magazyn_window()
+            except Exception:
+                logger.exception("Failed to refresh magazyn window")
+
+    def confirm_order(self):
+        """Confirm the first pending order and mark codes as sold."""
+
+        orders = getattr(self, "pending_orders", [])
+        if not orders:
+            return
+        order = orders.pop(0)
+        self.complete_order(order)
+
     @staticmethod
     def location_from_code(code: str) -> str:
         return storage.location_from_code(code)
