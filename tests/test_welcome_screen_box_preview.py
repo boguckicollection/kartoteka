@@ -9,7 +9,6 @@ from ctk_mocks import (
     DummyCTkButton,
     DummyCTkFrame,
     DummyCTkLabel,
-    DummyCTkScrollableFrame,
     DummyCTkEntry,
     DummyCTkOptionMenu,
     DummyCanvas,
@@ -21,7 +20,6 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
         CTkFrame=DummyCTkFrame,
         CTkLabel=DummyCTkLabel,
         CTkButton=DummyCTkButton,
-        CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,
     )
@@ -57,3 +55,6 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
 
     assert hasattr(app, "home_percent_labels")
     assert len(app.home_percent_labels) == len(app.mag_box_order)
+    first = app.home_percent_labels[app.mag_box_order[0]]
+    assert first.font == ("Segoe UI", 24, "bold")
+    assert first.text_color == ui._occupancy_color(0)

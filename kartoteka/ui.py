@@ -336,6 +336,15 @@ SPECIAL_BOX_CAPACITY = 500  # slots in the special box
 BOX_CAPACITY = GRID_COLUMNS * BOX_COLUMN_CAPACITY  # slots in a standard box
 
 
+def _occupancy_color(value: float) -> str:
+    """Return a color representing occupancy level."""
+    if value < 0.5:
+        return "#4caf50"  # green
+    if value < 0.8:
+        return "#ffeb3b"  # yellow
+    return "#f44336"  # red
+
+
 
 def normalize(text: str, keep_spaces: bool = False) -> str:
     """Normalize text for comparisons and API queries."""
@@ -2627,7 +2636,7 @@ class CardEditorApp:
     def build_home_box_preview(self, parent):
         """Create a minimal box preview showing only overall fill percentages."""
 
-        container = ctk.CTkScrollableFrame(parent, fg_color=BG_COLOR)
+        container = ctk.CTkFrame(parent, fg_color=BG_COLOR)
         container.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
@@ -2640,6 +2649,7 @@ class CardEditorApp:
                 text=f"K{box_num}",
                 fg_color=BG_COLOR,
                 text_color=TEXT_COLOR,
+                font=("Segoe UI", 24, "bold"),
             )
             lbl.pack(side="left")
             self.mag_labels.append(lbl)
@@ -2648,7 +2658,8 @@ class CardEditorApp:
                 text="0%",
                 width=40,
                 fg_color=BG_COLOR,
-                text_color=TEXT_COLOR,
+                text_color=_occupancy_color(0),
+                font=("Segoe UI", 24, "bold"),
             )
             pct_label.pack(side="left", padx=(5, 0))
             self.home_percent_labels[box_num] = pct_label
@@ -2661,7 +2672,7 @@ class CardEditorApp:
     def build_box_preview(self, parent):
         """Create a scrollable grid of frames and progress bars for boxes."""
 
-        container = ctk.CTkScrollableFrame(parent, fg_color=BG_COLOR)
+        container = ctk.CTkFrame(parent, fg_color=BG_COLOR)
         container.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
@@ -2675,13 +2686,19 @@ class CardEditorApp:
                 text=f"K{box_num}",
                 fg_color=BG_COLOR,
                 text_color=TEXT_COLOR,
+                font=("Segoe UI", 24, "bold"),
             )
             lbl.pack(anchor="w")
             self.mag_labels.append(lbl)
             for col in range(1, storage.BOX_COLUMNS.get(box_num, 4) + 1):
                 row_frame = ctk.CTkFrame(frame, fg_color=BG_COLOR)
                 row_frame.pack(fill="x", padx=2, pady=2)
-                bar = ctk.CTkProgressBar(row_frame, orientation="horizontal")
+                bar = ctk.CTkProgressBar(
+                    row_frame,
+                    orientation="horizontal",
+                    fg_color=FREE_COLOR,
+                    progress_color=OCCUPIED_COLOR,
+                )
                 bar.set(0)
                 bar.pack(side="left", fill="x", expand=True)
                 pct_label = ctk.CTkLabel(
@@ -2689,7 +2706,8 @@ class CardEditorApp:
                     text="0%",
                     width=40,
                     fg_color=BG_COLOR,
-                    text_color=TEXT_COLOR,
+                    text_color=_occupancy_color(0),
+                    font=("Segoe UI", 24, "bold"),
                 )
                 pct_label.pack(side="left", padx=(5, 0))
                 self.mag_progressbars[(box_num, col)] = bar
@@ -3244,7 +3262,7 @@ class CardEditorApp:
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
             value = box_occ.get(box, 0) / total_capacity if total_capacity else 0
-            lbl.configure(text=f"{value * 100:.0f}%")
+            lbl.configure(text=f"{value * 100:.0f}%", text_color=_occupancy_color(value))
 
     def refresh_magazyn(self):
         """Refresh storage view and update column usage bars."""
@@ -3264,7 +3282,7 @@ class CardEditorApp:
             bar.set(value)
             lbl = self.mag_percent_labels.get((box, col))
             if lbl:
-                lbl.configure(text=f"{value * 100:.0f}%")
+                lbl.configure(text=f"{value * 100:.0f}%", text_color=_occupancy_color(value))
 
         if hasattr(self, "update_inventory_stats"):
             try:

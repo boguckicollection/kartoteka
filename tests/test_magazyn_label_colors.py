@@ -23,11 +23,20 @@ class DummyCTkFrame(_Widget):
 
 
 class DummyCTkLabel(_Widget):
-    def __init__(self, master=None, text="", fg_color=None, text_color=None, **kwargs):
+    def __init__(
+        self,
+        master=None,
+        text="",
+        fg_color=None,
+        text_color=None,
+        font=None,
+        **kwargs,
+    ):
         self.master = master
         self.text = text
         self.fg_color = fg_color
         self.text_color = text_color
+        self.font = font
         self._bindings = {}
 
     def bind(self, event, callback):
@@ -92,10 +101,19 @@ class DummyCanvas(_Widget):
 
 
 class DummyCTkProgressBar(_Widget):
-    def __init__(self, master=None, orientation="horizontal", **kwargs):
+    def __init__(
+        self,
+        master=None,
+        orientation="horizontal",
+        fg_color=None,
+        progress_color=None,
+        **kwargs,
+    ):
         self.master = master
         self.orientation = orientation
         self.value = 0
+        self.fg_color = fg_color
+        self.progress_color = progress_color
 
     def set(self, value):
         self.value = value
@@ -145,3 +163,12 @@ def test_magazyn_label_colors():
     label = app.mag_labels[0]
     assert label.fg_color == ui.BG_COLOR
     assert label.text_color == ui.TEXT_COLOR
+    assert label.font == ("Segoe UI", 24, "bold")
+
+    key = (app.mag_box_order[0], 1)
+    bar = app.mag_progressbars[key]
+    assert bar.fg_color == ui.FREE_COLOR
+    assert bar.progress_color == ui.OCCUPIED_COLOR
+    pct = app.mag_percent_labels[key]
+    assert pct.font == ("Segoe UI", 24, "bold")
+    assert pct.text_color == ui._occupancy_color(0)
