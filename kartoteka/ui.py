@@ -1590,7 +1590,7 @@ class CardEditorApp:
         box_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
         box_frame.pack(side="left")
 
-        CardEditorApp.build_box_preview(self, box_frame)
+        CardEditorApp.build_home_box_preview(self, box_frame)
         # Refresh the initial box preview if possible.  The welcome screen does
         # not depend on the full warehouse window, therefore it prefers a
         # lightweight ``refresh_home_preview`` method but falls back to the
@@ -2624,6 +2624,40 @@ class CardEditorApp:
     def location_from_code(code: str) -> str:
         return storage.location_from_code(code)
 
+    def build_home_box_preview(self, parent):
+        """Create a minimal box preview showing only overall fill percentages."""
+
+        container = ctk.CTkScrollableFrame(parent, fg_color=BG_COLOR)
+        container.pack(expand=True, fill="both", padx=10, pady=10)
+
+        self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
+        self.home_percent_labels = {}
+        self.mag_labels = []
+        for i, box_num in enumerate(self.mag_box_order):
+            frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+            lbl = ctk.CTkLabel(
+                frame,
+                text=f"K{box_num}",
+                fg_color=BG_COLOR,
+                text_color=TEXT_COLOR,
+            )
+            lbl.pack(side="left")
+            self.mag_labels.append(lbl)
+            pct_label = ctk.CTkLabel(
+                frame,
+                text="0%",
+                width=40,
+                fg_color=BG_COLOR,
+                text_color=TEXT_COLOR,
+            )
+            pct_label.pack(side="left", padx=(5, 0))
+            self.home_percent_labels[box_num] = pct_label
+            row, col_idx = divmod(i, WAREHOUSE_GRID_COLUMNS)
+            if box_num == SPECIAL_BOX_NUMBER:
+                row = 0
+                col_idx = WAREHOUSE_GRID_COLUMNS
+            frame.grid(row=row, column=col_idx, padx=5, pady=5)
+
     def build_box_preview(self, parent):
         """Create a scrollable grid of frames and progress bars for boxes."""
 
@@ -2673,7 +2707,7 @@ class CardEditorApp:
         self.mag_sold_labels = []
         self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
 
-    def open_magazyn_window(self):
+    def _open_magazyn_window_internal(self):
         """Display storage occupancy inside the main window."""
         self.root.title("Podgląd magazynu")
         if self.start_frame is not None:
@@ -3025,7 +3059,9 @@ class CardEditorApp:
         ).pack(side="left", padx=5)
 
         self.create_button(
-            btn_frame, text="Powrót", command=self.back_to_welcome
+            btn_frame,
+            text="Powrót",
+            command=lambda top=self.root: getattr(top, "destroy", lambda: None)(),
         ).pack(side="left", padx=5)
 
         stats_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -3092,6 +3128,56 @@ class CardEditorApp:
             except Exception as exc:
                 logger.exception("Failed to update inventory stats")
 
+    def open_magazyn_window(self):
+        """Display storage view in a separate window without altering the main UI."""
+
+        try:
+            top = ctk.CTkToplevel(self.root)
+        except Exception:
+            try:
+                top = tk.Toplevel(self.root)  # type: ignore[attr-defined]
+            except Exception:
+                top = SimpleNamespace()
+        if hasattr(top, "title"):
+            top.title("Podgląd magazynu")
+        self.magazyn_window = top
+
+        # Provide no-op implementations for window methods when running in tests
+        top.title = getattr(top, "title", lambda *a, **k: None)
+        top.winfo_screenwidth = getattr(top, "winfo_screenwidth", lambda: 0)
+        top.winfo_screenheight = getattr(top, "winfo_screenheight", lambda: 0)
+        top.minsize = getattr(top, "minsize", lambda *a, **k: None)
+        top.bind = getattr(top, "bind", lambda *a, **k: None)
+        top.destroy = getattr(top, "destroy", lambda *a, **k: None)
+
+        old_root = self.root
+        old_start = getattr(self, "start_frame", None)
+        old_pricing = getattr(self, "pricing_frame", None)
+        old_shoper = getattr(self, "shoper_frame", None)
+        old_frame = getattr(self, "frame", None)
+        old_location = getattr(self, "location_frame", None)
+        old_mag_frame = getattr(self, "magazyn_frame", None)
+
+        self.root = top
+        self.start_frame = None
+        self.pricing_frame = None
+        self.shoper_frame = None
+        self.frame = None
+        self.magazyn_frame = None
+        self.location_frame = None
+
+        try:
+            CardEditorApp._open_magazyn_window_internal(self)
+        finally:
+            new_mag_frame = self.magazyn_frame
+            self.root = old_root
+            self.start_frame = old_start
+            self.pricing_frame = old_pricing
+            self.shoper_frame = old_shoper
+            self.frame = old_frame
+            self.location_frame = old_location
+            self.magazyn_frame = new_mag_frame
+
     def compute_box_occupancy(self) -> dict[int, int]:
         """Return dictionary of used slots per storage box."""
         return storage.compute_box_occupancy()
@@ -3103,23 +3189,18 @@ class CardEditorApp:
 
     def refresh_home_preview(self):
         """Refresh box preview on the welcome screen."""
-        if not getattr(self, "mag_progressbars", None):
+        if not getattr(self, "home_percent_labels", None):
             return
 
-        col_occ = storage.compute_column_occupancy()
+        box_occ = storage.compute_box_occupancy()
 
-        for (box, col), bar in self.mag_progressbars.items():
-            filled = col_occ.get(box, {}).get(col, 0)
+        for box, lbl in self.home_percent_labels.items():
             columns = storage.BOX_COLUMNS.get(box, 4)
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
-            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
-            value = filled / col_capacity if col_capacity else 0
-            bar.set(value)
-            lbl = self.mag_percent_labels.get((box, col))
-            if lbl:
-                lbl.configure(text=f"{value * 100:.0f}%")
+            value = box_occ.get(box, 0) / total_capacity if total_capacity else 0
+            lbl.configure(text=f"{value * 100:.0f}%")
 
     def refresh_magazyn(self):
         """Refresh storage view and update column usage bars."""

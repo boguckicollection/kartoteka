@@ -13,7 +13,6 @@ from ctk_mocks import (
     DummyCTkEntry,
     DummyCTkOptionMenu,
     DummyCanvas,
-    DummyCTkProgressBar,
 )
 
 
@@ -25,7 +24,6 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,
-        CTkProgressBar=DummyCTkProgressBar,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui
@@ -57,5 +55,5 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
         )
         ui.CardEditorApp.setup_welcome_screen(app)
 
-    assert hasattr(app, "mag_progressbars")
-    assert len(app.mag_progressbars) == sum(ui.storage.BOX_COLUMNS.values())
+    assert hasattr(app, "home_percent_labels")
+    assert len(app.home_percent_labels) == len(app.mag_box_order)
