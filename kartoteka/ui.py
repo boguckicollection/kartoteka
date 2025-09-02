@@ -2914,7 +2914,7 @@ class CardEditorApp:
             self._mag_prev_thumb = 0
 
             def _relayout_mag_cards(event=None):
-                """Recompute thumbnail size and layout on resize."""
+                """Recompute thumbnail size and update scroll region on resize."""
                 exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
                 if not self.mag_list_frame or not exists_fn():
                     return
@@ -2953,13 +2953,11 @@ class CardEditorApp:
                                 else:
                                     lbl.image = photo
 
-                for frame in self.mag_card_frames:
-                    frame.pack(fill="x", padx=5, pady=5)
-
                 canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                 if canvas is not None:
                     canvas.update_idletasks()
-                    canvas.configure(scrollregion=canvas.bbox("all"))
+                    bbox = canvas.bbox("all") or (0, 0, 0, 0)
+                    canvas.configure(scrollregion=bbox)
 
             def _update_mag_list(*_):
                 query = self.mag_search_var.get().lower()
@@ -3009,6 +3007,7 @@ class CardEditorApp:
                     row = self.mag_card_rows[idx]
                     photo = self.mag_card_images[idx]
                     frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                    frame.pack(fill="x", padx=5, pady=5)
                     is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                     text = row.get("name", "")
                     color = TEXT_COLOR
@@ -3069,6 +3068,12 @@ class CardEditorApp:
                     if i not in displayed:
                         self.mag_card_image_labels[i] = None
 
+                canvas = getattr(list_frame, "_parent_canvas", None)
+                if canvas is not None:
+                    canvas.update_idletasks()
+                    bbox = canvas.bbox("all") or (0, 0, 0, 0)
+                    canvas.configure(scrollregion=bbox)
+
                 _relayout_mag_cards()
 
             bind = getattr(self.mag_list_frame, "bind", None)
@@ -3127,7 +3132,7 @@ class CardEditorApp:
 
         font = ("Segoe UI", 16, "bold")
         unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
-        if unsold_count == 0 and sold_count == 0:
+        if not getattr(self, "mag_card_rows", []):
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         self.mag_inventory_count_label = ctk.CTkLabel(
             stats_frame,
