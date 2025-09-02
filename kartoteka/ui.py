@@ -2881,6 +2881,9 @@ class CardEditorApp:
 
             def _relayout_mag_cards(event=None):
                 """Recompute thumbnail size and grid layout on resize."""
+                exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
+                if not self.mag_list_frame or not exists_fn():
+                    return
                 global CARD_THUMB_SIZE
                 width_fn = getattr(self.mag_list_frame, "winfo_width", lambda: 0)
                 width = width_fn()
