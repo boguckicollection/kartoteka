@@ -2840,6 +2840,10 @@ class CardEditorApp:
                 for i, frame in enumerate(self.mag_card_frames):
                     frame.grid(row=i // columns, column=i % columns, padx=5, pady=5)
 
+                canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
+                if canvas is not None:
+                    canvas.configure(scrollregion=canvas.bbox("all"))
+
             def _update_mag_list(*_):
                 query = self.mag_search_var.get().lower()
                 sort_key = self.mag_sort_var.get()
@@ -2953,6 +2957,10 @@ class CardEditorApp:
             bind = getattr(self.mag_list_frame, "bind", None)
             if callable(bind):
                 bind("<Configure>", _relayout_mag_cards)
+
+            root_bind = getattr(self.root, "bind", None)
+            if callable(root_bind):
+                root_bind("<Configure>", _relayout_mag_cards)
 
             self.mag_search_var.trace_add("write", _update_mag_list)
             self.mag_sold_filter_var.trace_add("write", _update_mag_list)
