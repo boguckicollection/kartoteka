@@ -50,6 +50,7 @@ def test_save_and_reload_variant_flags(tmp_path):
                 "nazwa": DummyVar("Charizard"),
                 "numer": DummyVar("4"),
                 "set": DummyVar("Base Set"),
+                "era": DummyVar(""),
                 "język": DummyVar("ENG"),
                 "stan": DummyVar("NM"),
                 "cena": DummyVar(""),

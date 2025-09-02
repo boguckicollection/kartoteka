@@ -25,6 +25,7 @@ def make_dummy():
             "nazwa": DummyVar("Charizard"),
             "numer": DummyVar("4"),
             "set": DummyVar("Base Set"),
+            "era": DummyVar(""),
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "cena": DummyVar(""),
