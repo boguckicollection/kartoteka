@@ -1487,58 +1487,9 @@ class CardEditorApp:
             font=("Segoe UI", 18),
         )
         desc.pack(pady=5)
-
         count, total_value, _, _ = csv_utils.get_inventory_stats()
         if count == 0 and total_value == 0:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
-        self.inventory_count_label = ctk.CTkLabel(
-            self.start_frame,
-            text=f"Łączna liczba kart: {count}",
-            text_color=TEXT_COLOR,
-            font=("Segoe UI", 24, "bold"),
-        )
-        self.inventory_count_label.pack()
-        self.inventory_value_label = ctk.CTkLabel(
-            self.start_frame,
-            text=f"Łączna wartość: {total_value:.2f} PLN",
-            text_color="#FFD700",
-            font=("Segoe UI", 24, "bold"),
-        )
-        self.inventory_value_label.pack(pady=(0, 5))
-
-        CardEditorApp.build_box_preview(self, self.start_frame)
-        # Refresh the initial box preview if possible.  The welcome screen does
-        # not depend on the full warehouse window, therefore it prefers a
-        # lightweight ``refresh_home_preview`` method but falls back to the
-        # legacy ``refresh_magazyn`` if needed.
-        if hasattr(self, "refresh_home_preview"):
-            try:
-                self.refresh_home_preview()
-            except Exception:  # pragma: no cover - defensive logging
-                logger.exception("Failed to refresh magazyn preview")
-        elif hasattr(self, "refresh_magazyn"):
-            try:
-                self.refresh_magazyn()
-            except Exception:  # pragma: no cover - defensive logging
-                logger.exception("Failed to refresh magazyn preview")
-
-        config_btn = self.create_button(
-            self.start_frame,
-            text="\u2699\ufe0f Konfiguracja",
-            command=self.open_config_dialog,
-            fg_color="#404040",
-        )
-        config_btn.pack(side="bottom", pady=5)
-
-        author = ctk.CTkLabel(
-            self.start_frame,
-            text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
-            wraplength=1400,
-            justify="center",
-            font=("Segoe UI", 14),
-            text_color="#CCCCCC",
-        )
-        author.pack(side="bottom", pady=5)
 
         button_frame = tk.Frame(
             self.start_frame, bg=self.root.cget("background")
@@ -1578,6 +1529,65 @@ class CardEditorApp:
             fg_color=AUCTION_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
 
+        preview_container = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
+        preview_container.pack(pady=10, fill="x")
+
+        box_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
+        box_frame.pack(side="left")
+
+        CardEditorApp.build_box_preview(self, box_frame)
+        # Refresh the initial box preview if possible.  The welcome screen does
+        # not depend on the full warehouse window, therefore it prefers a
+        # lightweight ``refresh_home_preview`` method but falls back to the
+        # legacy ``refresh_magazyn`` if needed.
+        if hasattr(self, "refresh_home_preview"):
+            try:
+                self.refresh_home_preview()
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Failed to refresh magazyn preview")
+        elif hasattr(self, "refresh_magazyn"):
+            try:
+                self.refresh_magazyn()
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Failed to refresh magazyn preview")
+
+        info_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
+        info_frame.pack(side="right", anchor="n", padx=(10, 0))
+
+        self.inventory_count_label = ctk.CTkLabel(
+            info_frame,
+            text=f"📊 Łączna liczba kart: {count}",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 24, "bold"),
+        )
+        self.inventory_count_label.pack(anchor="e")
+
+        self.inventory_value_label = ctk.CTkLabel(
+            info_frame,
+            text=f"💰 Łączna wartość: {total_value:.2f} PLN",
+            text_color="#FFD700",
+            font=("Segoe UI", 24, "bold"),
+        )
+        self.inventory_value_label.pack(anchor="e", pady=(0, 5))
+
+        config_btn = self.create_button(
+            self.start_frame,
+            text="\u2699\ufe0f Konfiguracja",
+            command=self.open_config_dialog,
+            fg_color="#404040",
+        )
+        config_btn.pack(side="bottom", pady=5)
+
+        author = ctk.CTkLabel(
+            self.start_frame,
+            text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
+            wraplength=1400,
+            justify="center",
+            font=("Segoe UI", 14),
+            text_color="#CCCCCC",
+        )
+        author.pack(side="bottom", pady=5)
+
     def update_inventory_stats(self):
         """Refresh labels showing total item count and value in the UI."""
         # Collect widgets that are available and still exist.  The start screen
@@ -1606,8 +1616,8 @@ class CardEditorApp:
         unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
         if unsold_count == 0 and sold_count == 0:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
-        unsold_count_text = f"Łączna liczba kart: {unsold_count}"
-        unsold_total_text = f"Łączna wartość: {unsold_total:.2f} PLN"
+        unsold_count_text = f"📊 Łączna liczba kart: {unsold_count}"
+        unsold_total_text = f"💰 Łączna wartość: {unsold_total:.2f} PLN"
         sold_count_text = f"Sprzedane karty: {sold_count}"
         sold_total_text = f"Wartość sprzedanych: {sold_total:.2f} PLN"
         for attr, widget in widgets:
@@ -2951,14 +2961,14 @@ class CardEditorApp:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         self.mag_inventory_count_label = ctk.CTkLabel(
             stats_frame,
-            text=f"Łączna liczba kart: {unsold_count}",
+            text=f"📊 Łączna liczba kart: {unsold_count}",
             text_color=TEXT_COLOR,
             font=font,
         )
         self.mag_inventory_count_label.pack()
         self.mag_inventory_value_label = ctk.CTkLabel(
             stats_frame,
-            text=f"Łączna wartość: {unsold_total:.2f} PLN",
+            text=f"💰 Łączna wartość: {unsold_total:.2f} PLN",
             text_color="#FFD700",
             font=font,
         )
