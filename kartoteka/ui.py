@@ -1569,23 +1569,25 @@ class CardEditorApp:
                 logger.exception("Failed to refresh magazyn preview")
 
         info_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
-        info_frame.pack(side="right", anchor="n", padx=(10, 0))
+        info_frame.pack(side="right", anchor="n", padx=(10, 40))
 
         self.inventory_count_label = ctk.CTkLabel(
             info_frame,
             text=f"📊 Łączna liczba kart: {count}",
             text_color=TEXT_COLOR,
             font=("Segoe UI", 24, "bold"),
+            justify="center",
         )
-        self.inventory_count_label.pack(anchor="e")
+        self.inventory_count_label.pack(anchor="center")
 
         self.inventory_value_label = ctk.CTkLabel(
             info_frame,
             text=f"💰 Łączna wartość: {total_value:.2f} PLN",
             text_color="#FFD700",
             font=("Segoe UI", 24, "bold"),
+            justify="center",
         )
-        self.inventory_value_label.pack(anchor="e", pady=(0, 5))
+        self.inventory_value_label.pack(anchor="center", pady=(0, 5))
 
         config_btn = self.create_button(
             content_frame,
