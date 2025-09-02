@@ -99,6 +99,55 @@ _IMAGE_CACHE: dict[str, Optional[bytes]] = {}
 _THUMB_CACHE: dict[str, Image.Image] = {}
 
 
+def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int]) -> float:
+    """Draw occupancy of a single storage box on ``canvas``.
+
+    The function draws a rectangle for each column, filling it with
+    :data:`OCCUPIED_COLOR` when the column contains any cards.  It returns
+    the percentage of occupied slots within the box so callers can update
+    labels or other UI elements accordingly.
+    """
+
+    box_w = BOX_THUMB_SIZE
+    box_h = BOX_THUMB_SIZE
+    columns = storage.BOX_COLUMNS.get(box_num, 4)
+    counts = [occupancy.get(col, 0) for col in range(1, columns + 1)]
+    total_capacity = storage.BOX_CAPACITY.get(
+        box_num, columns * storage.BOX_COLUMN_CAPACITY
+    )
+    filled = sum(counts)
+    occupied_percent = filled / total_capacity * 100 if total_capacity else 0
+
+    col_w = box_w / columns
+
+    if hasattr(canvas, "find_all"):
+        rects = list(canvas.find_all())
+    else:  # fallback for DummyCanvas used in tests
+        rects = list(getattr(canvas, "items", {}).keys())
+
+    if len(rects) < columns:
+        for col in range(len(rects), columns):
+            x1 = col * col_w
+            x2 = (col + 1) * col_w
+            rid = canvas.create_rectangle(
+                x1, 0, x2, box_h, outline="black", width=1
+            )
+            rects.append(rid)
+    elif len(rects) > columns:
+        for rid in rects[columns:]:
+            canvas.delete(rid)
+        rects = rects[:columns]
+
+    for col, rid in enumerate(rects):
+        x1 = col * col_w
+        x2 = (col + 1) * col_w
+        canvas.coords(rid, x1, 0, x2, box_h)
+        fill = OCCUPIED_COLOR if counts[col] > 0 else ""
+        canvas.itemconfigure(rid, fill=fill)
+
+    return occupied_percent
+
+
 def _load_image(path: str) -> Optional[Image.Image]:
     """Load image from local path or URL with caching.
 
@@ -1458,10 +1507,19 @@ class CardEditorApp:
         self.inventory_value_label.pack(pady=(0, 5))
 
         CardEditorApp.build_box_preview(self, self.start_frame)
-        if hasattr(self, "refresh_magazyn"):
+        # Refresh the initial box preview if possible.  The welcome screen does
+        # not depend on the full warehouse window, therefore it prefers a
+        # lightweight ``refresh_home_preview`` method but falls back to the
+        # legacy ``refresh_magazyn`` if needed.
+        if hasattr(self, "refresh_home_preview"):
+            try:
+                self.refresh_home_preview()
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Failed to refresh magazyn preview")
+        elif hasattr(self, "refresh_magazyn"):
             try:
                 self.refresh_magazyn()
-            except Exception:
+            except Exception:  # pragma: no cover - defensive logging
                 logger.exception("Failed to refresh magazyn preview")
 
         config_btn = self.create_button(
@@ -2535,7 +2593,7 @@ class CardEditorApp:
             self.mag_canvases.append(canvas)
             self.mag_labels.append(lbl)
 
-        self.mag_canvas_items = [[] for _ in self.mag_canvases]
+        # Internal helpers used by the magazyn window; populated lazily.
         self.mag_card_images = []
         self.mag_card_rows = []
         self.mag_card_labels = []
@@ -2952,6 +3010,20 @@ class CardEditorApp:
         storage.repack_column(box, column)
         self.refresh_magazyn()
 
+    def refresh_home_preview(self):
+        """Refresh box preview on the welcome screen."""
+        if not getattr(self, "mag_canvases", None):
+            return
+
+        col_occ = storage.compute_column_occupancy()
+        order = getattr(self, "mag_box_order", None) or []
+
+        for idx, canvas in enumerate(self.mag_canvases):
+            box = order[idx] if idx < len(order) else idx + 1
+            percent = draw_box_usage(canvas, box, col_occ.get(box, {}))
+            if idx < len(self.mag_labels):
+                self.mag_labels[idx].configure(text=f"K{box}: {percent:.0f}%")
+
     def refresh_magazyn(self):
         """Refresh storage view and color occupied columns."""
         if not getattr(self, "mag_canvases", None):
@@ -2962,65 +3034,15 @@ class CardEditorApp:
 
         for idx, canvas in enumerate(self.mag_canvases):
             box = order[idx] if idx < len(order) else idx + 1
-            box_w = BOX_THUMB_SIZE
-            box_h = BOX_THUMB_SIZE
-            columns = storage.BOX_COLUMNS.get(box, 4)
+            percent = draw_box_usage(canvas, box, col_occ.get(box, {}))
+            if idx < len(self.mag_labels):
+                self.mag_labels[idx].configure(text=f"K{box}: {percent:.0f}%")
 
-            counts = [
-                col_occ.get(box, {}).get(col, 0) for col in range(1, columns + 1)
-            ]
-            total_capacity = storage.BOX_CAPACITY.get(
-                box, columns * storage.BOX_COLUMN_CAPACITY
-            )
-            filled = sum(counts)
-            occupied_percent = filled / total_capacity * 100 if total_capacity else 0
-
-            rects = self.mag_canvas_items[idx]
-            col_w = box_w / columns
-
-            if not rects:
-                for col in range(columns):
-                    x1 = col * col_w
-                    x2 = (col + 1) * col_w
-                    fill = OCCUPIED_COLOR if counts[col] > 0 else ""
-                    rect_id = canvas.create_rectangle(
-                        x1,
-                        0,
-                        x2,
-                        box_h,
-                        fill=fill,
-                        outline="black",
-                        width=1,
-                    )
-                    rects.append(rect_id)
-            else:
-                if columns < len(rects):
-                    for rid in rects[columns:]:
-                        canvas.delete(rid)
-                    rects[:] = rects[:columns]
-                elif columns > len(rects):
-                    for col in range(len(rects), columns):
-                        x1 = col * col_w
-                        x2 = (col + 1) * col_w
-                        rect_id = canvas.create_rectangle(
-                            x1,
-                            0,
-                            x2,
-                            box_h,
-                            outline="black",
-                            width=1,
-                        )
-                        rects.append(rect_id)
-                for col, rid in enumerate(rects):
-                    x1 = col * col_w
-                    x2 = (col + 1) * col_w
-                    canvas.coords(rid, x1, 0, x2, box_h)
-                    fill = OCCUPIED_COLOR if counts[col] > 0 else ""
-                    canvas.itemconfigure(rid, fill=fill)
-
-            self.mag_labels[idx].configure(text=f"K{box}: {occupied_percent:.0f}%")
-
-        self.update_inventory_stats()
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.exception("Failed to update inventory stats")
 
     def show_card_details(self, row: dict):
         """Display details for a selected warehouse card."""

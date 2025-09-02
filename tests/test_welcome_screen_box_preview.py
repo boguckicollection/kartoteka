@@ -45,6 +45,7 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
             root=dummy_root,
             create_button=lambda master, **kwargs: DummyCTkButton(master, **kwargs),
             refresh_magazyn=lambda: None,
+            refresh_home_preview=lambda: None,
             open_config_dialog=lambda: None,
             show_location_frame=lambda: None,
             setup_pricing_ui=lambda: None,
