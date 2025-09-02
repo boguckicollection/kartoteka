@@ -66,10 +66,10 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
 
         ui.CardEditorApp.open_magazyn_window(app)
 
-    assert app.mag_inventory_count_label.text == f"Łączna liczba kart: {first_stats[0]}"
+    assert app.mag_inventory_count_label.text == f"📊 Łączna liczba kart: {first_stats[0]}"
     assert (
         app.mag_inventory_value_label.text
-        == f"Łączna wartość: {first_stats[1]:.2f} PLN"
+        == f"💰 Łączna wartość: {first_stats[1]:.2f} PLN"
     )
     assert app.mag_sold_count_label.text == f"Sprzedane karty: {first_stats[2]}"
     assert (
@@ -79,10 +79,10 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ui.csv_utils, "get_inventory_stats", lambda path=str(csv_path): second_stats)
     ui.CardEditorApp.update_inventory_stats(app)
-    assert app.mag_inventory_count_label.text == f"Łączna liczba kart: {second_stats[0]}"
+    assert app.mag_inventory_count_label.text == f"📊 Łączna liczba kart: {second_stats[0]}"
     assert (
         app.mag_inventory_value_label.text
-        == f"Łączna wartość: {second_stats[1]:.2f} PLN"
+        == f"💰 Łączna wartość: {second_stats[1]:.2f} PLN"
     )
     assert app.mag_sold_count_label.text == f"Sprzedane karty: {second_stats[2]}"
     assert (
