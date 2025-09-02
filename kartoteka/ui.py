@@ -2915,49 +2915,61 @@ class CardEditorApp:
 
             def _relayout_mag_cards(event=None):
                 """Recompute thumbnail size and update scroll region on resize."""
-                exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
-                if not self.mag_list_frame or not exists_fn():
+                if getattr(self, "_mag_layout_running", False):
                     return
-                global CARD_THUMB_SIZE
-                width_fn = getattr(self.mag_list_frame, "winfo_width", lambda: 0)
-                width = width_fn()
-                if width <= 1:
-                    return
-                padding = 10  # total horizontal padding (padx=5 on each side)
-                thumb = max(width - padding, 32)
-                if thumb != self._mag_prev_thumb:
-                    self._mag_prev_thumb = thumb
-                    CARD_THUMB_SIZE = thumb
-                    placeholder = Image.new("RGB", (thumb, thumb), "#111111")
-                    self.mag_placeholder_photo = _create_image(placeholder)
-                    for i, row in enumerate(self.mag_card_rows):
-                        path = row.get("image") or ""
-                        img = _load_image(path)
-                        if img is not None:
-                            img = _resize_to_width(img.copy(), thumb)
-                            photo = _create_image(img)
-                        else:
-                            photo = self.mag_placeholder_photo
-                        self.mag_card_images[i] = photo
-                        lbl = self.mag_card_image_labels[i]
-                        if lbl is not None:
-                            # Ensure the label widget still exists before updating.
-                            exists_fn = getattr(lbl, "winfo_exists", None)
-                            try:
-                                exists = True if exists_fn is None else bool(exists_fn())
-                            except Exception:
-                                exists = False
-                            if exists:
-                                if hasattr(lbl, "configure"):
-                                    lbl.configure(image=photo)
-                                else:
-                                    lbl.image = photo
+                self._mag_layout_running = True
+                try:
+                    exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
+                    if not self.mag_list_frame or not exists_fn():
+                        return
+                    global CARD_THUMB_SIZE
+                    width_fn = getattr(self.mag_list_frame, "winfo_width", lambda: 0)
+                    width = width_fn()
+                    if width <= 1:
+                        return
+                    padding = 10  # total horizontal padding (padx=5 on each side)
+                    thumb = max(width - padding, 32)
+                    if thumb != self._mag_prev_thumb:
+                        self._mag_prev_thumb = thumb
+                        CARD_THUMB_SIZE = thumb
+                        placeholder = Image.new("RGB", (thumb, thumb), "#111111")
+                        self.mag_placeholder_photo = _create_image(placeholder)
+                        for i, row in enumerate(self.mag_card_rows):
+                            path = row.get("image") or ""
+                            img = _load_image(path)
+                            if img is not None:
+                                img = _resize_to_width(img.copy(), thumb)
+                                photo = _create_image(img)
+                            else:
+                                photo = self.mag_placeholder_photo
+                            self.mag_card_images[i] = photo
+                            lbl = self.mag_card_image_labels[i]
+                            if lbl is not None:
+                                # Ensure the label widget still exists before updating.
+                                exists_fn = getattr(lbl, "winfo_exists", None)
+                                try:
+                                    exists = True if exists_fn is None else bool(exists_fn())
+                                except Exception:
+                                    exists = False
+                                if exists:
+                                    if hasattr(lbl, "configure"):
+                                        lbl.configure(image=photo)
+                                    else:
+                                        lbl.image = photo
 
-                canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
-                if canvas is not None:
-                    canvas.update_idletasks()
-                    bbox = canvas.bbox("all") or (0, 0, 0, 0)
-                    canvas.configure(scrollregion=bbox)
+                    canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
+                    if canvas is not None:
+                        def _update_scroll_region():
+                            bbox = canvas.bbox("all") or (0, 0, 0, 0)
+                            canvas.configure(scrollregion=bbox)
+
+                        after_idle = getattr(canvas, "after_idle", None)
+                        if callable(after_idle):
+                            after_idle(_update_scroll_region)
+                        else:
+                            _update_scroll_region()
+                finally:
+                    self._mag_layout_running = False
 
             def _update_mag_list(*_):
                 query = self.mag_search_var.get().lower()
@@ -3070,11 +3082,21 @@ class CardEditorApp:
 
                 canvas = getattr(list_frame, "_parent_canvas", None)
                 if canvas is not None:
-                    canvas.update_idletasks()
-                    bbox = canvas.bbox("all") or (0, 0, 0, 0)
-                    canvas.configure(scrollregion=bbox)
+                    def _update_scroll_region():
+                        bbox = canvas.bbox("all") or (0, 0, 0, 0)
+                        canvas.configure(scrollregion=bbox)
 
-                _relayout_mag_cards()
+                    canvas_after_idle = getattr(canvas, "after_idle", None)
+                    if callable(canvas_after_idle):
+                        canvas_after_idle(_update_scroll_region)
+                    else:
+                        _update_scroll_region()
+
+                list_after_idle = getattr(list_frame, "after_idle", None)
+                if callable(list_after_idle):
+                    list_after_idle(_relayout_mag_cards)
+                else:
+                    _relayout_mag_cards()
 
             bind = getattr(self.mag_list_frame, "bind", None)
             if callable(bind):
