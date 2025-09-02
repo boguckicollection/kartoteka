@@ -64,7 +64,7 @@ def test_inventory_stats_display_and_update(tmp_path, monkeypatch):
             back_to_welcome=lambda: None,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
 
     assert app.mag_inventory_count_label.text == f"📊 Łączna liczba kart: {first_stats[0]}"
     assert (

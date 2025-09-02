@@ -20,7 +20,7 @@ def test_toggle_sold_updates_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path))
     row = {"name": "A", "warehouse_code": "K1R1P1", "sold": ""}
     app = SimpleNamespace(
-        open_magazyn_window=lambda: None, update_inventory_stats=MagicMock()
+        show_magazyn_view=lambda: None, update_inventory_stats=MagicMock()
     )
 
     ui.CardEditorApp.toggle_sold(app, row)

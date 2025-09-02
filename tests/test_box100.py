@@ -83,7 +83,7 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
             update_inventory_stats=lambda: None,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
         ui.CardEditorApp.build_box_preview(app, app.magazyn_frame)
         ui.CardEditorApp.refresh_magazyn(app)
 

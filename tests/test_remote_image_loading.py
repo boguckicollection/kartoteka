@@ -143,7 +143,7 @@ def _write_csv(path, image_url):
         )
 
 
-def test_open_magazyn_window_remote_thumbnail(tmp_path):
+def test_show_magazyn_view_remote_thumbnail(tmp_path):
     ui = _setup_module(tmp_path)
 
     url = "https://example.com/card.png"
@@ -191,7 +191,7 @@ def test_open_magazyn_window_remote_thumbnail(tmp_path):
          patch.object(ui.requests, "get", return_value=resp) as mock_get, \
          patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)), \
          patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
         for t in app._image_threads:
             t.join()
 
@@ -237,7 +237,7 @@ def test_show_card_details_remote_uses_cache(tmp_path):
          patch.object(ui.requests, "get", return_value=resp) as mock_get, \
          patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
         # first load thumbnails
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
         for t in app._image_threads:
             t.join()
         # then show details which should reuse cache and not trigger new request

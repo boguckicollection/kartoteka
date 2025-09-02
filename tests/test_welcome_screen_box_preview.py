@@ -48,7 +48,7 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
             show_location_frame=lambda: None,
             setup_pricing_ui=lambda: None,
             open_shoper_window=lambda: None,
-            open_magazyn_window=lambda: None,
+            show_magazyn_view=lambda: None,
             open_auctions_window=lambda: None,
         )
         ui.CardEditorApp.setup_welcome_screen(app)

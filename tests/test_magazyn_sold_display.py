@@ -75,7 +75,7 @@ def test_sold_cards_styled(tmp_path):
             back_to_welcome=lambda: None,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
 
     assert len(app.mag_card_labels) == 1
     assert len(app.mag_sold_labels) == 1

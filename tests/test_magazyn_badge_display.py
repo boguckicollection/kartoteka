@@ -74,7 +74,7 @@ def test_badge_display_for_duplicates_only(tmp_path):
             back_to_welcome=lambda: None,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
 
     badges = [lbl for lbl in created_labels if lbl.kwargs.get("width") == 20]
     assert len(badges) == 1

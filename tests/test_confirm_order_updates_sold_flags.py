@@ -26,7 +26,7 @@ def test_confirm_order_updates_csv(tmp_path, monkeypatch):
     refresh_called = []
     app = SimpleNamespace(
         update_inventory_stats=lambda: stats_called.append(True),
-        open_magazyn_window=lambda: refresh_called.append(True),
+        show_magazyn_view=lambda: refresh_called.append(True),
         pending_orders=[{"products": [{"warehouse_code": "K1;K2"}]}],
     )
     app.complete_order = lambda order: ui.CardEditorApp.complete_order(app, order)

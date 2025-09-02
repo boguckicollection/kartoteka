@@ -52,7 +52,7 @@ def _load_app(csv_path, stats):
             refresh_magazyn=lambda: None,
             back_to_welcome=lambda: None,
         )
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
         return app
 
 
@@ -149,7 +149,7 @@ def _load_app_with_delay(csv_path, stats):
         back_to_welcome=lambda: None,
         show_card_details=lambda *a, **k: None,
     )
-    ui.CardEditorApp.open_magazyn_window(app)
+    ui.CardEditorApp.show_magazyn_view(app)
     return app, photo_mock, stack
 
 
