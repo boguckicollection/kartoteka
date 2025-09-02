@@ -23,6 +23,17 @@ SV01_CODE = "sv01"
 SV01_NAME = ui.get_set_name(SV01_CODE)
 
 
+class DummyVar:
+    def __init__(self, value=""):
+        self.value = value
+
+    def get(self):
+        return self.value
+
+    def set(self, value):
+        self.value = value
+
+
 def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
 
@@ -43,12 +54,18 @@ def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
             self.responses = SimpleNamespace(create=lambda *a, **k: resp)
 
     monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
-    name, number, total, set_name, set_code, set_format, era_name = ui.extract_card_info_openai(str(img))
-    assert (name, number, total) == ("Pikachu", "037", "198")
+    name, number, total, era_name, set_name, set_code, set_format = ui.extract_card_info_openai(
+        str(img)
+    )
+    assert (name, number, total, era_name) == (
+        "Pikachu",
+        "037",
+        "198",
+        ui.get_set_era(SV01_CODE),
+    )
     assert set_code == SV01_CODE
     assert set_name == SV01_NAME
     assert set_format == "text"
-    assert era_name == ui.get_set_era(SV01_CODE)
 
 
 def test_show_card_uses_analyzer(tmp_path):
@@ -164,6 +181,32 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
         "set_format": "",
         "era": "",
     }
+    mock_hash.assert_called_once()
+
+
+def test_analyze_card_image_propagates_openai_era(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    with patch.object(
+        ui,
+        "extract_card_info_openai",
+        return_value=("Pikachu", "037", "", "Test Era", "", "", ""),
+    ) as mock_extract, patch.object(
+        ui,
+        "lookup_sets_from_api",
+        return_value=[],
+    ), patch.object(
+        ui,
+        "identify_set_by_hash",
+        return_value=[],
+    ) as mock_hash, patch.object(
+        ui,
+        "extract_set_code_ocr",
+        return_value=[],
+    ):
+        result = ui.analyze_card_image("/tmp/img.jpg")
+
+    assert result["era"] == "Test Era"
+    mock_extract.assert_called_once()
     mock_hash.assert_called_once()
 
 
@@ -526,12 +569,6 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     num_entry.insert = MagicMock()
     set_var.set = MagicMock()
 
-    class DummyVar:
-        def __init__(self, value):
-            self.value = value
-        def get(self):
-            return self.value
-
     dummy = SimpleNamespace(
         root=SimpleNamespace(after=lambda delay, func: func()),
         lang_var=DummyVar("JP"),
@@ -691,7 +728,6 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     import importlib
     import kartoteka.csv_utils as csv_utils
     importlib.reload(csv_utils)
-    import kartoteka.ui as ui
     importlib.reload(ui)
 
     img = tmp_path / "card.jpg"
@@ -720,6 +756,7 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         _guess_key_from_filename=lambda *a, **k: None,
         update_set_options=lambda *a, **k: None,
     )
+    dummy._analyze_and_fill = MagicMock()
 
     dummy.lookup_inventory_entry = ui.CardEditorApp.lookup_inventory_entry.__get__(dummy, ui.CardEditorApp)
 
