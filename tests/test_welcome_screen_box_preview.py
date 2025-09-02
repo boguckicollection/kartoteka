@@ -13,6 +13,7 @@ from ctk_mocks import (
     DummyCTkEntry,
     DummyCTkOptionMenu,
     DummyCanvas,
+    DummyCTkProgressBar,
 )
 
 
@@ -24,6 +25,7 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,
+        CTkProgressBar=DummyCTkProgressBar,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui
@@ -33,8 +35,8 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
 
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
-        ui.tk, "Canvas", DummyCanvas
-    ), patch.object(ui.tk, "Frame", DummyCTkFrame), patch.object(
+        ui.tk, "Frame", DummyCTkFrame
+    ), patch.object(ui.tk, "Canvas", DummyCanvas), patch.object(
         ui.messagebox, "showinfo", lambda *a, **k: None
     ):
         dummy_root = SimpleNamespace(
@@ -55,5 +57,5 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
         )
         ui.CardEditorApp.setup_welcome_screen(app)
 
-    assert hasattr(app, "mag_canvases")
-    assert len(app.mag_canvases) == ui.BOX_COUNT + 1
+    assert hasattr(app, "mag_progressbars")
+    assert len(app.mag_progressbars) == sum(ui.storage.BOX_COLUMNS.values())
