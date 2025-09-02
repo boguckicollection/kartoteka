@@ -2911,11 +2911,10 @@ class CardEditorApp:
                             photo = _create_image(img)
                             self.mag_card_images[idx] = photo
 
-            self._mag_prev_columns = 0
             self._mag_prev_thumb = 0
 
             def _relayout_mag_cards(event=None):
-                """Recompute thumbnail size and grid layout on resize."""
+                """Recompute thumbnail size and layout on resize."""
                 exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
                 if not self.mag_list_frame or not exists_fn():
                     return
@@ -2924,13 +2923,8 @@ class CardEditorApp:
                 width = width_fn()
                 if width <= 1:
                     return
-                padding = 10  # total horizontal padding per cell (padx=5)
-                columns = max(width // (CARD_THUMB_SIZE + padding), 1)
-                thumb = max((width - padding * columns) // columns, 32)
-                if columns == self._mag_prev_columns and thumb == self._mag_prev_thumb:
-                    return
-                self._mag_prev_columns = columns
-
+                padding = 10  # total horizontal padding (padx=5 on each side)
+                thumb = max(width - padding, 32)
                 if thumb != self._mag_prev_thumb:
                     self._mag_prev_thumb = thumb
                     CARD_THUMB_SIZE = thumb
@@ -2959,11 +2953,12 @@ class CardEditorApp:
                                 else:
                                     lbl.image = photo
 
-                for i, frame in enumerate(self.mag_card_frames):
-                    frame.grid(row=i // columns, column=i % columns, padx=5, pady=5)
+                for frame in self.mag_card_frames:
+                    frame.pack(fill="x", padx=5, pady=5)
 
                 canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                 if canvas is not None:
+                    canvas.update_idletasks()
                     canvas.configure(scrollregion=canvas.bbox("all"))
 
             def _update_mag_list(*_):
