@@ -2587,10 +2587,10 @@ class CardEditorApp:
         return storage.location_from_code(code)
 
     def build_box_preview(self, parent):
-        """Create frames and progress bars previewing warehouse boxes."""
+        """Create a scrollable grid of frames and progress bars for boxes."""
 
-        container = ctk.CTkFrame(parent, fg_color=BG_COLOR)
-        container.pack(padx=10, pady=10)
+        container = ctk.CTkScrollableFrame(parent, fg_color=BG_COLOR)
+        container.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
         self.mag_progressbars = {}
