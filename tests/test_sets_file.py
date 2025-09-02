@@ -24,6 +24,7 @@ def make_dummy(tmp_path, sets_file):
 def test_update_set_options_sets_file_jp():
     dummy = SimpleNamespace(
         lang_var=SimpleNamespace(get=lambda: "JP"),
+        era_var=SimpleNamespace(get=lambda: ""),
         set_dropdown=MagicMock(),
         cheat_frame=None,
         sets_file="tcg_sets.json",
@@ -36,6 +37,7 @@ def test_update_set_options_sets_file_jp():
 def test_update_set_options_sets_file_eng():
     dummy = SimpleNamespace(
         lang_var=SimpleNamespace(get=lambda: "ENG"),
+        era_var=SimpleNamespace(get=lambda: ""),
         set_dropdown=MagicMock(),
         cheat_frame=None,
         sets_file="tcg_sets_jp.json",
