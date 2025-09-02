@@ -90,6 +90,19 @@ class DummyCanvas(_Widget):
     def height(self):
         return self.height_val
 
+
+class DummyCTkProgressBar(_Widget):
+    def __init__(self, master=None, orientation="horizontal", **kwargs):
+        self.master = master
+        self.orientation = orientation
+        self.value = 0
+
+    def set(self, value):
+        self.value = value
+
+    def get(self):
+        return self.value
+
 def test_magazyn_label_colors():
     sys.modules["customtkinter"] = SimpleNamespace(
         CTkFrame=DummyCTkFrame,
@@ -98,6 +111,7 @@ def test_magazyn_label_colors():
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,
+        CTkProgressBar=DummyCTkProgressBar,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui
@@ -105,8 +119,7 @@ def test_magazyn_label_colors():
 
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
 
-    with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
-         patch.object(ui.tk, "Canvas", DummyCanvas):
+    with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock):
         dummy_root = SimpleNamespace(
             minsize=lambda *a, **k: None,
             title=lambda *a, **k: None,

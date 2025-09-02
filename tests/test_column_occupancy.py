@@ -14,6 +14,7 @@ from ctk_mocks import (
     DummyCTkOptionMenu,
     DummyCTkScrollableFrame,
     DummyCanvas,
+    DummyCTkProgressBar,
 )
 
 sys.modules.setdefault("customtkinter", MagicMock())
@@ -107,14 +108,15 @@ def test_refresh_colors_columns_based_on_occupancy(tmp_path, monkeypatch):
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,
+        CTkProgressBar=DummyCTkProgressBar,
     )
     import kartoteka.ui as ui
     importlib.reload(ui)
 
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
-        ui.tk, "Canvas", DummyCanvas
-    ), patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
+        ui.messagebox, "showinfo", lambda *a, **k: None
+    ):
         dummy_root = SimpleNamespace(
             minsize=lambda *a, **k: None,
             title=lambda *a, **k: None,
@@ -136,7 +138,7 @@ def test_refresh_colors_columns_based_on_occupancy(tmp_path, monkeypatch):
         ui.CardEditorApp.build_box_preview(app, app.magazyn_frame)
         ui.CardEditorApp.refresh_magazyn(app)
 
-    canvas = app.mag_canvases[0]
-    rects = list(canvas.items.values())
-    assert rects[0]["fill"] == ui.OCCUPIED_COLOR
-    assert all(r["fill"] == "" for r in rects[1:])
+    bar = app.mag_progressbars[(1, 1)]
+    assert bar.get() > 0
+    for col in range(2, ui.storage.BOX_COLUMNS[1] + 1):
+        assert app.mag_progressbars[(1, col)].get() == 0

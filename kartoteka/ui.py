@@ -1431,7 +1431,9 @@ class CardEditorApp:
         self.magazyn_frame = None
         self.location_frame = None
         self.auction_frame = None
-        self.mag_canvases = []
+        self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
+        self.mag_percent_labels: dict[tuple[int, int], ctk.CTkLabel] = {}
+        self.mag_labels: list[ctk.CTkLabel] = []
         self.log_widget = None
         self.cheat_frame = None
         self.set_logos = {}
@@ -2568,40 +2570,46 @@ class CardEditorApp:
         return storage.location_from_code(code)
 
     def build_box_preview(self, parent):
-        """Create frames and canvases previewing warehouse boxes."""
-        box_w = BOX_THUMB_SIZE
-        box_h = BOX_THUMB_SIZE
+        """Create frames and progress bars previewing warehouse boxes."""
 
         container = ctk.CTkFrame(parent, fg_color=BG_COLOR)
         container.pack(padx=10, pady=10)
 
         self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
-        self.mag_canvases = []
+        self.mag_progressbars = {}
+        self.mag_percent_labels = {}
         self.mag_labels = []
         for i, box_num in enumerate(self.mag_box_order):
             frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
             lbl = ctk.CTkLabel(
                 frame,
-                text="",
+                text=f"K{box_num}",
                 fg_color=BG_COLOR,
                 text_color=TEXT_COLOR,
             )
-            canvas = tk.Canvas(
-                frame,
-                width=box_w,
-                height=box_h,
-                highlightthickness=0,
-            )
-            canvas.config(bg=BG_COLOR)
-            canvas.pack()
-            lbl.pack()
-            row, col = divmod(i, WAREHOUSE_GRID_COLUMNS)
+            lbl.pack(anchor="w")
+            self.mag_labels.append(lbl)
+            for col in range(1, storage.BOX_COLUMNS.get(box_num, 4) + 1):
+                row_frame = ctk.CTkFrame(frame, fg_color=BG_COLOR)
+                row_frame.pack(fill="x", padx=2, pady=2)
+                bar = ctk.CTkProgressBar(row_frame, orientation="horizontal")
+                bar.set(0)
+                bar.pack(side="left", fill="x", expand=True)
+                pct_label = ctk.CTkLabel(
+                    row_frame,
+                    text="0%",
+                    width=40,
+                    fg_color=BG_COLOR,
+                    text_color=TEXT_COLOR,
+                )
+                pct_label.pack(side="left", padx=(5, 0))
+                self.mag_progressbars[(box_num, col)] = bar
+                self.mag_percent_labels[(box_num, col)] = pct_label
+            row, col_idx = divmod(i, WAREHOUSE_GRID_COLUMNS)
             if box_num == SPECIAL_BOX_NUMBER:
                 row = 0
-                col = WAREHOUSE_GRID_COLUMNS
-            frame.grid(row=row, column=col, padx=5, pady=5)
-            self.mag_canvases.append(canvas)
-            self.mag_labels.append(lbl)
+                col_idx = WAREHOUSE_GRID_COLUMNS
+            frame.grid(row=row, column=col_idx, padx=5, pady=5)
 
         # Internal helpers used by the magazyn window; populated lazily.
         self.mag_card_images = []
@@ -2637,7 +2645,8 @@ class CardEditorApp:
 
         # Reset box preview containers; tests or callers may rebuild preview
         # manually using :func:`build_box_preview` when needed.
-        self.mag_canvases = []
+        self.mag_progressbars = {}
+        self.mag_percent_labels = {}
         self.mag_labels = []
         self.mag_box_order = []
 
@@ -3026,31 +3035,43 @@ class CardEditorApp:
 
     def refresh_home_preview(self):
         """Refresh box preview on the welcome screen."""
-        if not getattr(self, "mag_canvases", None):
+        if not getattr(self, "mag_progressbars", None):
             return
 
         col_occ = storage.compute_column_occupancy()
-        order = getattr(self, "mag_box_order", None) or []
 
-        for idx, canvas in enumerate(self.mag_canvases):
-            box = order[idx] if idx < len(order) else idx + 1
-            percent = draw_box_usage(canvas, box, col_occ.get(box, {}))
-            if idx < len(self.mag_labels):
-                self.mag_labels[idx].configure(text=f"K{box}: {percent:.0f}%")
+        for (box, col), bar in self.mag_progressbars.items():
+            filled = col_occ.get(box, {}).get(col, 0)
+            columns = storage.BOX_COLUMNS.get(box, 4)
+            total_capacity = storage.BOX_CAPACITY.get(
+                box, columns * storage.BOX_COLUMN_CAPACITY
+            )
+            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
+            value = filled / col_capacity if col_capacity else 0
+            bar.set(value)
+            lbl = self.mag_percent_labels.get((box, col))
+            if lbl:
+                lbl.configure(text=f"{value * 100:.0f}%")
 
     def refresh_magazyn(self):
-        """Refresh storage view and color occupied columns."""
-        if not getattr(self, "mag_canvases", None):
+        """Refresh storage view and update column usage bars."""
+        if not getattr(self, "mag_progressbars", None):
             return
 
         col_occ = storage.compute_column_occupancy()
-        order = getattr(self, "mag_box_order", None) or []
 
-        for idx, canvas in enumerate(self.mag_canvases):
-            box = order[idx] if idx < len(order) else idx + 1
-            percent = draw_box_usage(canvas, box, col_occ.get(box, {}))
-            if idx < len(self.mag_labels):
-                self.mag_labels[idx].configure(text=f"K{box}: {percent:.0f}%")
+        for (box, col), bar in self.mag_progressbars.items():
+            filled = col_occ.get(box, {}).get(col, 0)
+            columns = storage.BOX_COLUMNS.get(box, 4)
+            total_capacity = storage.BOX_CAPACITY.get(
+                box, columns * storage.BOX_COLUMN_CAPACITY
+            )
+            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
+            value = filled / col_capacity if col_capacity else 0
+            bar.set(value)
+            lbl = self.mag_percent_labels.get((box, col))
+            if lbl:
+                lbl.configure(text=f"{value * 100:.0f}%")
 
         if hasattr(self, "update_inventory_stats"):
             try:

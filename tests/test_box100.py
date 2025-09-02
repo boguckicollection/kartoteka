@@ -14,6 +14,7 @@ from ctk_mocks import (  # noqa: E402
     DummyCTkOptionMenu,
     DummyCTkScrollableFrame,
     DummyCanvas,
+    DummyCTkProgressBar,
 )
 
 import pytest
@@ -49,6 +50,7 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,
+        CTkProgressBar=DummyCTkProgressBar,
     )
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import kartoteka.ui as ui
@@ -61,8 +63,8 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
 
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
-        ui.tk, "Canvas", DummyCanvas
-    ), patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
+        ui.messagebox, "showinfo", lambda *a, **k: None
+    ):
         dummy_root = SimpleNamespace(
             minsize=lambda *a, **k: None,
             title=lambda *a, **k: None,
@@ -93,6 +95,5 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
     percent = occ[100] / storage.BOX_CAPACITY[100] * 100
     assert percent == pytest.approx(0.2)
 
-    canvas = app.mag_canvases[-1]
-    rect = list(canvas.items.values())[0]
-    assert rect["fill"] == ui.OCCUPIED_COLOR
+    bar = app.mag_progressbars[(100, 1)]
+    assert bar.get() == pytest.approx(1 / ui.storage.BOX_CAPACITY[100])
