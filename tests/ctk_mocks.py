@@ -83,10 +83,19 @@ class DummyCTkOptionMenu(_Widget):
 
 
 class DummyCTkProgressBar(_Widget):
-    def __init__(self, master=None, orientation="horizontal", **kwargs):
+    def __init__(
+        self,
+        master=None,
+        orientation="horizontal",
+        fg_color=None,
+        progress_color=None,
+        **kwargs,
+    ):
         self.master = master
         self.orientation = orientation
         self.value = 0
+        self.fg_color = fg_color
+        self.progress_color = progress_color
 
     def set(self, value):
         self.value = value
