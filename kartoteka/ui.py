@@ -4529,6 +4529,21 @@ class CardEditorApp:
                     str(meta.get("numer", meta.get("number", "")))
                 )
                 set_name = meta.get("set", meta.get("set_name", ""))
+                duplicates = csv_utils.find_duplicates(name, number, set_name)
+                if duplicates:
+                    codes = ", ".join(
+                        [row.get("warehouse_code", "") for row in duplicates if row.get("warehouse_code")]
+                    )
+                    msg = _(
+                        "Card already exists in magazyn: {codes}. Add anyway?"
+                    ).format(codes=codes)
+                    if not messagebox.askyesno(_("Duplicate"), msg):
+                        logger.info(
+                            "Skipping duplicate card %s #%s in set %s", name, number, set_name
+                        )
+                        if progress_cb:
+                            progress_cb(1.0, hide=True)
+                        return
                 self.entries["nazwa"].delete(0, tk.END)
                 self.entries["numer"].delete(0, tk.END)
                 self.entries["nazwa"].insert(0, name)

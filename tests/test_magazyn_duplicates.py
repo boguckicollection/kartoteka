@@ -41,7 +41,11 @@ def test_group_duplicates(tmp_path):
 
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), \
          patch.object(ui.tk, "Canvas", DummyCanvas), \
-         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)):
+         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)), \
+         patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
+        duplicates = ui.csv_utils.find_duplicates("A", "1", "S")
+        assert {row["warehouse_code"] for row in duplicates} == {"K1R1P1", "K1R1P2"}
+
         dummy_root = SimpleNamespace(
             minsize=lambda *a, **k: None,
             title=lambda *a, **k: None,
