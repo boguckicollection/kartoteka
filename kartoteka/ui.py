@@ -1450,12 +1450,27 @@ class CardEditorApp:
 
     def setup_welcome_screen(self):
         """Display a simple welcome screen before loading scans."""
+        w, h = 1920, 1080
+        if all(
+            hasattr(self.root, attr)
+            for attr in ("geometry", "winfo_screenwidth", "winfo_screenheight")
+        ):
+            self.root.geometry(f"{w}x{h}")
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+            x = (screen_w - w) // 2
+            y = (screen_h - h) // 2
+            self.root.geometry(f"{w}x{h}+{x}+{y}")
+
         # Allow resizing but provide a sensible minimum size
         self.root.minsize(1200, 800)
         self.start_frame = ctk.CTkFrame(
             self.root, fg_color=BG_COLOR, corner_radius=10
         )
         self.start_frame.pack(expand=True, fill="both")
+
+        content_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
+        content_frame.pack(expand=True)
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
@@ -1464,14 +1479,14 @@ class CardEditorApp:
                 logo_img.thumbnail((140, 140))
                 self.logo_photo = _create_image(logo_img)
                 logo_label = ctk.CTkLabel(
-                    self.start_frame,
+                    content_frame,
                     image=self.logo_photo,
                     text="",
                 )
                 logo_label.pack(pady=(10, 10))
 
         greeting = ctk.CTkLabel(
-            self.start_frame,
+            content_frame,
             text="Witaj w aplikacji KARTOTEKA",
             text_color=TEXT_COLOR,
             font=("Segoe UI", 24, "bold"),
@@ -1479,7 +1494,7 @@ class CardEditorApp:
         greeting.pack(pady=5)
 
         desc = ctk.CTkLabel(
-            self.start_frame,
+            content_frame,
             text=(
                 "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
             ),
@@ -1494,7 +1509,7 @@ class CardEditorApp:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
 
         button_frame = tk.Frame(
-            self.start_frame, bg=self.root.cget("background")
+            content_frame, bg=self.root.cget("background")
         )
         # Keep the buttons centered without stretching across the entire window
         button_frame.pack(pady=10)
@@ -1531,7 +1546,7 @@ class CardEditorApp:
             fg_color=AUCTION_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
 
-        preview_container = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
+        preview_container = ctk.CTkFrame(content_frame, fg_color=BG_COLOR)
         preview_container.pack(pady=10, fill="x")
 
         box_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
@@ -1573,22 +1588,22 @@ class CardEditorApp:
         self.inventory_value_label.pack(anchor="e", pady=(0, 5))
 
         config_btn = self.create_button(
-            self.start_frame,
+            content_frame,
             text="\u2699\ufe0f Konfiguracja",
             command=self.open_config_dialog,
             fg_color="#404040",
         )
-        config_btn.pack(side="bottom", pady=5)
+        config_btn.pack(pady=5)
 
         author = ctk.CTkLabel(
-            self.start_frame,
+            content_frame,
             text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
             wraplength=1400,
             justify="center",
             font=("Segoe UI", 14),
             text_color="#CCCCCC",
         )
-        author.pack(side="bottom", pady=5)
+        author.pack(pady=5)
 
     def update_inventory_stats(self):
         """Refresh labels showing total item count and value in the UI."""
