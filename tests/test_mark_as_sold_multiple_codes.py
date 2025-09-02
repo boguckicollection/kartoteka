@@ -57,14 +57,14 @@ def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
         back_to_welcome=lambda: None,
     )
 
-    ui.CardEditorApp.open_magazyn_window(app)
+    ui.CardEditorApp.show_magazyn_view(app)
 
     row = app.mag_card_rows[0]
     assert row["warehouse_code"] == "K1;K2"
     assert row["_count"] == 2
 
     app.update_inventory_stats = lambda: None
-    app.open_magazyn_window = lambda: ui.CardEditorApp.open_magazyn_window(app)
+    app.show_magazyn_view = lambda: ui.CardEditorApp.show_magazyn_view(app)
 
     ui.CardEditorApp.mark_as_sold(app, row, warehouse_code="K1")
 

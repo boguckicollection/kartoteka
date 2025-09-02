@@ -70,7 +70,7 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
     stats_mock = MagicMock()
     app = SimpleNamespace(
         root=SimpleNamespace(),
-        open_magazyn_window=open_mock,
+        show_magazyn_view=open_mock,
         update_inventory_stats=stats_mock,
     )
     app.mark_as_sold = lambda r, w=None, c=None: ui.CardEditorApp.mark_as_sold(

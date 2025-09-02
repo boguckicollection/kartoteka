@@ -157,7 +157,7 @@ def test_magazyn_label_colors():
             back_to_welcome=lambda: None,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
         ui.CardEditorApp.build_box_preview(app, app.magazyn_frame)
 
     label = app.mag_labels[0]

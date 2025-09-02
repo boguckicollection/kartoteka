@@ -1583,7 +1583,7 @@ class CardEditorApp:
         self.create_button(
             button_frame,
             text="\U0001f4e6 Magazyn",
-            command=self.open_magazyn_window,
+            command=self.show_magazyn_view,
             fg_color=MAGAZYN_BUTTON_COLOR,
         ).pack(side="left", padx=10, pady=5)
         self.create_button(
@@ -2614,9 +2614,9 @@ class CardEditorApp:
             except Exception:
                 logger.exception("Failed to update inventory stats")
 
-        if hasattr(self, "open_magazyn_window"):
+        if hasattr(self, "show_magazyn_view"):
             try:
-                self.open_magazyn_window()
+                self.show_magazyn_view()
             except Exception:
                 logger.exception("Failed to refresh magazyn window")
 
@@ -2725,7 +2725,7 @@ class CardEditorApp:
         self.mag_sold_labels = []
         self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
 
-    def _open_magazyn_window_internal(self):
+    def show_magazyn_view(self):
         """Display storage occupancy inside the main window."""
         # Unbind previous resize handlers if they exist before rebuilding the
         # magazine view. This prevents ``_relayout_mag_cards`` from being
@@ -3125,20 +3125,21 @@ class CardEditorApp:
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
 
-        def _close_mag_window(top=current_root):
-            """Unbind resize handlers and close the magazine list view."""
+        def _close_mag_window():
+            """Return to the previous screen and remove magazyn bindings."""
             mag_frame = getattr(self, "mag_list_frame", None)
             if mag_frame is not None:
                 unbind = getattr(mag_frame, "unbind", None)
                 if callable(unbind) and getattr(self, "_mag_bind_id", None):
                     unbind("<Configure>", self._mag_bind_id)
             if getattr(self, "_root_mag_bind_id", None):
-                root_unbind = getattr(top, "unbind", None)
+                root_unbind = getattr(current_root, "unbind", None)
                 if callable(root_unbind):
                     root_unbind("<Configure>", self._root_mag_bind_id)
             self._mag_bind_id = None
             self._root_mag_bind_id = None
-            getattr(top, "destroy", lambda: None)()
+            if hasattr(self, "back_to_welcome"):
+                self.back_to_welcome()
 
         self.create_button(
             btn_frame, text="Odśwież", command=self.refresh_magazyn
@@ -3213,54 +3214,13 @@ class CardEditorApp:
                 logger.exception("Failed to update inventory stats")
 
     def open_magazyn_window(self):
-        """Display storage view in a separate window without altering the main UI."""
+        """Legacy wrapper for :meth:`show_magazyn_view`.
 
-        try:
-            top = ctk.CTkToplevel(self.root)
-        except Exception:
-            try:
-                top = tk.Toplevel(self.root)  # type: ignore[attr-defined]
-            except Exception:
-                top = SimpleNamespace()
-        if hasattr(top, "title"):
-            top.title("Podgląd magazynu")
-        self.magazyn_window = top
-
-        # Provide no-op implementations for window methods when running in tests
-        top.title = getattr(top, "title", lambda *a, **k: None)
-        top.winfo_screenwidth = getattr(top, "winfo_screenwidth", lambda: 0)
-        top.winfo_screenheight = getattr(top, "winfo_screenheight", lambda: 0)
-        top.minsize = getattr(top, "minsize", lambda *a, **k: None)
-        top.bind = getattr(top, "bind", lambda *a, **k: None)
-        top.destroy = getattr(top, "destroy", lambda *a, **k: None)
-
-        old_root = self.root
-        old_start = getattr(self, "start_frame", None)
-        old_pricing = getattr(self, "pricing_frame", None)
-        old_shoper = getattr(self, "shoper_frame", None)
-        old_frame = getattr(self, "frame", None)
-        old_location = getattr(self, "location_frame", None)
-        old_mag_frame = getattr(self, "magazyn_frame", None)
-
-        self.root = top
-        self.start_frame = None
-        self.pricing_frame = None
-        self.shoper_frame = None
-        self.frame = None
-        self.magazyn_frame = None
-        self.location_frame = None
-
-        try:
-            CardEditorApp._open_magazyn_window_internal(self)
-        finally:
-            new_mag_frame = self.magazyn_frame
-            self.root = old_root
-            self.start_frame = old_start
-            self.pricing_frame = old_pricing
-            self.shoper_frame = old_shoper
-            self.frame = old_frame
-            self.location_frame = old_location
-            self.magazyn_frame = new_mag_frame
+        Existing callers expecting ``open_magazyn_window`` can still invoke it,
+        but it simply delegates to :meth:`show_magazyn_view` and renders the
+        view inside the main application window.
+        """
+        self.show_magazyn_view()
 
     def compute_box_occupancy(self) -> dict[int, int]:
         """Return dictionary of used slots per storage box."""
@@ -3545,8 +3505,8 @@ class CardEditorApp:
             except Exception:
                 logger.exception("Failed to update inventory stats")
 
-        if hasattr(self, "open_magazyn_window"):
-            self.open_magazyn_window()
+        if hasattr(self, "show_magazyn_view"):
+            self.show_magazyn_view()
 
     def toggle_sold(self, row: dict, window=None):
         """Toggle the sold flag for a warehouse card and update CSV."""
@@ -3590,8 +3550,8 @@ class CardEditorApp:
                 logger.exception("Failed to update inventory stats")
 
         # Refresh main view to reflect the change
-        if hasattr(self, "open_magazyn_window"):
-            self.open_magazyn_window()
+        if hasattr(self, "show_magazyn_view"):
+            self.show_magazyn_view()
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""

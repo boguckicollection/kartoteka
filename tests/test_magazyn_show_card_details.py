@@ -175,7 +175,7 @@ def test_show_card_details_receives_row(tmp_path):
             show_card_details=fake_show,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
 
         label = _extract_label(app.mag_card_labels[0])
         label._bindings["<Button-1>"](None)

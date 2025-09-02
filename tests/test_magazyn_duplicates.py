@@ -63,7 +63,7 @@ def test_group_duplicates(tmp_path):
             back_to_welcome=lambda: None,
         )
 
-        ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.show_magazyn_view(app)
 
     assert len(app.mag_card_rows) == 1
     row = app.mag_card_rows[0]
