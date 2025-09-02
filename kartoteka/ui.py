@@ -2929,10 +2929,17 @@ class CardEditorApp:
                         self.mag_card_images[i] = photo
                         lbl = self.mag_card_image_labels[i]
                         if lbl is not None:
-                            if hasattr(lbl, "configure"):
-                                lbl.configure(image=photo)
-                            else:
-                                lbl.image = photo
+                            # Ensure the label widget still exists before updating.
+                            exists_fn = getattr(lbl, "winfo_exists", None)
+                            try:
+                                exists = True if exists_fn is None else bool(exists_fn())
+                            except Exception:
+                                exists = False
+                            if exists:
+                                if hasattr(lbl, "configure"):
+                                    lbl.configure(image=photo)
+                                else:
+                                    lbl.image = photo
 
                 for i, frame in enumerate(self.mag_card_frames):
                     frame.grid(row=i // columns, column=i % columns, padx=5, pady=5)
