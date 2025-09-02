@@ -6,6 +6,18 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 sys.modules.setdefault("customtkinter", MagicMock())
+sys.modules.setdefault("tkinter", MagicMock())
+sys.modules.setdefault("tkinter.ttk", MagicMock())
+sys.modules.setdefault("PIL", MagicMock())
+sys.modules.setdefault("PIL.Image", MagicMock())
+sys.modules.setdefault("PIL.ImageTk", MagicMock())
+sys.modules.setdefault("imagehash", MagicMock())
+sys.modules.setdefault("openai", MagicMock())
+sys.modules.setdefault("requests", MagicMock())
+sys.modules.setdefault("pydantic", MagicMock())
+sys.modules.setdefault("pytesseract", MagicMock())
+sys.modules.setdefault("dotenv", MagicMock())
+sys.modules.setdefault("numpy", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import kartoteka.ui as ui
@@ -19,20 +31,19 @@ def test_toggle_sold_updates_csv(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path))
     row = {"name": "A", "warehouse_code": "K1R1P1", "sold": ""}
-    app = SimpleNamespace(
-        show_magazyn_view=lambda: None, update_inventory_stats=MagicMock()
-    )
+    refresh_called = MagicMock()
+    app = SimpleNamespace(refresh_magazyn=refresh_called)
 
     ui.CardEditorApp.toggle_sold(app, row)
-    app.update_inventory_stats.assert_called_once()
+    refresh_called.assert_called_once()
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert rows[0]["sold"] == "1"
 
-    app.update_inventory_stats.reset_mock()
+    refresh_called.reset_mock()
     ui.CardEditorApp.toggle_sold(app, row)
-    app.update_inventory_stats.assert_called_once()
+    refresh_called.assert_called_once()
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)

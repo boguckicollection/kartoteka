@@ -51,6 +51,15 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
         def destroy(self):
             pass
 
+    sys.modules["tkinter"] = MagicMock()
+    sys.modules["tkinter.ttk"] = MagicMock()
+    sys.modules["imagehash"] = MagicMock()
+    sys.modules["openai"] = MagicMock()
+    sys.modules["requests"] = MagicMock()
+    sys.modules["pydantic"] = MagicMock()
+    sys.modules["pytesseract"] = MagicMock()
+    sys.modules["dotenv"] = MagicMock()
+    sys.modules["numpy"] = MagicMock()
     sys.modules["customtkinter"] = SimpleNamespace(
         CTkToplevel=DummyToplevel,
         CTkFrame=DummyFrame,
@@ -66,12 +75,11 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
     monkeypatch.setattr(ui, "_create_image", lambda img: SimpleNamespace())
     monkeypatch.setattr(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path))
 
-    open_mock = MagicMock()
+    refresh_mock = MagicMock()
     stats_mock = MagicMock()
     app = SimpleNamespace(
         root=SimpleNamespace(),
-        show_magazyn_view=open_mock,
-        update_inventory_stats=stats_mock,
+        refresh_magazyn=lambda: (refresh_mock(), stats_mock()),
     )
     app.mark_as_sold = lambda r, w=None, c=None: ui.CardEditorApp.mark_as_sold(
         app, r, w, c
@@ -98,6 +106,6 @@ def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
         rows = list(reader)
         assert rows[0]["sold"] == "1"
 
-    open_mock.assert_called_once()
+    refresh_mock.assert_called_once()
     stats_mock.assert_called_once()
 
