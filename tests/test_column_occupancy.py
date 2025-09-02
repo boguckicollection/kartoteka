@@ -133,6 +133,7 @@ def test_refresh_colors_columns_based_on_occupancy(tmp_path, monkeypatch):
             update_inventory_stats=lambda: None,
         )
         ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.build_box_preview(app, app.magazyn_frame)
         ui.CardEditorApp.refresh_magazyn(app)
 
     canvas = app.mag_canvases[0]
