@@ -33,6 +33,7 @@ def make_dummy():
             "nazwa": DestroyedVar(),
             "numer": DummyVar("4"),
             "set": DummyVar("Base Set"),
+            "era": DummyVar(""),
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "cena": DummyVar(""),

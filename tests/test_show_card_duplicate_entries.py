@@ -57,7 +57,7 @@ def test_show_card_clears_entries_for_duplicate(tmp_path, monkeypatch):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": SimpleNamespace(set=lambda *a, **k: None)},
         type_vars={},
         card_cache={},
         file_to_key={},

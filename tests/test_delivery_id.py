@@ -24,6 +24,7 @@ def test_delivery_field_constant():
             "nazwa": DummyVar("Pikachu"),
             "numer": DummyVar("1"),
             "set": DummyVar("Base"),
+            "era": DummyVar(""),
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "cena": DummyVar(""),

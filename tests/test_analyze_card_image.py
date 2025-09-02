@@ -34,6 +34,7 @@ def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
         "number": "037/198",
         "set_name": SV01_CODE,
         "set_format": "text",
+        "era_name": ui.get_set_era(SV01_CODE),
     }
     resp = SimpleNamespace(output_text=json.dumps(payload))
 
@@ -42,11 +43,12 @@ def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
             self.responses = SimpleNamespace(create=lambda *a, **k: resp)
 
     monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
-    name, number, total, set_name, set_code, set_format = ui.extract_card_info_openai(str(img))
+    name, number, total, set_name, set_code, set_format, era_name = ui.extract_card_info_openai(str(img))
     assert (name, number, total) == ("Pikachu", "037", "198")
     assert set_code == SV01_CODE
     assert set_name == SV01_NAME
     assert set_format == "text"
+    assert era_name == ui.get_set_era(SV01_CODE)
 
 
 def test_show_card_uses_analyzer(tmp_path):
@@ -56,6 +58,7 @@ def test_show_card_uses_analyzer(tmp_path):
     name_entry = MagicMock()
     num_entry = MagicMock()
     set_var = MagicMock()
+    era_var = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     name_entry.focus_set = MagicMock()
@@ -69,7 +72,7 @@ def test_show_card_uses_analyzer(tmp_path):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": era_var},
         type_vars={},
         card_cache={},
         file_to_key={},
@@ -107,6 +110,7 @@ def test_show_card_uses_analyzer(tmp_path):
                 "set_code": SV01_CODE,
                 "orientation": 0,
                 "set_format": "",
+                "era": ui.get_set_era(SV01_CODE),
             },
         ) as mock_analyze:
         ui.CardEditorApp.show_card(dummy)
@@ -120,7 +124,7 @@ def test_show_card_uses_analyzer(tmp_path):
 def test_analyze_card_image_api_single_set(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     with patch.object(
-        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
+        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "", "")
     ), patch.object(ui, "lookup_sets_from_api", return_value=[("sv01", SV01_NAME)]), patch.object(
         ui, "identify_set_by_hash", return_value=[]
     ) as mock_hash:
@@ -134,6 +138,7 @@ def test_analyze_card_image_api_single_set(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
         "set_format": "",
+        "era": ui.get_set_era(SV01_CODE),
     }
     mock_hash.assert_called_once()
 
@@ -143,7 +148,7 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
     options = [("a", "Set A"), ("b", "Set B")]
 
     with patch.object(
-        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
+        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "", "")
     ), patch.object(ui, "lookup_sets_from_api", return_value=options), patch.object(
         ui, "identify_set_by_hash", return_value=[]
     ) as mock_hash:
@@ -157,6 +162,7 @@ def test_analyze_card_image_api_multiple_sets(monkeypatch):
         "set_code": "a",
         "orientation": 0,
         "set_format": "",
+        "era": "",
     }
     mock_hash.assert_called_once()
 
@@ -173,7 +179,7 @@ def test_analyze_card_image_hash_preempts_openai(monkeypatch):
             return self
 
     with patch.object(
-        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "")
+        ui, "extract_card_info_openai", return_value=("Pikachu", "037", "", "", "", "", "")
     ) as mock_openai, patch.object(ui, "lookup_sets_from_api", return_value=[]), patch.object(
         ui, "identify_set_by_hash", return_value=[("x", "Set X", 0)]
     ) as mock_hash, patch.object(ui, "extract_set_code_ocr", return_value=[]):
@@ -187,6 +193,7 @@ def test_analyze_card_image_hash_preempts_openai(monkeypatch):
         "set_code": "x",
         "orientation": 0,
         "set_format": "",
+        "era": ui.get_set_era("x"),
     }
     mock_hash.assert_called_once()
     mock_openai.assert_not_called()
@@ -212,6 +219,7 @@ def test_analyze_card_image_ocr(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
         "set_format": "",
+        "era": ui.get_set_era(SV01_CODE),
     }
     mock_hash.assert_called_once()
     mock_ocr.assert_called_once()
@@ -239,6 +247,7 @@ def test_analyze_card_image_ocr_unknown_code(monkeypatch, capsys):
         "set_code": "",
         "orientation": 0,
         "set_format": "",
+        "era": "",
     }
     mock_hash.assert_called_once()
     mock_ocr.assert_called_once()
@@ -268,6 +277,7 @@ def test_analyze_card_image_hash_shortcircuits_ocr(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
         "set_format": "",
+        "era": ui.get_set_era(SV01_CODE),
     }
     mock_hash.assert_called_once()
     mock_ocr.assert_not_called()
@@ -297,6 +307,7 @@ def test_analyze_card_image_ocr_after_hash_failure(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
         "set_format": "",
+        "era": ui.get_set_era(SV01_CODE),
     }
     mock_hash.assert_called_once()
     mock_ocr.assert_called_once()
@@ -325,7 +336,7 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
 
 def test_analyze_card_image_bad_json(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    with patch.object(ui, "extract_card_info_openai", return_value=("", "", "", "", "", "")), \
+    with patch.object(ui, "extract_card_info_openai", return_value=("", "", "", "", "", "", "")), \
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
@@ -337,12 +348,13 @@ def test_analyze_card_image_bad_json(monkeypatch):
         "set_code": "",
         "orientation": 0,
         "set_format": "",
+        "era": "",
     }
 
 
 def test_analyze_card_image_truncated_code_block(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "159", "", "", "")), \
+    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "159", "", "", "", "")), \
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
@@ -354,12 +366,13 @@ def test_analyze_card_image_truncated_code_block(monkeypatch):
         "set_code": "",
         "orientation": 0,
         "set_format": "",
+        "era": "",
     }
 
 
 def test_analyze_card_image_leading_text(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "159", "", "", "")), \
+    with patch.object(ui, "extract_card_info_openai", return_value=("Pikachu", "037", "159", "", "", "", "")), \
         patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image("/tmp/img.jpg")
 
@@ -371,6 +384,7 @@ def test_analyze_card_image_leading_text(monkeypatch):
         "set_code": "",
         "orientation": 0,
         "set_format": "",
+        "era": "",
     }
 
 
@@ -391,6 +405,7 @@ def test_analyze_card_image_local_hash(monkeypatch):
         "set_code": SV01_CODE,
         "orientation": 0,
         "set_format": "",
+        "era": ui.get_set_era(SV01_CODE),
     }
     mock_extract.assert_not_called()
     mock_lookup.assert_not_called()
@@ -405,7 +420,7 @@ def test_analyze_card_image_translate_name(monkeypatch):
     with patch.object(
         ui,
         "extract_card_info_openai",
-        return_value=("\u30d4\u30ab\u30c1\u30e5\u30a6", "037", "159", "", "", ""),
+        return_value=("\u30d4\u30ab\u30c1\u30e5\u30a6", "037", "159", "", "", "", ""),
     ), patch(
         "openai.chat.completions.create", return_value=resp_translate
     ) as mock_create, patch.object(ui, "lookup_sets_from_api", return_value=[]):
@@ -419,6 +434,7 @@ def test_analyze_card_image_translate_name(monkeypatch):
         "set_code": "",
         "orientation": 0,
         "set_format": "",
+        "era": "",
     }
     mock_create.assert_called_once()
 
@@ -442,7 +458,7 @@ def test_analyze_card_image_orientation(tmp_path, monkeypatch):
 
     with patch.object(ui, "extract_set_code_ocr", return_value=[]), \
          patch.object(ui, "identify_set_by_hash", return_value=[]), \
-         patch.object(ui, "extract_card_info_openai", return_value=("", "", "", "", "", "")), \
+         patch.object(ui, "extract_card_info_openai", return_value=("", "", "", "", "", "", "")), \
          patch.object(ui, "lookup_sets_from_api", return_value=[]):
         result = ui.analyze_card_image(str(img_path))
 
@@ -487,7 +503,7 @@ def test_analyze_card_image_horizontal_scan(tmp_path, monkeypatch):
         return [(SV01_CODE, SV01_NAME, 0)]
 
     monkeypatch.setattr(ui, "identify_set_by_hash", fake_hash)
-    monkeypatch.setattr(ui, "extract_card_info_openai", lambda *a, **k: ("", "", "", "", "", ""))
+    monkeypatch.setattr(ui, "extract_card_info_openai", lambda *a, **k: ("", "", "", "", "", "", ""))
     monkeypatch.setattr(ui, "lookup_sets_from_api", lambda *a, **k: [])
     monkeypatch.setattr(ui, "extract_set_code_ocr", lambda *a, **k: [])
 
@@ -519,7 +535,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     dummy = SimpleNamespace(
         root=SimpleNamespace(after=lambda delay, func: func()),
         lang_var=DummyVar("JP"),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": DummyVar("")},
         index=0,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
@@ -533,7 +549,7 @@ def test_analyze_and_fill_translates_for_jp(monkeypatch):
     with patch.object(
         ui,
         "extract_card_info_openai",
-        return_value=("\u30d4\u30ab\u30c1\u30e5\u30a6", "001", "", "", "", ""),
+        return_value=("\u30d4\u30ab\u30c1\u30e5\u30a6", "001", "", "", "", "", ""),
     ), patch(
         "openai.chat.completions.create", return_value=resp_translate
     ), patch.object(ui, "lookup_sets_from_api", return_value=[]):
@@ -555,7 +571,7 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
     dummy = SimpleNamespace(
         root=SimpleNamespace(after=lambda delay, func: func()),
         lang_var=None,
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": DummyVar("")},
         index=0,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
@@ -633,7 +649,7 @@ def test_analyze_and_fill_runs_full_pipeline_for_non_matching_card(tmp_path):
     dummy = SimpleNamespace(
         root=SimpleNamespace(after=lambda delay, func: func()),
         lang_var=None,
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": DummyVar("")},
         index=0,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
@@ -656,6 +672,7 @@ def test_analyze_and_fill_runs_full_pipeline_for_non_matching_card(tmp_path):
             "set_code": "",
             "orientation": 0,
             "set_format": "",
+            "era": "",
         },
     ) as mock_analyze:
         ui.CardEditorApp._analyze_and_fill(dummy, str(second), 0)
@@ -696,7 +713,7 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": MagicMock()},
         type_vars={},
         card_cache={},
         file_to_key={img.name: f"Pikachu|001|{SV01_NAME}"},
@@ -775,7 +792,7 @@ def test_show_card_skips_fingerprint_without_auto_lookup(tmp_path, monkeypatch):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": MagicMock()},
         type_vars={},
         card_cache={},
         file_to_key={},
@@ -854,7 +871,7 @@ def test_show_card_fingerprint_lookup_thread(tmp_path, monkeypatch):
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": MagicMock()},
         type_vars={},
         card_cache={},
         file_to_key={},
@@ -936,7 +953,7 @@ def test_show_card_fingerprint_lookup_no_match_triggers_analyzer(tmp_path, monke
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var},
+        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": MagicMock()},
         type_vars={},
         card_cache={},
         file_to_key={},
