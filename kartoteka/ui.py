@@ -3542,14 +3542,19 @@ class CardEditorApp:
             except tk.TclError:
                 pass
 
-        if hasattr(self, "update_inventory_stats"):
+        # Refresh the magazyn view in-place rather than reopening the window.
+        if hasattr(self, "refresh_magazyn"):
             try:
-                self.update_inventory_stats()
+                self.refresh_magazyn()
             except Exception:
-                logger.exception("Failed to update inventory stats")
-
-        if hasattr(self, "show_magazyn_view"):
-            self.show_magazyn_view()
+                logger.exception("Failed to refresh magazyn view")
+        elif hasattr(self, "show_magazyn_view"):
+            # Fallback for environments where the magazyn view was not yet
+            # initialised; rebuild it inside the main window.
+            try:
+                self.show_magazyn_view()
+            except Exception:
+                logger.exception("Failed to display magazyn view")
 
     def toggle_sold(self, row: dict, window=None):
         """Toggle the sold flag for a warehouse card and update CSV."""
@@ -3585,16 +3590,17 @@ class CardEditorApp:
             except tk.TclError:
                 pass
 
-        # Update inventory statistics after toggling the sold flag
-        if hasattr(self, "update_inventory_stats"):
+        # Refresh main view to reflect the change without recreating the root
+        if hasattr(self, "refresh_magazyn"):
             try:
-                self.update_inventory_stats()
-            except Exception as exc:
-                logger.exception("Failed to update inventory stats")
-
-        # Refresh main view to reflect the change
-        if hasattr(self, "show_magazyn_view"):
-            self.show_magazyn_view()
+                self.refresh_magazyn()
+            except Exception:
+                logger.exception("Failed to refresh magazyn view")
+        elif hasattr(self, "show_magazyn_view"):
+            try:
+                self.show_magazyn_view()
+            except Exception:
+                logger.exception("Failed to display magazyn view")
 
     def setup_pricing_ui(self):
         """UI for quick card price lookup."""
