@@ -2709,7 +2709,24 @@ class CardEditorApp:
 
     def _open_magazyn_window_internal(self):
         """Display storage occupancy inside the main window."""
+        # Unbind previous resize handlers if they exist before rebuilding the
+        # magazine view. This prevents ``_relayout_mag_cards`` from being
+        # triggered after the associated widgets are destroyed.
+        if getattr(self, "_mag_bind_id", None) or getattr(self, "_root_mag_bind_id", None):
+            mag_frame = getattr(self, "mag_list_frame", None)
+            if mag_frame is not None:
+                unbind = getattr(mag_frame, "unbind", None)
+                if callable(unbind) and getattr(self, "_mag_bind_id", None):
+                    unbind("<Configure>", self._mag_bind_id)
+            if getattr(self, "_root_mag_bind_id", None):
+                root_unbind = getattr(self.root, "unbind", None)
+                if callable(root_unbind):
+                    root_unbind("<Configure>", self._root_mag_bind_id)
+            self._mag_bind_id = None
+            self._root_mag_bind_id = None
+
         self.root.title("Podgląd magazynu")
+        current_root = self.root
         if self.start_frame is not None:
             self.start_frame.destroy()
             self.start_frame = None
@@ -3036,11 +3053,15 @@ class CardEditorApp:
 
             bind = getattr(self.mag_list_frame, "bind", None)
             if callable(bind):
-                bind("<Configure>", _relayout_mag_cards)
+                self._mag_bind_id = bind("<Configure>", _relayout_mag_cards)
+            else:
+                self._mag_bind_id = None
 
-            root_bind = getattr(self.root, "bind", None)
+            root_bind = getattr(current_root, "bind", None)
             if callable(root_bind):
-                root_bind("<Configure>", _relayout_mag_cards)
+                self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
+            else:
+                self._root_mag_bind_id = None
 
             self.mag_search_var.trace_add("write", _update_mag_list)
             self.mag_sold_filter_var.trace_add("write", _update_mag_list)
@@ -3057,14 +3078,27 @@ class CardEditorApp:
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
 
+        def _close_mag_window(top=current_root):
+            """Unbind resize handlers and close the magazine list view."""
+            mag_frame = getattr(self, "mag_list_frame", None)
+            if mag_frame is not None:
+                unbind = getattr(mag_frame, "unbind", None)
+                if callable(unbind) and getattr(self, "_mag_bind_id", None):
+                    unbind("<Configure>", self._mag_bind_id)
+            if getattr(self, "_root_mag_bind_id", None):
+                root_unbind = getattr(top, "unbind", None)
+                if callable(root_unbind):
+                    root_unbind("<Configure>", self._root_mag_bind_id)
+            self._mag_bind_id = None
+            self._root_mag_bind_id = None
+            getattr(top, "destroy", lambda: None)()
+
         self.create_button(
             btn_frame, text="Odśwież", command=self.refresh_magazyn
         ).pack(side="left", padx=5)
 
         self.create_button(
-            btn_frame,
-            text="Powrót",
-            command=lambda top=self.root: getattr(top, "destroy", lambda: None)(),
+            btn_frame, text="Powrót", command=_close_mag_window
         ).pack(side="left", padx=5)
 
         stats_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
