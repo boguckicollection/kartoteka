@@ -52,6 +52,62 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
+def _sanitize_number(value: str) -> str:
+    """Return ``value`` without leading zeros.
+
+    Parameters
+    ----------
+    value:
+        Raw number string.
+
+    Returns
+    -------
+    str
+        Normalised number or ``"0"`` if the result is empty.
+    """
+
+    return value.lstrip("0") or "0"
+
+
+def find_duplicates(name: str, number: str, set_name: str, variant: str = "common"):
+    """Return rows from ``WAREHOUSE_CSV`` matching the given card details.
+
+    Parameters
+    ----------
+    name, number, set_name:
+        Card attributes to match against ``WAREHOUSE_CSV`` entries.
+    variant:
+        Card variant, defaults to ``"common"``.
+
+    Returns
+    -------
+    list[dict[str, str]]
+        List of matching rows including warehouse codes.
+    """
+
+    matches = []
+    number = _sanitize_number(str(number))
+    if not os.path.exists(WAREHOUSE_CSV):
+        return matches
+
+    try:
+        with open(WAREHOUSE_CSV, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                row_number = _sanitize_number(str(row.get("number", "")))
+                if (
+                    row.get("name") == name
+                    and row_number == number
+                    and row.get("set") == set_name
+                    and (row.get("variant") or "common") == variant
+                ):
+                    matches.append(row)
+    except OSError:
+        pass
+
+    return matches
+
+
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     """Return statistics for both unsold and sold items in the warehouse CSV.
 

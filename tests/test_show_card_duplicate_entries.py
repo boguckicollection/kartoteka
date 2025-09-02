@@ -9,7 +9,7 @@ import kartoteka.ui as ui
 from tests.ctk_mocks import DummyCTkEntry
 
 
-def test_show_card_clears_entries_for_duplicate(tmp_path, monkeypatch):
+def test_show_card_warns_on_magazyn_duplicate(tmp_path, monkeypatch):
     img = tmp_path / "card.jpg"
     img.write_bytes(b"data")
 
@@ -82,9 +82,16 @@ def test_show_card_clears_entries_for_duplicate(tmp_path, monkeypatch):
     monkeypatch.setattr(ui, "load_rgba_image", lambda path: DummyImage())
     monkeypatch.setattr(ui.ctk, "CTkEntry", DummyCTkEntry, raising=False)
 
+    dup_rows = [{"warehouse_code": "K1"}]
+    find_mock = MagicMock(return_value=dup_rows)
+    monkeypatch.setattr(ui.csv_utils, "find_duplicates", find_mock)
+    ask_mock = MagicMock(return_value=False)
+    monkeypatch.setattr(ui.messagebox, "askyesno", ask_mock)
+
     with patch.object(ui.Image, "open", return_value=DummyImage()):
         ui.CardEditorApp.show_card(dummy)
-        ui.CardEditorApp.show_card(dummy)
 
-    assert name_entry.get() == "Pika"
-    assert num_entry.get() == "1"
+    find_mock.assert_called_once_with("Pika", "1", "Set X")
+    assert ask_mock.called
+    assert name_entry.get() == ""
+    assert num_entry.get() == ""
