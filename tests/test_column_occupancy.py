@@ -61,6 +61,37 @@ def test_sold_cards_excluded_from_occupancy(tmp_path, monkeypatch):
     assert col_occ[1][1] == 1
 
 
+@pytest.mark.parametrize(
+    "csv_content, expected",
+    [
+        (
+            "name;warehouse_code\nA;K1R1P1\nB;K1R2P1\n",
+            {1: {1: 1, 2: 1, 3: 0, 4: 0}},
+        ),
+        (
+            "name;warehouse_code\nA;K2R3P1\nB;K2R3P2\n",
+            {2: {1: 0, 2: 0, 3: 2, 4: 0}},
+        ),
+        (
+            "name;warehouse_code\nA;K3R1P1\nB;K3R4P1\n",
+            {3: {1: 1, 2: 0, 3: 0, 4: 1}},
+        ),
+    ],
+)
+def test_compute_column_occupancy_various_inputs(
+    tmp_path, monkeypatch, csv_content, expected
+):
+    from kartoteka import csv_utils, storage
+
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(csv_content, encoding="utf-8")
+    monkeypatch.setattr(csv_utils, "INVENTORY_CSV", str(csv_path))
+    monkeypatch.setattr(csv_utils, "WAREHOUSE_CSV", str(csv_path))
+
+    col_occ = storage.compute_column_occupancy()
+    for box, cols in expected.items():
+        assert col_occ[box] == cols
+
 def test_refresh_colors_columns_based_on_occupancy(tmp_path, monkeypatch):
     from kartoteka import csv_utils
 
