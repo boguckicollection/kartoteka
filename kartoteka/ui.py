@@ -4547,19 +4547,8 @@ class CardEditorApp:
             self.loading_frame.destroy()
         self.shoper_client = None
         self.ensure_shoper_client()
-        try:
-            csv_utils.ensure_warehouse_csv()
-        except Exception as exc:  # pragma: no cover - startup fallback
-            logger.exception("Failed to ensure warehouse CSV: %s", exc)
-            try:
-                messagebox.showerror(
-                    _("Warehouse Error"),
-                    _(
-                        "Failed to prepare the warehouse file. The application will continue in read-only mode."
-                    ),
-                )
-            except Exception:
-                pass
+        # The warehouse CSV is now bundled with the application, so no
+        # network download is required during startup.
         self.setup_welcome_screen()
 
     def ensure_shoper_client(self):
