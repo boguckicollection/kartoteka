@@ -2656,7 +2656,12 @@ class CardEditorApp:
             self.location_frame.destroy()
             self.location_frame = None
 
-        self.root.minsize(1200, 800)
+        if all(hasattr(self.root, attr) for attr in ("winfo_screenwidth", "winfo_screenheight", "minsize")):
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+            min_w = int(screen_w * 0.75)
+            min_h = int(screen_h * 0.75)
+            self.root.minsize(min_w, min_h)
         self.magazyn_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
