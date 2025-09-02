@@ -1,5 +1,4 @@
 import csv
-import csv
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
@@ -11,8 +10,13 @@ import kartoteka.ui as ui
 import kartoteka.csv_utils as csv_utils
 
 
-def test_export_includes_new_fields(tmp_path):
+def test_export_includes_new_fields(tmp_path, monkeypatch):
     out_path = tmp_path / "out.csv"
+    inv_path = tmp_path / "inv.csv"
+    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
+    import importlib
+    importlib.reload(csv_utils)
+    importlib.reload(ui)
 
     dummy = SimpleNamespace(
         output_data=[{
@@ -42,6 +46,7 @@ def test_export_includes_new_fields(tmp_path):
         assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
         row = rows[0]
         assert row["name"] == "Pikachu"
+        assert row["category"] == "Karty Pokémon > Era1 > Base"
         assert row["currency"] == "PLN"
         assert row["producer_code"] == "1"
         assert row["stock"] == "1"
@@ -50,6 +55,61 @@ def test_export_includes_new_fields(tmp_path):
         assert row["images 1"] == "img.jpg"
         assert row["price"] == "10"
         assert "psa10_price" not in reader.fieldnames
+
+
+def test_merge_respects_era(tmp_path, monkeypatch):
+    out_path = tmp_path / "out.csv"
+    inv_path = tmp_path / "inv.csv"
+    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
+    import importlib
+    importlib.reload(csv_utils)
+    importlib.reload(ui)
+
+    dummy = SimpleNamespace(
+        output_data=[
+            {
+                "nazwa": "Pikachu",
+                "numer": "1",
+                "set": "Base",
+                "era": "Era1",
+                "product_code": 1,
+                "cena": "10",
+                "category": "Karty Pokémon > Era1 > Base",
+                "producer": "Pokemon",
+                "short_description": "s",
+                "description": "d",
+                "image1": "img.jpg",
+            },
+            {
+                "nazwa": "Pikachu",
+                "numer": "1",
+                "set": "Base",
+                "era": "Era2",
+                "product_code": 2,
+                "cena": "10",
+                "category": "Karty Pokémon > Era2 > Base",
+                "producer": "Pokemon",
+                "short_description": "s",
+                "description": "d",
+                "image1": "img.jpg",
+            },
+        ]
+    )
+    dummy.back_to_welcome = lambda: None
+
+    with patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
+         patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False):
+        ui.CardEditorApp.export_csv(dummy)
+
+    with open(out_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        rows = list(reader)
+        assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
+        assert len(rows) == 2
+        categories = {row["category"] for row in rows}
+        assert "Karty Pokémon > Era1 > Base" in categories
+        assert "Karty Pokémon > Era2 > Base" in categories
 
 
 def test_export_appends_warehouse(tmp_path, monkeypatch):
