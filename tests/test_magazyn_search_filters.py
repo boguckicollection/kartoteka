@@ -59,9 +59,9 @@ def _load_app(csv_path, stats):
 def test_search_by_variant(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;variant\n"
-        "A;1;S;K1;10;foo.png;holo\n"
-        "B;2;S;K2;5;foo.png;reverse\n",
+        "name;number;era;set;warehouse_code;price;image;variant\n"
+        "A;1;E1;S;K1;10;foo.png;holo\n"
+        "B;2;E2;S;K2;5;foo.png;reverse\n",
         encoding="utf-8",
     )
     app = _load_app(csv_path, (2, 15.0, 0, 0))
@@ -74,9 +74,9 @@ def test_search_by_variant(tmp_path):
 def test_search_by_sold_status(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;variant;sold\n"
-        "A;1;S;K1;1;foo.png;common;\n"
-        "B;2;S;K2;1;foo.png;common;1\n",
+        "name;number;era;set;warehouse_code;price;image;variant;sold\n"
+        "A;1;E1;S;K1;1;foo.png;common;\n"
+        "B;2;E2;S;K2;1;foo.png;common;1\n",
         encoding="utf-8",
     )
     app = _load_app(csv_path, (1, 1.0, 1, 1.0))
@@ -156,8 +156,8 @@ def _load_app_with_delay(csv_path, stats):
 def test_search_clear_keeps_thumbnails(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image\n"
-        "Card;1;S;K1;1;https://example.com/image.png\n",
+        "name;number;era;set;warehouse_code;price;image\n"
+        "Card;1;E1;S;K1;1;https://example.com/image.png\n",
         encoding="utf-8",
     )
     app, photo, stack = _load_app_with_delay(csv_path, (1, 1.0, 0, 0))

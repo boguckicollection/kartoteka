@@ -17,7 +17,7 @@ def test_get_inventory_stats_cached(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     _write_csv(
         csv_path,
-        "name;number;set;warehouse_code;price;image\n" "A;1;S1;K1;10;img\n",
+        "name;number;era;set;warehouse_code;price;image\n" "A;1;E1;S1;K1;10;img\n",
     )
 
     first = csv_utils.get_inventory_stats(str(csv_path))
@@ -41,7 +41,7 @@ def test_get_inventory_stats_recomputes_on_change(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     _write_csv(
         csv_path,
-        "name;number;set;warehouse_code;price;image\n" "A;1;S1;K1;10;img\n",
+        "name;number;era;set;warehouse_code;price;image\n" "A;1;E1;S1;K1;10;img\n",
     )
 
     first = csv_utils.get_inventory_stats(str(csv_path))
@@ -49,7 +49,7 @@ def test_get_inventory_stats_recomputes_on_change(tmp_path):
     mtime = os.path.getmtime(csv_path)
     _write_csv(
         csv_path,
-        "name;number;set;warehouse_code;price;image\n" "A;1;S1;K1;10;img\n" "B;2;S2;K2;5;img2\n",
+        "name;number;era;set;warehouse_code;price;image\n" "A;1;E1;S1;K1;10;img\n" "B;2;E2;S2;K2;5;img2\n",
     )
     os.utime(csv_path, (mtime + 1, mtime + 1))
 
@@ -62,7 +62,7 @@ def test_get_inventory_stats_force(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     _write_csv(
         csv_path,
-        "name;number;set;warehouse_code;price;image\n" "A;1;S1;K1;10;img\n",
+        "name;number;era;set;warehouse_code;price;image\n" "A;1;E1;S1;K1;10;img\n",
     )
 
     csv_utils.get_inventory_stats(str(csv_path))

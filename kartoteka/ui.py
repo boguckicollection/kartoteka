@@ -1082,7 +1082,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
             "You must return a JSON object with the Pokémon card's English name, "
             "card number in the form NNN/NNN, English set name, era name, and whether "
             "the set is written as text or shown as a symbol. The response must strictly "
-            "match {\\"name\\":\\"\\", \\"number\\":\\"\\", \\"set_name\\":\\"\\", \\"era_name\\":\\"\\", \\"set_format\\":\\"\\"}."
+            'match {"name":"", "number":"", "set_name":"", "era_name":"", "set_format":""}.'
         )
 
         try:
@@ -1171,11 +1171,11 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
             mapped = get_set_name(set_code)
             if mapped:
                 set_name = mapped
-          era_name = data.era_name or ""
-          return name, number, total, set_name, set_code, set_format, era_name
-      except openai.OpenAIError as e:
-          logger.warning("extract_card_info_openai failed: %s", e)
-          return "", "", "", "", "", "", ""
+        era_name = data.era_name or ""
+        return name, number, total, set_name, set_code, set_format, era_name
+    except openai.OpenAIError as e:
+        logger.warning("extract_card_info_openai failed: %s", e)
+        return "", "", "", "", "", "", ""
 
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
 def analyze_card_image(
@@ -4351,6 +4351,7 @@ class CardEditorApp:
                 0, sanitize_number(str(inv_entry.get("numer", "")))
             )
             self.entries["set"].set(inv_entry.get("set", ""))
+            self.entries["era"].set(inv_entry.get("era", ""))
             self.update_set_options()
             skip_analysis = True
             logger.info(
@@ -5455,10 +5456,10 @@ class CardEditorApp:
                 fp = None
             self.current_fingerprint = fp
         if fp is not None and getattr(self, "hash_db", None):
-        meta = {
-            k: data.get(k, "")
-            for k in ("nazwa", "numer", "set", "era", "język", "stan", "typ")
-        }
+            meta = {
+                k: data.get(k, "")
+                for k in ("nazwa", "numer", "set", "era", "język", "stan", "typ")
+            }
             card_id = f"{meta['set']} {meta['numer']}".strip()
             try:
                 self.hash_db.add_card_from_fp(fp, meta, card_id=card_id)
@@ -5486,7 +5487,7 @@ class CardEditorApp:
         self.next_product_code += 1
         storage.save_last_product_code(self.next_product_code - 1)
         data["unit"] = "szt."
-        data["category"] = f"Karty Pokémon > {data['set']}"
+        data["category"] = f"Karty Pokémon > {data['era']} > {data['set']}"
         data["producer"] = "Pokémon"
         data["producer_code"] = data["numer"]
         data["currency"] = "PLN"

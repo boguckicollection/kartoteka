@@ -19,9 +19,10 @@ def test_export_includes_new_fields(tmp_path):
             "nazwa": "Pikachu",
             "numer": "1",
             "set": "Base",
+            "era": "Era1",
             "product_code": 1,
             "cena": "10",
-            "category": "Karty",
+            "category": "Karty Pokémon > Era1 > Base",
             "producer": "Pokemon",
             "short_description": "s",
             "description": "d",
@@ -64,9 +65,10 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
             "nazwa": "Pikachu",
             "numer": "1",
             "set": "Base",
+            "era": "Era1",
             "product_code": 1,
             "cena": "10",
-            "category": "Karty",
+            "category": "Karty Pokémon > Era1 > Base",
             "producer": "Pokemon",
             "short_description": "s",
             "description": "d",
@@ -88,6 +90,7 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
         row = rows[0]
         assert row["name"] == "Pikachu"
         assert row["number"] == "1"
+        assert row["era"] == "Era1"
         assert row["set"] == "Base"
         assert row["warehouse_code"] == "K1R1P1"
         assert row["price"] == "10"

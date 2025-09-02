@@ -18,9 +18,9 @@ from ctk_mocks import (  # noqa: E402
 def test_group_duplicates(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;variant\n"
-        "A;1;S;K1R1P1;1;foo1.png;common\n"
-        "A;1;S;K1R1P2;1;foo2.png;common\n",
+        "name;number;era;set;warehouse_code;price;image;variant\n"
+        "A;1;E;S;K1R1P1;1;foo1.png;common\n"
+        "A;1;E;S;K1R1P2;1;foo2.png;common\n",
         encoding="utf-8",
     )
 
