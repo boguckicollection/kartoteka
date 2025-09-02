@@ -5,15 +5,12 @@ from typing import Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
 
 import logging
-import requests
-from requests import RequestException
 
 from webdav_client import WebDAVClient
 INVENTORY_CSV = os.getenv(
     "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 )
 WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", INVENTORY_CSV)
-WAREHOUSE_CSV_URL = os.getenv("WAREHOUSE_CSV_URL", "")
 
 # Track last modification time and cached statistics for the warehouse CSV
 WAREHOUSE_CSV_MTIME: Optional[float] = None
@@ -52,42 +49,6 @@ WAREHOUSE_FIELDNAMES = [
     "variant",
     "sold",
 ]
-
-
-def download_warehouse_csv():
-    """Download the warehouse CSV from HTTP or WebDAV."""
-    try:
-        if WAREHOUSE_CSV_URL:
-            response = requests.get(WAREHOUSE_CSV_URL, timeout=30)
-            response.raise_for_status()
-            with open(WAREHOUSE_CSV, "wb") as fh:
-                fh.write(response.content)
-        else:
-            with WebDAVClient() as client:
-                try:
-                    client.download_file(WAREHOUSE_CSV, WAREHOUSE_CSV)
-                except RuntimeError as exc:
-                    logging.warning("Failed to download warehouse CSV: %s", exc)
-                    try:
-                        retry = messagebox.askretrycancel(
-                            "Download Failed",
-                            "Nie udało się pobrać magazynu. Spróbować ponownie?",
-                        )
-                    except TclError:
-                        retry = False
-                    if retry:
-                        return download_warehouse_csv()
-                    return
-    except RequestException as exc:  # pragma: no cover - network failure
-        logging.warning("Failed to download warehouse CSV: %s", exc)
-    except Exception:
-        raise
-
-
-def ensure_warehouse_csv():
-    """Ensure the warehouse CSV exists, downloading it if necessary."""
-    if not os.path.exists(WAREHOUSE_CSV):
-        download_warehouse_csv()
 
 
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
