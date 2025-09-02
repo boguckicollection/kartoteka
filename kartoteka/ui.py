@@ -1044,10 +1044,10 @@ class CardInfo(BaseModel):
 
 
 # ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
-def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
+def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, str]:
     """Recognize card name, number, set, and its format using OpenAI Vision.
 
-    Returns a tuple ``(name, number, total, set_name, set_code, set_format, era_name)``.
+    Returns a tuple ``(name, number, total, era_name, set_name, set_code, set_format)``.
     The ``set_name`` value is normalised to the canonical display name whenever
     a matching ``set_code`` can be resolved. ``set_format`` is ``"text"`` or
     ``"symbol"`` depending on how the set was detected.
@@ -1116,8 +1116,8 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
             try:
                 data_dict = json.loads(raw)
             except json.JSONDecodeError:
-                  logger.error("OpenAI returned non-JSON: %r", raw)
-                  return "", "", "", "", "", "", ""
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                return "", "", "", "", "", "", ""
         except TypeError:
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
@@ -1148,8 +1148,8 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
             try:
                 data_dict = json.loads(raw)
             except json.JSONDecodeError:
-                  logger.error("OpenAI returned non-JSON: %r", raw)
-                  return "", "", "", "", "", "", ""
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                return "", "", "", "", "", "", ""
 
         data = CardInfo(**data_dict)
 
@@ -1172,7 +1172,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str]:
             if mapped:
                 set_name = mapped
         era_name = data.era_name or ""
-        return name, number, total, set_name, set_code, set_format, era_name
+        return name, number, total, era_name, set_name, set_code, set_format
     except openai.OpenAIError as e:
         logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", "", ""
@@ -1271,7 +1271,7 @@ def analyze_card_image(
         if api_key:
             print("[INFO] Step 2: Analyzing with OpenAI Vision...")
             try:
-                name, number, total, set_name, set_code, set_format, era_name = extract_card_info_openai(path)
+                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(path)
 
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
@@ -2398,10 +2398,10 @@ class CardEditorApp:
 
     def lookup_inventory_entry(self, key):
         """Return first row from ``WAREHOUSE_CSV`` matching ``key``."""
-        try:
-            name, number, set_name = key.split("|", 2)
-        except ValueError:
+        parts = key.split("|")
+        if len(parts) < 3:
             return None
+        name, number, set_name = parts[:3]
 
         try:
             with open(csv_utils.WAREHOUSE_CSV, newline="", encoding="utf-8") as f:
