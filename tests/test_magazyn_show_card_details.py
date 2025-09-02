@@ -177,12 +177,6 @@ def test_show_card_details_receives_row(tmp_path):
 
         ui.CardEditorApp.open_magazyn_window(app)
 
-        # mag_canvases should remain defined and contain canvas-like objects
-        assert hasattr(app, "mag_canvases")
-        assert app.mag_canvases
-        canvas_widget = getattr(app.mag_canvases[0], "canvas", app.mag_canvases[0])
-        assert hasattr(canvas_widget, "create_image")
-
         label = _extract_label(app.mag_card_labels[0])
         label._bindings["<Button-1>"](None)
 

@@ -125,6 +125,7 @@ def test_magazyn_label_colors():
         )
 
         ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.build_box_preview(app, app.magazyn_frame)
 
     label = app.mag_labels[0]
     assert label.fg_color == ui.BG_COLOR

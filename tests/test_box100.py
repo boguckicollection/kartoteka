@@ -82,6 +82,7 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
         )
 
         ui.CardEditorApp.open_magazyn_window(app)
+        ui.CardEditorApp.build_box_preview(app, app.magazyn_frame)
         ui.CardEditorApp.refresh_magazyn(app)
 
     assert app.mag_box_order[-1] == 100

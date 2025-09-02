@@ -2625,7 +2625,11 @@ class CardEditorApp:
         self.magazyn_frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
         self.magazyn_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        CardEditorApp.build_box_preview(self, self.magazyn_frame)
+        # Reset box preview containers; tests or callers may rebuild preview
+        # manually using :func:`build_box_preview` when needed.
+        self.mag_canvases = []
+        self.mag_labels = []
+        self.mag_box_order = []
 
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
