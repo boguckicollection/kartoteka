@@ -11,7 +11,7 @@ from PIL import Image
 def test_show_card_details_sprzedano_button(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;sold\n" "A;1;S1;K1R1P1;10;;\n",
+        "name;number;era;set;warehouse_code;price;image;sold\n" "A;1;E1;S1;K1R1P1;10;;\n",
         encoding="utf-8",
     )
 

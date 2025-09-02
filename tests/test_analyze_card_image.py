@@ -684,7 +684,7 @@ def test_analyze_and_fill_runs_full_pipeline_for_non_matching_card(tmp_path):
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        f"name;numer;set\nPikachu;001;{SV01_NAME}\n",
+        f"name;numer;set;era\nPikachu;001;{SV01_NAME};{ui.get_set_era(SV01_CODE)}\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("WAREHOUSE_CSV", str(csv_path))
@@ -716,7 +716,7 @@ def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
         entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": MagicMock()},
         type_vars={},
         card_cache={},
-        file_to_key={img.name: f"Pikachu|001|{SV01_NAME}"},
+        file_to_key={img.name: f"Pikachu|001|{SV01_NAME}|{ui.get_set_era(SV01_CODE)}"},
         _guess_key_from_filename=lambda *a, **k: None,
         update_set_options=lambda *a, **k: None,
     )

@@ -6,9 +6,9 @@ from types import SimpleNamespace
 def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;set;warehouse_code;price;image;sold\n"
-        "A;1;S;K1;1;;\n"
-        "A;1;S;K2;1;;\n",
+        "name;number;era;set;warehouse_code;price;image;sold\n"
+        "A;1;E;S;K1;1;;\n"
+        "A;1;E;S;K2;1;;\n",
         encoding="utf-8",
     )
 

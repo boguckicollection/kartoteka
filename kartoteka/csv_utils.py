@@ -42,6 +42,7 @@ STORE_FIELDNAMES = [
 WAREHOUSE_FIELDNAMES = [
     "name",
     "number",
+    "era",
     "set",
     "warehouse_code",
     "price",
@@ -167,6 +168,7 @@ def format_warehouse_row(row):
     return {
         "name": row.get("nazwa", ""),
         "number": row.get("numer", ""),
+        "era": row.get("era", ""),
         "set": row.get("set", ""),
         "warehouse_code": row.get("warehouse_code", ""),
         "price": row.get("cena") or row.get("price", ""),
@@ -295,7 +297,7 @@ def export_csv(app):
     for row in app.output_data:
         if row is None:
             continue
-        key = f"{row['nazwa']}|{row['numer']}|{row['set']}"
+        key = f"{row['nazwa']}|{row['numer']}|{row['set']}|{row['era']}"
         if key in combined:
             combined[key]["stock"] += 1
         else:

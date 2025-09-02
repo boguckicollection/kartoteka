@@ -87,7 +87,7 @@ def test_save_and_reload_variant_flags(tmp_path):
             assert row["types"] == {"Reverse": True, "Holo": False}
             dummy.type_vars["Reverse"].set(False)
             dummy.type_vars["Holo"].set(False)
-            key = "Charizard|4|Base Set"
+            key = "Charizard|4|Base Set|"
             dummy.file_to_key[os.path.basename(str(img_path))] = key
             ui.CardEditorApp.show_card(dummy)
             assert dummy.type_vars["Reverse"].get() is True
