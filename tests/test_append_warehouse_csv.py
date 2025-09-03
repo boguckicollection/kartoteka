@@ -31,6 +31,7 @@ def test_append_warehouse_csv_updates_stats(tmp_path):
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
+        assert reader.fieldnames == csv_utils.WAREHOUSE_FIELDNAMES
         assert rows[0]["warehouse_code"] == "K1"
 
 
@@ -54,4 +55,5 @@ def test_append_warehouse_csv_writes_variant(tmp_path):
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         row = next(reader)
+        assert reader.fieldnames == csv_utils.WAREHOUSE_FIELDNAMES
         assert row["variant"] == "holo"

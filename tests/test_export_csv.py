@@ -150,12 +150,12 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
         row = rows[0]
         assert row["name"] == "Pikachu"
         assert row["number"] == "1"
-        assert row["era"] == "Era1"
         assert row["set"] == "Base"
         assert row["warehouse_code"] == "K1R1P1"
         assert row["price"] == "10"
         assert row["image"] == "img.jpg"
         assert row["variant"] == "common"
         assert row.get("sold", "") == ""
+        assert "era" not in row
 
 

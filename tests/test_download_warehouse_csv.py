@@ -10,9 +10,16 @@ def test_local_warehouse_csv_exists():
     assert path.exists()
     header = path.read_text(encoding="utf-8").splitlines()[0]
     assert header == ";".join(csv_utils.WAREHOUSE_FIELDNAMES)
-    header_fields = header.split(";")
-    assert "era" in csv_utils.WAREHOUSE_FIELDNAMES
-    assert "era" in header_fields
+    assert csv_utils.WAREHOUSE_FIELDNAMES == [
+        "name",
+        "number",
+        "set",
+        "warehouse_code",
+        "price",
+        "image",
+        "variant",
+        "sold",
+    ]
 
 
 def test_download_function_removed():
