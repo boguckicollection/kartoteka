@@ -83,9 +83,12 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     first_canvas = app.home_box_canvases[app.mag_box_order[0]]
     assert isinstance(first_canvas, TrackingCanvas)
     assert getattr(first_canvas, "image", None) is photo_mock
-    assert getattr(first_canvas, "overlay_id", None) is not None
-    overlay = first_canvas.items[first_canvas.overlay_id]
-    assert overlay["fill"] == ui.OCCUPIED_COLOR
+    overlay_ids = getattr(first_canvas, "overlay_ids", None)
+    assert isinstance(overlay_ids, dict)
+    assert len(overlay_ids) == ui.storage.BOX_COLUMNS[app.mag_box_order[0]]
+    for rid in overlay_ids.values():
+        overlay = first_canvas.items[rid]
+        assert overlay["fill"] == ui._occupancy_color(0)
 
     box_frame = first_canvas.master.master
     info_frame = app.inventory_count_label.master

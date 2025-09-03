@@ -123,37 +123,59 @@ _THUMB_CACHE: dict[str, Image.Image] = {}
 
 
 def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int]) -> float:
-    """Draw occupancy of a single storage box on ``canvas``.
+    """Draw per-column occupancy of a storage box on ``canvas``.
 
-    Instead of drawing individual column rectangles, the function overlays a
-    single tinted rectangle on top of the box background image.  The height of
-    the overlay is proportional to the percentage of occupied slots in the
-    given ``box_num``.  The function returns this percentage so callers can
-    update accompanying labels.
+    Parameters
+    ----------
+    canvas:
+        Target canvas to draw rectangles on.
+    box_num:
+        Identifier of the storage box.
+    occupancy:
+        Mapping of ``column -> used slots`` for ``box_num``.
+
+    Returns
+    -------
+    float
+        Overall percentage of used slots in the box.
     """
 
     box_w = BOX_THUMB_SIZE
     box_h = BOX_THUMB_SIZE
-
-    used = occupancy.get(box_num, 0)
+    columns = storage.BOX_COLUMNS.get(box_num, 4)
     total_capacity = storage.BOX_CAPACITY.get(
-        box_num,
-        storage.BOX_COLUMNS.get(box_num, 4) * storage.BOX_COLUMN_CAPACITY,
+        box_num, columns * storage.BOX_COLUMN_CAPACITY
     )
-    occupied_percent = used / total_capacity * 100 if total_capacity else 0
+    col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
 
-    fill_height = box_h * occupied_percent / 100
-    y1 = box_h - fill_height
+    # track rectangles for each column so we can update their coordinates/colors
+    overlay_ids: dict[int, int] = getattr(canvas, "overlay_ids", {})
+    if not isinstance(overlay_ids, dict):
+        overlay_ids = {}
+    canvas.overlay_ids = overlay_ids
 
-    # ``overlay_id`` attribute is used to track the rectangle so subsequent
-    # calls simply adjust its coordinates instead of creating new items.
-    overlay_id = getattr(canvas, "overlay_id", None)
-    if overlay_id is None:
-        overlay_id = canvas.create_rectangle(0, y1, box_w, box_h, fill=OCCUPIED_COLOR, outline="")
-        canvas.overlay_id = overlay_id
-    else:
-        canvas.coords(overlay_id, 0, y1, box_w, box_h)
+    col_w = box_w / columns if columns else box_w
 
+    total_used = 0
+    for col in range(1, columns + 1):
+        used = occupancy.get(col, 0)
+        total_used += used
+        value = used / col_capacity if col_capacity else 0
+        fill_h = box_h * value
+        y1 = box_h - fill_h
+        x0 = (col - 1) * col_w
+        x1 = col * col_w
+        color = _occupancy_color(value)
+
+        rect_id = overlay_ids.get(col)
+        if rect_id is None:
+            rect_id = canvas.create_rectangle(x0, y1, x1, box_h, fill=color, outline="")
+            overlay_ids[col] = rect_id
+        else:
+            canvas.coords(rect_id, x0, y1, x1, box_h)
+            canvas.itemconfigure(rect_id, fill=color)
+
+    occupied_percent = total_used / total_capacity * 100 if total_capacity else 0
     return occupied_percent
 
 
@@ -3485,19 +3507,20 @@ class CardEditorApp:
         if not getattr(self, "home_percent_labels", None):
             return
 
-        box_occ = storage.compute_box_occupancy()
+        col_occ = storage.compute_column_occupancy()
 
         for box, lbl in self.home_percent_labels.items():
+            columns = storage.BOX_COLUMNS.get(box, 4)
             total_capacity = storage.BOX_CAPACITY.get(
-                box,
-                storage.BOX_COLUMNS.get(box, 4) * storage.BOX_COLUMN_CAPACITY,
+                box, columns * storage.BOX_COLUMN_CAPACITY
             )
-            value = box_occ.get(box, 0) / total_capacity if total_capacity else 0
+            box_used = sum(col_occ.get(box, {}).values())
+            value = box_used / total_capacity if total_capacity else 0
             lbl.configure(text=f"{value * 100:.0f}%", text_color=_occupancy_color(value))
 
             canvas = self.home_box_canvases.get(box)
             if canvas is not None:
-                draw_box_usage(canvas, box, box_occ)
+                draw_box_usage(canvas, box, col_occ.get(box, {}))
 
     def refresh_magazyn(self):
         """Refresh storage view and update column usage bars."""
