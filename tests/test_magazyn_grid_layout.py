@@ -129,15 +129,78 @@ def test_magazyn_adaptive_grid(tmp_path):
     app, _ = _load_app(csv_path, (3, 3.0, 0, 0), frame_cls=RecordingFrame)
 
     frames = app.mag_card_frames
-    app.mag_list_frame.winfo_width = lambda: 600
+
+    class DummyParentCanvas(SimpleNamespace):
+        def winfo_width(self):
+            return self.width
+
+        def bbox(self, *a, **k):
+            return (0, 0, 0, 0)
+
+        def configure(self, **k):
+            self.config = k
+
+        def after_idle(self, func):
+            func()
+
+    canvas = DummyParentCanvas(width=600)
+    app.mag_list_frame._parent_canvas = canvas
+    app.magazyn_frame.winfo_width = lambda: 600
     app._relayout_mag_cards()
     assert frames[0].grid_kwargs["row"] == 0
     assert frames[0].grid_kwargs["column"] == 0
     assert frames[1].grid_kwargs["row"] == 0
     assert frames[1].grid_kwargs["column"] == 1
 
-    app.mag_list_frame.winfo_width = lambda: 200
+    canvas.width = 200
+    app.magazyn_frame.winfo_width = lambda: 200
     app._relayout_mag_cards()
     assert frames[1].grid_kwargs["row"] == 1
     assert frames[1].grid_kwargs["column"] == 0
 
+
+def test_magazyn_grid_expands_with_canvas_width(tmp_path):
+    class RecordingFrame(DummyCTkFrame):
+        def grid(self, **kwargs):
+            self.grid_kwargs = kwargs
+            return self
+
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        "name;number;set;warehouse_code;price;image;variant\n"
+        "A;1;S;K1;1;foo1.png;common\n"
+        "B;2;S;K2;1;foo2.png;common\n"
+        "C;3;S;K3;1;foo3.png;common\n"
+        "D;4;S;K4;1;foo4.png;common\n",
+        encoding="utf-8",
+    )
+
+    app, _ = _load_app(csv_path, (4, 4.0, 0, 0), frame_cls=RecordingFrame)
+
+    class DummyParentCanvas(SimpleNamespace):
+        def winfo_width(self):
+            return self.width
+
+        def bbox(self, *a, **k):
+            return (0, 0, 0, 0)
+
+        def configure(self, **k):
+            self.config = k
+
+        def after_idle(self, func):
+            func()
+
+    canvas = DummyParentCanvas(width=200)
+    app.mag_list_frame._parent_canvas = canvas
+    app.magazyn_frame.winfo_width = lambda: 200
+    app._relayout_mag_cards()
+    narrow_cols = {f.grid_kwargs["column"] for f in app.mag_card_frames}
+
+    canvas.width = 1000
+    app.magazyn_frame.winfo_width = lambda: 1000
+    app._relayout_mag_cards()
+    wide_cols = {f.grid_kwargs["column"] for f in app.mag_card_frames}
+
+    assert len(wide_cols) > len(narrow_cols)
+    for i in range(len(wide_cols)):
+        assert app.mag_list_frame._grid_columns[i]["weight"] == 1

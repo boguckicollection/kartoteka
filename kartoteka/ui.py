@@ -2949,8 +2949,15 @@ class CardEditorApp:
                     if not self.mag_list_frame or not exists_fn():
                         return
                     global CARD_THUMB_SIZE
-                    width_fn = getattr(self.mag_list_frame, "winfo_width", lambda: 0)
-                    width = width_fn()
+                    width = 0
+                    canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
+                    if canvas is not None:
+                        width_fn = getattr(canvas, "winfo_width", None)
+                        if callable(width_fn):
+                            width = width_fn()
+                    if width <= 1:
+                        width_fn = getattr(self.magazyn_frame, "winfo_width", lambda: 0)
+                        width = width_fn()
                     if width <= 1:
                         return
                     padding = 10  # total horizontal padding (padx=5 on each side)
@@ -2990,6 +2997,10 @@ class CardEditorApp:
                                         lbl.image = photo
 
                     cols = max(1, width // (CARD_THUMB_SIZE + 10))
+                    col_conf = getattr(self.mag_list_frame, "grid_columnconfigure", None)
+                    if callable(col_conf):
+                        for i in range(cols):
+                            col_conf(i, weight=1)
                     for i, frame in enumerate(self.mag_card_frames):
                         r = i // cols
                         c = i % cols

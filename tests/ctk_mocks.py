@@ -16,6 +16,12 @@ class _Widget:
     def winfo_exists(self):
         return True
 
+    def grid_columnconfigure(self, index, weight=0):
+        if not hasattr(self, "_grid_columns"):
+            self._grid_columns = {}
+        self._grid_columns[index] = {"weight": weight}
+        return self
+
 
 class DummyCTkFrame(_Widget):
     def __init__(self, master=None, fg_color=None, **kwargs):
