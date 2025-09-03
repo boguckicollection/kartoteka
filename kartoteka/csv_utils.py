@@ -84,8 +84,14 @@ def find_duplicates(name: str, number: str, set_name: str, variant: str = "commo
         List of matching rows including warehouse codes.
     """
 
+    from .ui import normalize  # local import to avoid circular dependency
+
     matches = []
     number = _sanitize_number(str(number))
+    name_norm = normalize(name)
+    set_norm = normalize(set_name)
+    variant_norm = normalize(variant or "common") or "common"
+
     if not os.path.exists(WAREHOUSE_CSV):
         return matches
 
@@ -94,11 +100,14 @@ def find_duplicates(name: str, number: str, set_name: str, variant: str = "commo
             reader = csv.DictReader(f, delimiter=";")
             for row in reader:
                 row_number = _sanitize_number(str(row.get("number", "")))
+                row_name = normalize(row.get("name") or "")
+                row_set = normalize(row.get("set") or "")
+                row_variant = normalize(row.get("variant") or "common") or "common"
                 if (
-                    row.get("name") == name
+                    row_name == name_norm
                     and row_number == number
-                    and row.get("set") == set_name
-                    and (row.get("variant") or "common") == variant
+                    and row_set == set_norm
+                    and row_variant == variant_norm
                 ):
                     matches.append(row)
     except OSError:
