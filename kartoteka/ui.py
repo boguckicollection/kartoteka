@@ -346,6 +346,7 @@ BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
 CARD_THUMB_SIZE = 96  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
 MAX_CARD_THUMB_SIZE = 192
+MAG_CARD_GAP = 3  # spacing between card frames in magazine view
 GRID_COLUMNS = 4  # number of columns per storage box
 WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
 BOX_COLUMN_CAPACITY = 1000  # slots per column in a regular box
@@ -2960,7 +2961,7 @@ class CardEditorApp:
                         width = width_fn()
                     if width <= 1:
                         return
-                    padding = 10  # total horizontal padding (padx=5 on each side)
+                    padding = MAG_CARD_GAP * 2  # total horizontal padding
                     max_thumb = MAX_CARD_THUMB_SIZE
                     thumb = max(32, min(width - padding, max_thumb))
                     if thumb != self._mag_prev_thumb:
@@ -2996,7 +2997,7 @@ class CardEditorApp:
                                     else:
                                         lbl.image = photo
 
-                    cols = max(1, width // (CARD_THUMB_SIZE + 10))
+                    cols = max(1, width // (CARD_THUMB_SIZE + MAG_CARD_GAP * 2))
                     col_conf = getattr(self.mag_list_frame, "grid_columnconfigure", None)
                     if callable(col_conf):
                         for i in range(cols):
@@ -3006,7 +3007,7 @@ class CardEditorApp:
                         c = i % cols
                         grid = getattr(frame, "grid", None)
                         if callable(grid):
-                            grid(row=r, column=c, padx=5, pady=5, sticky="n")
+                            grid(row=r, column=c, padx=MAG_CARD_GAP, pady=MAG_CARD_GAP, sticky="n")
 
                     canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                     if canvas is not None:
