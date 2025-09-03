@@ -3096,6 +3096,9 @@ class CardEditorApp:
                     _prop = getattr(frame, "grid_propagate", None)
                     if callable(_prop):
                         _prop(False)
+                    col_conf = getattr(frame, "grid_columnconfigure", None)
+                    if callable(col_conf):
+                        col_conf(0, weight=1)
                     is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                     text = row.get("name", "")
                     color = TEXT_COLOR
@@ -3109,7 +3112,9 @@ class CardEditorApp:
                             font = ("TkDefaultFont", 20, "overstrike")
 
                     img_label = ctk.CTkLabel(frame, image=photo, text="")
-                    img_label.pack()
+                    grid = getattr(img_label, "grid", None)
+                    if callable(grid):
+                        grid(row=0, column=0, sticky="n")
                     self.mag_card_image_labels[idx] = img_label
 
                     count = int(row.get("_count", 1))
@@ -3130,7 +3135,11 @@ class CardEditorApp:
                             if callable(lift):
                                 lift()
                         else:
-                            badge.pack()
+                            grid_badge = getattr(badge, "grid", None)
+                            if callable(grid_badge):
+                                grid_badge(row=0, column=0, sticky="ne")
+                            else:
+                                badge.pack()
 
                     label_kwargs = {
                         "text": text,
@@ -3142,7 +3151,9 @@ class CardEditorApp:
                     if font is not None:
                         label_kwargs["font"] = font
                     label = ctk.CTkLabel(frame, **label_kwargs)
-                    label.pack()
+                    grid = getattr(label, "grid", None)
+                    if callable(grid):
+                        grid(row=1, column=0, sticky="new")
 
                     self.mag_card_frames.append(frame)
 
