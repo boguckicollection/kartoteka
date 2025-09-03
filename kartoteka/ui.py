@@ -3033,8 +3033,20 @@ class CardEditorApp:
                     canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                     if canvas is not None:
                         def _update_scroll_region():
+                            yview_fn = getattr(canvas, "yview", None)
+                            try:
+                                yview = yview_fn() if callable(yview_fn) else None
+                            except Exception:
+                                yview = None
                             bbox = canvas.bbox("all") or (0, 0, 0, 0)
                             canvas.configure(scrollregion=bbox)
+                            if yview:
+                                moveto = getattr(canvas, "yview_moveto", None)
+                                if callable(moveto):
+                                    try:
+                                        moveto(yview[0])
+                                    except Exception:
+                                        pass
 
                         after_idle = getattr(canvas, "after_idle", None)
                         if callable(after_idle):
@@ -3220,6 +3232,9 @@ class CardEditorApp:
                 bind = getattr(self.mag_list_frame, "bind", None)
                 if callable(bind):
                     self._mag_bind_id = bind("<Configure>", _relayout_mag_cards)
+                canvas_bind = getattr(canvas, "bind", None)
+                if callable(canvas_bind):
+                    self._mag_canvas_bind_id = canvas_bind("<Configure>", _relayout_mag_cards)
                 root_bind = getattr(current_root, "bind", None)
                 if callable(root_bind):
                     self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
