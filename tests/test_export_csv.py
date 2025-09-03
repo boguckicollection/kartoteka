@@ -57,7 +57,7 @@ def test_export_includes_new_fields(tmp_path, monkeypatch):
         assert "psa10_price" not in reader.fieldnames
 
 
-def test_merge_respects_era(tmp_path, monkeypatch):
+def test_merge_ignores_era(tmp_path, monkeypatch):
     out_path = tmp_path / "out.csv"
     inv_path = tmp_path / "inv.csv"
     monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
@@ -106,10 +106,10 @@ def test_merge_respects_era(tmp_path, monkeypatch):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
-        assert len(rows) == 2
-        categories = {row["category"] for row in rows}
-        assert "Karty Pokémon > Era1 > Base" in categories
-        assert "Karty Pokémon > Era2 > Base" in categories
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["category"] == "Karty Pokémon > Era1 > Base"
+        assert row["stock"] == "2"
 
 
 def test_export_appends_warehouse(tmp_path, monkeypatch):
