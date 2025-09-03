@@ -3004,6 +3004,15 @@ class CardEditorApp:
                         for i in range(cols):
                             col_conf(i, weight=1)
                     for i, frame in enumerate(self.mag_card_frames):
+                        if frame is None:
+                            continue
+                        exists_fn = getattr(frame, "winfo_exists", None)
+                        try:
+                            exists = True if exists_fn is None else bool(exists_fn())
+                        except Exception:
+                            exists = False
+                        if not exists:
+                            continue
                         r = i // cols
                         c = i % cols
                         grid = getattr(frame, "grid", None)
@@ -3082,9 +3091,22 @@ class CardEditorApp:
 
                     indices.sort(key=_price)
 
-                for frame in getattr(self, "mag_card_frames", []):
-                    frame.destroy()
+                unbind = getattr(self.mag_list_frame, "unbind", None)
+                if callable(unbind) and getattr(self, "_mag_bind_id", None):
+                    unbind("<Configure>", self._mag_bind_id)
+                    self._mag_bind_id = None
+                root_unbind = getattr(current_root, "unbind", None)
+                if callable(root_unbind) and getattr(self, "_root_mag_bind_id", None):
+                    root_unbind("<Configure>", self._root_mag_bind_id)
+                    self._root_mag_bind_id = None
+
+                frames = getattr(self, "mag_card_frames", [])
                 self.mag_card_frames = []
+                for frame in frames:
+                    try:
+                        frame.destroy()
+                    except Exception:
+                        pass
                 self.mag_card_labels = []
                 self.mag_sold_labels = []
                 displayed = set(indices)
@@ -3190,17 +3212,12 @@ class CardEditorApp:
                 else:
                     _relayout_mag_cards()
 
-            bind = getattr(self.mag_list_frame, "bind", None)
-            if callable(bind):
-                self._mag_bind_id = bind("<Configure>", _relayout_mag_cards)
-            else:
-                self._mag_bind_id = None
-
-            root_bind = getattr(current_root, "bind", None)
-            if callable(root_bind):
-                self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
-            else:
-                self._root_mag_bind_id = None
+                bind = getattr(self.mag_list_frame, "bind", None)
+                if callable(bind):
+                    self._mag_bind_id = bind("<Configure>", _relayout_mag_cards)
+                root_bind = getattr(current_root, "bind", None)
+                if callable(root_bind):
+                    self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
 
             self.mag_search_var.trace_add("write", _update_mag_list)
             self.mag_sold_filter_var.trace_add("write", _update_mag_list)
