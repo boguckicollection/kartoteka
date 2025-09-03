@@ -2786,9 +2786,23 @@ class CardEditorApp:
             lbl.pack()
             self.mag_labels.append(lbl)
 
-            canvas = tk.Canvas(
-                frame, width=BOX_THUMB_SIZE, height=BOX_THUMB_SIZE, highlightthickness=0
-            )
+            try:
+                canvas = tk.Canvas(
+                    frame,
+                    width=BOX_THUMB_SIZE,
+                    height=BOX_THUMB_SIZE,
+                    bg=BG_COLOR,
+                    highlightthickness=0,
+                )
+            except TypeError:
+                # Some test doubles do not accept ``bg`` in the constructor.
+                canvas = tk.Canvas(
+                    frame,
+                    width=BOX_THUMB_SIZE,
+                    height=BOX_THUMB_SIZE,
+                    highlightthickness=0,
+                )
+                canvas.config(bg=BG_COLOR)
             img = self._box100_photo if box_num == SPECIAL_BOX_NUMBER else self._box_photo
             canvas.create_image(0, 0, anchor="nw", image=img)
             canvas.image = img
