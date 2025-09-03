@@ -148,15 +148,18 @@ def test_magazyn_adaptive_grid(tmp_path):
     app.magazyn_frame.winfo_width = lambda: 600
     app._relayout_mag_cards()
     assert frames[0].grid_kwargs["row"] == 0
-    assert frames[0].grid_kwargs["column"] == 0
+    assert frames[0].grid_kwargs["column"] == 1
+    assert frames[0].grid_kwargs["sticky"] == "n"
     assert frames[1].grid_kwargs["row"] == 0
-    assert frames[1].grid_kwargs["column"] == 1
+    assert frames[1].grid_kwargs["column"] == 2
+    assert frames[1].grid_kwargs["sticky"] == "n"
 
     canvas.width = 200
     app.magazyn_frame.winfo_width = lambda: 200
     app._relayout_mag_cards()
     assert frames[1].grid_kwargs["row"] == 1
-    assert frames[1].grid_kwargs["column"] == 0
+    assert frames[1].grid_kwargs["column"] == 1
+    assert frames[1].grid_kwargs["sticky"] == "n"
 
 
 def test_magazyn_grid_expands_with_canvas_width(tmp_path):
@@ -202,5 +205,9 @@ def test_magazyn_grid_expands_with_canvas_width(tmp_path):
     wide_cols = {f.grid_kwargs["column"] for f in app.mag_card_frames}
 
     assert len(wide_cols) > len(narrow_cols)
-    for i in range(len(wide_cols)):
-        assert app.mag_list_frame._grid_columns[i]["weight"] == 1
+    grid_cols = app.mag_list_frame._grid_columns
+    trailing = max(grid_cols)
+    assert grid_cols[0]["weight"] == 1
+    assert grid_cols[trailing]["weight"] == 1
+    for i in range(1, trailing):
+        assert grid_cols[i]["weight"] == 0

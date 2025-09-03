@@ -3001,8 +3001,13 @@ class CardEditorApp:
                     cols = max(1, width // (CARD_THUMB_SIZE + MAG_CARD_GAP * 2))
                     col_conf = getattr(self.mag_list_frame, "grid_columnconfigure", None)
                     if callable(col_conf):
-                        for i in range(cols):
-                            col_conf(i, weight=1)
+                        prev_cols = getattr(self, "_mag_prev_cols", 0)
+                        total = max(prev_cols, cols) + 2
+                        for i in range(total):
+                            col_conf(i, weight=0)
+                        col_conf(0, weight=1)
+                        col_conf(cols + 1, weight=1)
+                        self._mag_prev_cols = cols
                     for i, frame in enumerate(self.mag_card_frames):
                         if frame is None:
                             continue
@@ -3019,10 +3024,10 @@ class CardEditorApp:
                         if callable(grid):
                             grid(
                                 row=r,
-                                column=c,
+                                column=c + 1,
                                 padx=MAG_CARD_GAP,
                                 pady=MAG_CARD_GAP,
-                                sticky="nsew",
+                                sticky="n",
                             )
 
                     canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
