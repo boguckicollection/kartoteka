@@ -351,7 +351,7 @@ def export_csv(app):
     for row in app.output_data:
         if row is None:
             continue
-        key = f"{row['nazwa']}|{row['numer']}|{row['set']}|{row.get('era', '')}"
+        key = f"{row['nazwa']}|{row['numer']}|{row['set']}"
         if key in combined:
             combined[key]["stock"] += 1
         else:
