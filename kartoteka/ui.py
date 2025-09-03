@@ -1650,14 +1650,30 @@ class CardEditorApp:
 
         daily = csv_utils.get_daily_additions()
         if Figure and FigureCanvasTkAgg and daily:
-            fig = Figure(figsize=(5, 2))
+            fig = Figure(figsize=(5, 2), facecolor="none")
+            fig.patch.set_alpha(0)
             ax = fig.add_subplot(111)
+            ax.set_facecolor("none")
             dates = list(daily.keys())
             counts = list(daily.values())
-            ax.bar(dates, counts, color="#4a90e2")
-            ax.set_ylabel("Dodane")
-            ax.set_title("Ostatnie 7 dni")
-            ax.tick_params(axis="x", labelrotation=45, labelsize=8)
+            colors = [
+                "#4a90e2",
+                "#50b848",
+                "#f39c12",
+                "#e74c3c",
+                "#9b59b6",
+                "#1abc9c",
+                "#7f8c8d",
+            ]
+            ax.bar(dates, counts, color=colors[: len(dates)])
+            ax.set_ylabel("Dodane", color="#BBBBBB")
+            ax.set_title("Ostatnie 7 dni", color="#BBBBBB")
+            ax.tick_params(
+                axis="x", labelrotation=45, labelsize=8, colors="#BBBBBB"
+            )
+            ax.tick_params(axis="y", colors="#BBBBBB")
+            for spine in ax.spines.values():
+                spine.set_color("#BBBBBB")
             canvas = FigureCanvasTkAgg(fig, master=info_frame)
             canvas.draw()
             widget = canvas.get_tk_widget()
