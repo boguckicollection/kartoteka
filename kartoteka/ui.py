@@ -3083,8 +3083,8 @@ class CardEditorApp:
                         badge = ctk.CTkLabel(
                             frame,
                             text=str(count),
-                            fg_color="white",
-                            text_color="black",
+                            fg_color="#FF0000",
+                            text_color="white",
                             width=20,
                             height=20,
                             corner_radius=10,
