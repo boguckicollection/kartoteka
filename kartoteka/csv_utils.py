@@ -65,7 +65,7 @@ def _sanitize_number(value: str) -> str:
         Normalised number or ``"0"`` if the result is empty.
     """
 
-    return value.lstrip("0") or "0"
+    return value.strip().lstrip("0") or "0"
 
 
 def find_duplicates(name: str, number: str, set_name: str, variant: str = "common"):
