@@ -1602,11 +1602,8 @@ class CardEditorApp:
             fg_color=AUCTION_BUTTON_COLOR,
         ).pack(padx=10, pady=5, fill="x")
 
-        preview_container = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
-        preview_container.pack(pady=10, fill="x")
-
-        box_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
-        box_frame.pack(side="left")
+        box_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        box_frame.pack(pady=10)
 
         CardEditorApp.build_home_box_preview(self, box_frame)
         # Refresh the initial box preview if possible.  The welcome screen does
@@ -1624,8 +1621,8 @@ class CardEditorApp:
             except Exception:  # pragma: no cover - defensive logging
                 logger.exception("Failed to refresh magazyn preview")
 
-        info_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
-        info_frame.pack(side="right", anchor="n", padx=(10, 40))
+        info_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        info_frame.pack(anchor="n", pady=(0, 40))
 
         self.inventory_count_label = ctk.CTkLabel(
             info_frame,

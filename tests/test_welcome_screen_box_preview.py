@@ -87,6 +87,13 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     overlay = first_canvas.items[first_canvas.overlay_id]
     assert overlay["fill"] == ui.OCCUPIED_COLOR
 
+    box_frame = first_canvas.master.master
+    info_frame = app.inventory_count_label.master
+    assert info_frame is app.inventory_value_label.master
+    assert info_frame.master is not box_frame
+    assert box_frame.pack_params.get("side") in (None, "top")
+    assert info_frame.pack_params.get("side") in (None, "top")
+
     # Verify new layout
     assert app.start_frame._grid_columns[0]["weight"] == 1
     assert app.start_frame._grid_columns[1]["weight"] == 2
