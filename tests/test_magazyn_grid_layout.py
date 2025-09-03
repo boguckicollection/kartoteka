@@ -148,18 +148,18 @@ def test_magazyn_adaptive_grid(tmp_path):
     app.magazyn_frame.winfo_width = lambda: 600
     app._relayout_mag_cards()
     assert frames[0].grid_kwargs["row"] == 0
-    assert frames[0].grid_kwargs["column"] == 1
-    assert frames[0].grid_kwargs["sticky"] == "n"
+    assert frames[0].grid_kwargs["column"] == 0
+    assert frames[0].grid_kwargs["sticky"] == "nsew"
     assert frames[1].grid_kwargs["row"] == 0
-    assert frames[1].grid_kwargs["column"] == 2
-    assert frames[1].grid_kwargs["sticky"] == "n"
+    assert frames[1].grid_kwargs["column"] == 1
+    assert frames[1].grid_kwargs["sticky"] == "nsew"
 
     canvas.width = 200
     app.magazyn_frame.winfo_width = lambda: 200
     app._relayout_mag_cards()
     assert frames[1].grid_kwargs["row"] == 1
-    assert frames[1].grid_kwargs["column"] == 1
-    assert frames[1].grid_kwargs["sticky"] == "n"
+    assert frames[1].grid_kwargs["column"] == 0
+    assert frames[1].grid_kwargs["sticky"] == "nsew"
 
 
 def test_magazyn_grid_expands_with_canvas_width(tmp_path):
@@ -178,7 +178,7 @@ def test_magazyn_grid_expands_with_canvas_width(tmp_path):
         encoding="utf-8",
     )
 
-    app, _ = _load_app(csv_path, (4, 4.0, 0, 0), frame_cls=RecordingFrame)
+    app, ui = _load_app(csv_path, (4, 4.0, 0, 0), frame_cls=RecordingFrame)
 
     class DummyParentCanvas(SimpleNamespace):
         def winfo_width(self):
@@ -206,8 +206,6 @@ def test_magazyn_grid_expands_with_canvas_width(tmp_path):
 
     assert len(wide_cols) > len(narrow_cols)
     grid_cols = app.mag_list_frame._grid_columns
-    trailing = max(grid_cols)
-    assert grid_cols[0]["weight"] == 1
-    assert grid_cols[trailing]["weight"] == 1
-    for i in range(1, trailing):
-        assert grid_cols[i]["weight"] == 0
+    assert all(info["weight"] == 1 for info in grid_cols.values())
+    expected_cols = 1000 // (ui.MAX_CARD_THUMB_SIZE + ui.MAG_CARD_GAP * 2)
+    assert len(grid_cols) == expected_cols
