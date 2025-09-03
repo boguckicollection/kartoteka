@@ -335,9 +335,9 @@ SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
 
 # Layout constants to simplify future adjustments
 BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
-CARD_THUMB_SIZE = 96  # larger card thumbnails in the warehouse list
+CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
-MAX_CARD_THUMB_SIZE = 192
+MAX_CARD_THUMB_SIZE = 160
 MAG_CARD_GAP = 3  # spacing between card frames in magazine view
 GRID_COLUMNS = 4  # number of columns per storage box
 WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
@@ -3224,10 +3224,7 @@ class CardEditorApp:
                 for idx in indices:
                     row = self.mag_card_rows[idx]
                     photo = self.mag_card_images[idx]
-                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR, width=CARD_THUMB_SIZE)
-                    _prop = getattr(frame, "grid_propagate", None)
-                    if callable(_prop):
-                        _prop(False)
+                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
                     col_conf = getattr(frame, "grid_columnconfigure", None)
                     if callable(col_conf):
                         col_conf(0, weight=1)
