@@ -30,7 +30,7 @@ from pathlib import Path
 
 from shoper_client import ShoperClient
 from webdav_client import WebDAVClient
-from . import csv_utils, storage
+from . import csv_utils, storage, stats_utils
 import threading
 from urllib.parse import urlencode, urlparse
 import io
@@ -1660,7 +1660,10 @@ class CardEditorApp:
             ax.tick_params(axis="x", labelrotation=45, labelsize=8)
             canvas = FigureCanvasTkAgg(fig, master=info_frame)
             canvas.draw()
-            canvas.get_tk_widget().pack(anchor="center", pady=(10, 5))
+            widget = canvas.get_tk_widget()
+            widget.pack(anchor="center", pady=(10, 5))
+            if hasattr(widget, "bind"):
+                widget.bind("<Button-1>", lambda _e: self.open_statistics_window())
             self.daily_additions_chart = canvas
 
         config_btn = self.create_button(
@@ -2020,6 +2023,64 @@ class CardEditorApp:
 
         refresh_tree()
         self._update_auction_status()
+
+    def open_statistics_window(self):
+        """Display extended inventory statistics in a new window."""
+        start_var = tk.StringVar(
+            value=(datetime.date.today() - datetime.timedelta(days=6)).isoformat()
+        )
+        end_var = tk.StringVar(value=datetime.date.today().isoformat())
+
+        win = ctk.CTkToplevel(self.root)
+        win.title("Statystyki")
+
+        filter_frame = ctk.CTkFrame(win)
+        filter_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(filter_frame, text="Od:").pack(side="left", padx=5)
+        ctk.CTkEntry(filter_frame, textvariable=start_var, width=100).pack(
+            side="left"
+        )
+        ctk.CTkLabel(filter_frame, text="Do:").pack(side="left", padx=5)
+        ctk.CTkEntry(filter_frame, textvariable=end_var, width=100).pack(side="left")
+
+        text = tk.Text(win, height=15, bg=self.root.cget("background"), fg="white")
+        text.pack(expand=True, fill="both", padx=5, pady=5)
+
+        def _update():
+            try:
+                start = datetime.date.fromisoformat(start_var.get())
+                end = datetime.date.fromisoformat(end_var.get())
+            except ValueError:
+                messagebox.showerror("Błąd", "Niepoprawny format daty (RRRR-MM-DD)")
+                return
+            data = stats_utils.get_statistics(start, end)
+            text.delete("1.0", tk.END)
+            text.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
+
+        def _export():
+            try:
+                start = datetime.date.fromisoformat(start_var.get())
+                end = datetime.date.fromisoformat(end_var.get())
+            except ValueError:
+                messagebox.showerror("Błąd", "Niepoprawny format daty (RRRR-MM-DD)")
+                return
+            data = stats_utils.get_statistics(start, end)
+            path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV", "*.csv")],
+            )
+            if not path:
+                return
+            stats_utils.export_statistics_csv(data, path)
+            messagebox.showinfo("Zapisano", path)
+
+        ctk.CTkButton(filter_frame, text="Odśwież", command=_update).pack(
+            side="left", padx=5
+        )
+        ctk.CTkButton(filter_frame, text="Eksport", command=_export).pack(
+            side="left", padx=5
+        )
+        _update()
 
     def _build_auction_widgets(self, container):
         """Create auction editor widgets and return a refresh callback."""
