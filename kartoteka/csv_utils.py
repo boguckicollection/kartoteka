@@ -1,6 +1,7 @@
 import os
 import re
 import csv
+from datetime import date, timedelta
 from typing import Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
 
@@ -38,7 +39,8 @@ STORE_FIELDNAMES = [
     "images 1",
 ]
 
-# include a ``sold`` flag so individual cards can be marked as sold
+# include a ``sold`` flag so individual cards can be marked as sold and track
+# when cards were added to the warehouse
 WAREHOUSE_FIELDNAMES = [
     "name",
     "number",
@@ -48,6 +50,7 @@ WAREHOUSE_FIELDNAMES = [
     "image",
     "variant",
     "sold",
+    "added_at",
 ]
 
 
@@ -194,6 +197,29 @@ def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     return _inventory_stats_cache
 
 
+def get_daily_additions(days: int = 7) -> dict[str, int]:
+    """Return counts of cards added per day for the last ``days`` days."""
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+    counts = {
+        (start + timedelta(days=i)).isoformat(): 0 for i in range(days)
+    }
+    if not os.path.exists(WAREHOUSE_CSV):
+        return counts
+
+    with open(WAREHOUSE_CSV, encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        for row in reader:
+            added_raw = (row.get("added_at") or "").split("T", 1)[0]
+            try:
+                added_date = date.fromisoformat(added_raw)
+            except ValueError:
+                continue
+            if start <= added_date <= end:
+                counts[added_date.isoformat()] += 1
+    return counts
+
+
 def format_store_row(row):
     """Return a row formatted for the store CSV."""
     formatted_name = row["nazwa"]
@@ -238,6 +264,7 @@ def format_warehouse_row(row):
         "image": row.get("image1", row.get("images", "")),
         "variant": variant,
         "sold": row.get("sold", ""),
+        "added_at": row.get("added_at") or date.today().isoformat(),
     }
 
 
