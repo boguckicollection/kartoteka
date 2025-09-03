@@ -2798,11 +2798,6 @@ class CardEditorApp:
         self.mag_labels = []
         self.mag_box_order = []
 
-        # Pagination settings for magazyn card list
-        self.mag_page_size = getattr(self, "mag_page_size", 20)
-        self.mag_page = 0
-        self.mag_total_pages = 1
-
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
 
@@ -2994,6 +2989,14 @@ class CardEditorApp:
                                     else:
                                         lbl.image = photo
 
+                    cols = max(1, width // (CARD_THUMB_SIZE + 10))
+                    for i, frame in enumerate(self.mag_card_frames):
+                        r = i // cols
+                        c = i % cols
+                        grid = getattr(frame, "grid", None)
+                        if callable(grid):
+                            grid(row=r, column=c, padx=5, pady=5, sticky="n")
+
                     canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                     if canvas is not None:
                         def _update_scroll_region():
@@ -3048,28 +3051,17 @@ class CardEditorApp:
 
                     indices.sort(key=_price)
 
-                total = len(indices)
-                self.mag_total_pages = max(1, (total + self.mag_page_size - 1) // self.mag_page_size)
-                self.mag_page = max(0, min(self.mag_page, self.mag_total_pages - 1))
-                start = self.mag_page * self.mag_page_size
-                end = start + self.mag_page_size
-                page_indices = indices[start:end]
-
                 for frame in getattr(self, "mag_card_frames", []):
                     frame.destroy()
                 self.mag_card_frames = []
                 self.mag_card_labels = []
                 self.mag_sold_labels = []
-                displayed = set(page_indices)
+                displayed = set(indices)
 
-                cols = 4
-                for pos, idx in enumerate(page_indices):
+                for idx in indices:
                     row = self.mag_card_rows[idx]
                     photo = self.mag_card_images[idx]
                     frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
-                    r = pos // cols
-                    c = pos % cols
-                    frame.grid(row=r, column=c, padx=5, pady=5, sticky="n")
                     is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                     text = row.get("name", "")
                     color = TEXT_COLOR
@@ -3129,18 +3121,6 @@ class CardEditorApp:
                 for i in range(len(self.mag_card_image_labels)):
                     if i not in displayed:
                         self.mag_card_image_labels[i] = None
-
-                prev_btn = getattr(self, "mag_prev_button", None)
-                if prev_btn is not None and hasattr(prev_btn, "configure"):
-                    prev_state = "normal" if self.mag_page > 0 else "disabled"
-                    prev_btn.configure(state=prev_state)
-                next_btn = getattr(self, "mag_next_button", None)
-                if next_btn is not None and hasattr(next_btn, "configure"):
-                    next_state = (
-                        "normal" if self.mag_page < self.mag_total_pages - 1 else "disabled"
-                    )
-                    next_btn.configure(state=next_state)
-
                 canvas = getattr(list_frame, "_parent_canvas", None)
                 if canvas is not None:
                     def _update_scroll_region():
@@ -3170,23 +3150,6 @@ class CardEditorApp:
                 self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
             else:
                 self._root_mag_bind_id = None
-
-            def _prev_page():
-                if self.mag_page > 0:
-                    self.mag_page -= 1
-                    _update_mag_list()
-
-            def _next_page():
-                if self.mag_page < self.mag_total_pages - 1:
-                    self.mag_page += 1
-                    _update_mag_list()
-
-            nav_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
-            nav_frame.pack(pady=5)
-            self.mag_prev_button = self.create_button(nav_frame, text="Previous", command=_prev_page)
-            self.mag_prev_button.pack(side="left", padx=5)
-            self.mag_next_button = self.create_button(nav_frame, text="Next", command=_next_page)
-            self.mag_next_button.pack(side="left", padx=5)
 
             self.mag_search_var.trace_add("write", _update_mag_list)
             self.mag_sold_filter_var.trace_add("write", _update_mag_list)
