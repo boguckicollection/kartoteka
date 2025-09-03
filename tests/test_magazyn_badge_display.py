@@ -80,8 +80,8 @@ def test_badge_display_for_duplicates_only(tmp_path):
     assert len(badges) == 1
     badge = badges[0]
     assert badge.text == "2"
-    assert badge.fg_color == "white"
-    assert badge.text_color == "black"
+    assert badge.fg_color == "#FF0000"
+    assert badge.text_color == "white"
     assert badge.kwargs.get("height") == 20
     assert badge.kwargs.get("corner_radius") == 10
     assert badge.place_kwargs.get("relx") == 1.0
