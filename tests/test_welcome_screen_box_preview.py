@@ -18,6 +18,7 @@ from ctk_mocks import (
 def test_welcome_screen_shows_box_preview(monkeypatch):
     created_buttons = []
     created_labels = []
+    created_canvases = []
 
     class TrackingButton(DummyCTkButton):
         def __init__(self, master=None, **kwargs):
@@ -28,6 +29,11 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
         def __init__(self, master=None, **kwargs):
             super().__init__(master, **kwargs)
             created_labels.append(self)
+
+    class TrackingCanvas(DummyCanvas):
+        def __init__(self, master=None, **kwargs):
+            super().__init__(master, **kwargs)
+            created_canvases.append(self)
 
     sys.modules["customtkinter"] = SimpleNamespace(
         CTkFrame=DummyCTkFrame,
@@ -45,7 +51,7 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(
         ui.tk, "Frame", DummyCTkFrame
-    ), patch.object(ui.tk, "Canvas", DummyCanvas), patch.object(
+    ), patch.object(ui.tk, "Canvas", TrackingCanvas), patch.object(
         ui.messagebox, "showinfo", lambda *a, **k: None
     ):
         dummy_root = SimpleNamespace(
@@ -56,7 +62,6 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
             root=dummy_root,
             create_button=lambda master, **kwargs: TrackingButton(master, **kwargs),
             refresh_magazyn=lambda: None,
-            refresh_home_preview=lambda: None,
             open_config_dialog=lambda: None,
             show_location_frame=lambda: None,
             setup_pricing_ui=lambda: None,
@@ -64,6 +69,7 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
             show_magazyn_view=lambda: None,
             open_auctions_window=lambda: None,
         )
+        app.refresh_home_preview = lambda: ui.CardEditorApp.refresh_home_preview(app)
         ui.CardEditorApp.setup_welcome_screen(app)
 
     assert hasattr(app, "home_percent_labels")
@@ -71,6 +77,15 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     first = app.home_percent_labels[app.mag_box_order[0]]
     assert first.font == ("Segoe UI", 24, "bold")
     assert first.text_color == ui._occupancy_color(0)
+
+    assert hasattr(app, "home_box_canvases")
+    assert len(app.home_box_canvases) == len(app.mag_box_order)
+    first_canvas = app.home_box_canvases[app.mag_box_order[0]]
+    assert isinstance(first_canvas, TrackingCanvas)
+    assert getattr(first_canvas, "image", None) is photo_mock
+    assert getattr(first_canvas, "overlay_id", None) is not None
+    overlay = first_canvas.items[first_canvas.overlay_id]
+    assert overlay["fill"] == ui.OCCUPIED_COLOR
 
     # Verify new layout
     assert app.start_frame._grid_columns[0]["weight"] == 1
