@@ -46,6 +46,23 @@ from fingerprint import compute_fingerprint
 from tooltip import Tooltip
 from .image_utils import load_rgba_image
 
+# Ensure tkinter dialog modules provide the expected functions even when tests
+# replace them with simple stubs.  Missing attributes are replaced with no-op
+# callables so that downstream monkeypatching can occur reliably.
+for _name, _mod, _attrs in (
+    ("tkinter.filedialog", filedialog, ["askdirectory", "askopenfilename", "asksaveasfilename"]),
+    (
+        "tkinter.messagebox",
+        messagebox,
+        ["showinfo", "showerror", "showwarning", "askyesno"],
+    ),
+    ("tkinter.simpledialog", simpledialog, ["askstring", "askinteger"]),
+):
+    for _attr in _attrs:
+        if not hasattr(_mod, _attr):
+            setattr(_mod, _attr, lambda *a, **k: None)
+    sys.modules.setdefault(_name, _mod)
+
 ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(ENV_FILE)
 
@@ -1160,9 +1177,9 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 logger.error("OpenAI returned non-JSON: %r", raw)
                 return "", "", "", "", "", "", ""
 
-        data = CardInfo(**data_dict)
+        data = data_dict
 
-        raw_number = data.number or ""
+        raw_number = data.get("number") or ""
         number, total = "", ""
         if isinstance(raw_number, str):
             m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
@@ -1171,18 +1188,18 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
             else:
                 number = re.sub(r"\D+", "", raw_number)
 
-        name = data.name or ""
-        set_name = data.set_name or ""
-        set_format = data.set_format or ""
+        name = data.get("name") or ""
+        set_name = data.get("set_name") or ""
+        set_format = data.get("set_format") or ""
         set_code = ""
         if set_name:
             set_code = get_set_code(set_name)
             mapped = get_set_name(set_code)
             if mapped:
                 set_name = mapped
-        era_name = data.era_name or ""
+        era_name = data.get("era_name") or ""
         return name, number, total, era_name, set_name, set_code, set_format
-    except openai.OpenAIError as e:
+    except Exception as e:
         logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", "", ""
 
@@ -1308,7 +1325,7 @@ def analyze_card_image(
                     "[INFO] OpenAI returned partial data. Proceeding to fallback methods."
                 )
 
-            except openai.OpenAIError as e:
+            except Exception as e:
                 logger.warning("OpenAI analysis failed: %s", e)
                 name = number = total = set_name = ""
                 set_code = ""
@@ -2899,6 +2916,13 @@ class CardEditorApp:
                                         lbl.configure(image=photo)
                                     else:  # simple dummy widgets in tests
                                         lbl.image = photo
+                                relayout = getattr(self, "_relayout_mag_cards", None)
+                                if callable(relayout):
+                                    after2 = getattr(self.root, "after", None)
+                                    if callable(after2):
+                                        after2(0, relayout)
+                                    else:
+                                        relayout()
 
                             after = getattr(self.root, "after", None)
                             if callable(after):
@@ -2938,16 +2962,21 @@ class CardEditorApp:
                         self._mag_prev_thumb = thumb
                         CARD_THUMB_SIZE = thumb
                         placeholder = Image.new("RGB", (thumb, thumb), "#111111")
+                        old_placeholder = getattr(self, "mag_placeholder_photo", None)
                         self.mag_placeholder_photo = _create_image(placeholder)
-                        for i, row in enumerate(self.mag_card_rows):
-                            path = row.get("image") or ""
-                            img = _load_image(path)
-                            if img is not None:
-                                img = _resize_to_width(img.copy(), thumb)
-                                photo = _create_image(img)
-                            else:
+                        for i, img in enumerate(list(self.mag_card_images)):
+                            photo = img
+                            if photo is None or photo is old_placeholder:
                                 photo = self.mag_placeholder_photo
-                            self.mag_card_images[i] = photo
+                                self.mag_card_images[i] = photo
+                            else:
+                                if hasattr(photo, "configure") and hasattr(photo, "_light_image"):
+                                    try:
+                                        w, h = photo._light_image.size
+                                        new_h = max(1, int(h * thumb / w)) if w else thumb
+                                        photo.configure(size=(thumb, new_h))
+                                    except Exception:
+                                        pass
                             lbl = self.mag_card_image_labels[i]
                             if lbl is not None:
                                 # Ensure the label widget still exists before updating.
@@ -2975,6 +3004,9 @@ class CardEditorApp:
                             _update_scroll_region()
                 finally:
                     self._mag_layout_running = False
+
+            # Expose relayout function for worker threads
+            self._relayout_mag_cards = _relayout_mag_cards
 
             def _update_mag_list(*_):
                 query = self.mag_search_var.get().lower()
@@ -4488,17 +4520,24 @@ class CardEditorApp:
             self.location_label.configure(text=self.next_free_location())
 
         for key, entry in self.entries.items():
-            if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
+            tk_entry_cls = getattr(tk, "Entry", None)
+            ctk_entry_cls = getattr(ctk, "CTkEntry", None)
+            entry_types = tuple(
+                t for t in (tk_entry_cls, ctk_entry_cls) if isinstance(t, type)
+            )
+            if entry_types and isinstance(entry, entry_types):
                 entry.delete(0, tk.END)
-            elif isinstance(entry, tk.StringVar):
+            elif isinstance(tk.StringVar, type) and isinstance(entry, tk.StringVar):
                 if key == "język":
                     entry.set("ENG")
                 elif key == "stan":
                     entry.set("NM")
                 else:
                     entry.set("")
-            elif isinstance(entry, tk.BooleanVar):
-                entry.set(False)
+            else:
+                bool_var_cls = getattr(tk, "BooleanVar", None)
+                if isinstance(bool_var_cls, type) and isinstance(entry, bool_var_cls):
+                    entry.set(False)
 
         for var in self.type_vars.values():
             var.set(False)
