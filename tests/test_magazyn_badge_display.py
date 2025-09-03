@@ -19,10 +19,10 @@ from ctk_mocks import (
 def test_badge_display_for_duplicates_only(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;era;set;warehouse_code;price;image;variant\n"
-        "A;1;E;S;K1R1P1;1;foo1.png;common\n"
-        "A;1;E;S;K1R1P2;1;foo2.png;common\n"
-        "B;2;E;S;K1R1P3;1;foo3.png;common\n",
+        "name;number;set;warehouse_code;price;image;variant\n"
+        "A;1;S;K1R1P1;1;foo1.png;common\n"
+        "A;1;S;K1R1P2;1;foo2.png;common\n"
+        "B;2;S;K1R1P3;1;foo3.png;common\n",
         encoding="utf-8",
     )
 

@@ -98,9 +98,9 @@ def _load_app(csv_path, stats, frame_cls=DummyCTkFrame):
 
 def test_magazyn_displays_all_cards(tmp_path):
     csv_path = tmp_path / "magazyn.csv"
-    header = "name;number;era;set;warehouse_code;price;image;variant\n"
+    header = "name;number;set;warehouse_code;price;image;variant\n"
     rows = [
-        f"Card{i:02d};{i};E;S;K{i};1;img{i}.png;common\n" for i in range(25)
+        f"Card{i:02d};{i};S;K{i};1;img{i}.png;common\n" for i in range(25)
     ]
     csv_path.write_text(header + "".join(rows), encoding="utf-8")
 
@@ -119,10 +119,10 @@ def test_magazyn_adaptive_grid(tmp_path):
 
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        "name;number;era;set;warehouse_code;price;image;variant\n"
-        "A;1;E;S;K1;1;foo1.png;common\n"
-        "B;2;E;S;K2;1;foo2.png;common\n"
-        "C;3;E;S;K3;1;foo3.png;common\n",
+        "name;number;set;warehouse_code;price;image;variant\n"
+        "A;1;S;K1;1;foo1.png;common\n"
+        "B;2;S;K2;1;foo2.png;common\n"
+        "C;3;S;K3;1;foo3.png;common\n",
         encoding="utf-8",
     )
 

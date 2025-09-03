@@ -721,7 +721,7 @@ def test_analyze_and_fill_runs_full_pipeline_for_non_matching_card(tmp_path):
 def test_show_card_fills_from_inventory(tmp_path, monkeypatch):
     csv_path = tmp_path / "magazyn.csv"
     csv_path.write_text(
-        f"name;numer;set;era\nPikachu;001;{SV01_NAME};{ui.get_set_era(SV01_CODE)}\n",
+        f"name;numer;set\nPikachu;001;{SV01_NAME}\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("WAREHOUSE_CSV", str(csv_path))
