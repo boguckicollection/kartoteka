@@ -119,48 +119,34 @@ _THUMB_CACHE: dict[str, Image.Image] = {}
 def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int]) -> float:
     """Draw occupancy of a single storage box on ``canvas``.
 
-    The function draws a rectangle for each column, filling it with
-    :data:`OCCUPIED_COLOR` when the column contains any cards.  It returns
-    the percentage of occupied slots within the box so callers can update
-    labels or other UI elements accordingly.
+    Instead of drawing individual column rectangles, the function overlays a
+    single tinted rectangle on top of the box background image.  The height of
+    the overlay is proportional to the percentage of occupied slots in the
+    given ``box_num``.  The function returns this percentage so callers can
+    update accompanying labels.
     """
 
     box_w = BOX_THUMB_SIZE
     box_h = BOX_THUMB_SIZE
-    columns = storage.BOX_COLUMNS.get(box_num, 4)
-    counts = [occupancy.get(col, 0) for col in range(1, columns + 1)]
+
+    used = occupancy.get(box_num, 0)
     total_capacity = storage.BOX_CAPACITY.get(
-        box_num, columns * storage.BOX_COLUMN_CAPACITY
+        box_num,
+        storage.BOX_COLUMNS.get(box_num, 4) * storage.BOX_COLUMN_CAPACITY,
     )
-    filled = sum(counts)
-    occupied_percent = filled / total_capacity * 100 if total_capacity else 0
+    occupied_percent = used / total_capacity * 100 if total_capacity else 0
 
-    col_w = box_w / columns
+    fill_height = box_h * occupied_percent / 100
+    y1 = box_h - fill_height
 
-    if hasattr(canvas, "find_all"):
-        rects = list(canvas.find_all())
-    else:  # fallback for DummyCanvas used in tests
-        rects = list(getattr(canvas, "items", {}).keys())
-
-    if len(rects) < columns:
-        for col in range(len(rects), columns):
-            x1 = col * col_w
-            x2 = (col + 1) * col_w
-            rid = canvas.create_rectangle(
-                x1, 0, x2, box_h, outline="black", width=1
-            )
-            rects.append(rid)
-    elif len(rects) > columns:
-        for rid in rects[columns:]:
-            canvas.delete(rid)
-        rects = rects[:columns]
-
-    for col, rid in enumerate(rects):
-        x1 = col * col_w
-        x2 = (col + 1) * col_w
-        canvas.coords(rid, x1, 0, x2, box_h)
-        fill = OCCUPIED_COLOR if counts[col] > 0 else ""
-        canvas.itemconfigure(rid, fill=fill)
+    # ``overlay_id`` attribute is used to track the rectangle so subsequent
+    # calls simply adjust its coordinates instead of creating new items.
+    overlay_id = getattr(canvas, "overlay_id", None)
+    if overlay_id is None:
+        overlay_id = canvas.create_rectangle(0, y1, box_w, box_h, fill=OCCUPIED_COLOR, outline="")
+        canvas.overlay_id = overlay_id
+    else:
+        canvas.coords(overlay_id, 0, y1, box_w, box_h)
 
     return occupied_percent
 
@@ -2664,7 +2650,21 @@ class CardEditorApp:
 
         self.mag_box_order = list(range(1, BOX_COUNT + 1)) + [SPECIAL_BOX_NUMBER]
         self.home_percent_labels = {}
+        self.home_box_canvases = {}
         self.mag_labels = []
+
+        base_dir = Path(__file__).resolve().parents[1]
+        if not hasattr(self, "_box_photo"):
+            img = Image.open(base_dir / "box.png").resize(
+                (BOX_THUMB_SIZE, BOX_THUMB_SIZE), Image.LANCZOS
+            )
+            self._box_photo = ImageTk.PhotoImage(img)
+        if not hasattr(self, "_box100_photo"):
+            img = Image.open(base_dir / "box100.png").resize(
+                (BOX_THUMB_SIZE, BOX_THUMB_SIZE), Image.LANCZOS
+            )
+            self._box100_photo = ImageTk.PhotoImage(img)
+
         for i, box_num in enumerate(self.mag_box_order):
             frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
             lbl = ctk.CTkLabel(
@@ -2674,8 +2674,18 @@ class CardEditorApp:
                 text_color=TEXT_COLOR,
                 font=("Segoe UI", 24, "bold"),
             )
-            lbl.pack(side="left")
+            lbl.pack()
             self.mag_labels.append(lbl)
+
+            canvas = tk.Canvas(
+                frame, width=BOX_THUMB_SIZE, height=BOX_THUMB_SIZE, highlightthickness=0
+            )
+            img = self._box100_photo if box_num == SPECIAL_BOX_NUMBER else self._box_photo
+            canvas.create_image(0, 0, anchor="nw", image=img)
+            canvas.image = img
+            canvas.pack()
+            self.home_box_canvases[box_num] = canvas
+
             pct_label = ctk.CTkLabel(
                 frame,
                 text="0%",
@@ -2684,8 +2694,9 @@ class CardEditorApp:
                 text_color=_occupancy_color(0),
                 font=("Segoe UI", 24, "bold"),
             )
-            pct_label.pack(side="left", padx=(5, 0))
+            pct_label.pack(pady=(5, 0))
             self.home_percent_labels[box_num] = pct_label
+
             row, col_idx = divmod(i, WAREHOUSE_GRID_COLUMNS)
             if box_num == SPECIAL_BOX_NUMBER:
                 row = 0
@@ -3371,12 +3382,16 @@ class CardEditorApp:
         box_occ = storage.compute_box_occupancy()
 
         for box, lbl in self.home_percent_labels.items():
-            columns = storage.BOX_COLUMNS.get(box, 4)
             total_capacity = storage.BOX_CAPACITY.get(
-                box, columns * storage.BOX_COLUMN_CAPACITY
+                box,
+                storage.BOX_COLUMNS.get(box, 4) * storage.BOX_COLUMN_CAPACITY,
             )
             value = box_occ.get(box, 0) / total_capacity if total_capacity else 0
             lbl.configure(text=f"{value * 100:.0f}%", text_color=_occupancy_color(value))
+
+            canvas = self.home_box_canvases.get(box)
+            if canvas is not None:
+                draw_box_usage(canvas, box, box_occ)
 
     def refresh_magazyn(self):
         """Refresh storage view and update column usage bars."""
