@@ -344,6 +344,8 @@ SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
 # Layout constants to simplify future adjustments
 BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
 CARD_THUMB_SIZE = 128  # larger card thumbnails in the warehouse list
+# Maximum allowed size for card thumbnails; used to cap dynamic calculations
+MAX_CARD_THUMB_SIZE = 256
 GRID_COLUMNS = 4  # number of columns per storage box
 WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
 BOX_COLUMN_CAPACITY = 1000  # slots per column in a regular box
@@ -2957,7 +2959,8 @@ class CardEditorApp:
                     if width <= 1:
                         return
                     padding = 10  # total horizontal padding (padx=5 on each side)
-                    thumb = max(width - padding, 32)
+                    max_thumb = MAX_CARD_THUMB_SIZE
+                    thumb = max(32, min(width - padding, max_thumb))
                     if thumb != self._mag_prev_thumb:
                         self._mag_prev_thumb = thumb
                         CARD_THUMB_SIZE = thumb
