@@ -3007,7 +3007,13 @@ class CardEditorApp:
                         c = i % cols
                         grid = getattr(frame, "grid", None)
                         if callable(grid):
-                            grid(row=r, column=c, padx=MAG_CARD_GAP, pady=MAG_CARD_GAP, sticky="n")
+                            grid(
+                                row=r,
+                                column=c,
+                                padx=MAG_CARD_GAP,
+                                pady=MAG_CARD_GAP,
+                                sticky="nsew",
+                            )
 
                     canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                     if canvas is not None:
@@ -3073,7 +3079,10 @@ class CardEditorApp:
                 for idx in indices:
                     row = self.mag_card_rows[idx]
                     photo = self.mag_card_images[idx]
-                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR, width=CARD_THUMB_SIZE)
+                    _prop = getattr(frame, "grid_propagate", None)
+                    if callable(_prop):
+                        _prop(False)
                     is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                     text = row.get("name", "")
                     color = TEXT_COLOR
@@ -3110,7 +3119,13 @@ class CardEditorApp:
                         else:
                             badge.pack()
 
-                    label_kwargs = {"text": text, "text_color": color}
+                    label_kwargs = {
+                        "text": text,
+                        "text_color": color,
+                        "width": CARD_THUMB_SIZE,
+                        "wraplength": CARD_THUMB_SIZE,
+                        "justify": "center",
+                    }
                     if font is not None:
                         label_kwargs["font"] = font
                     label = ctk.CTkLabel(frame, **label_kwargs)
