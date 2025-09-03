@@ -371,6 +371,7 @@ def normalize(text: str, keep_spaces: bool = False) -> str:
     if not text:
         return ""
     text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
     text = text.lower()
     for suffix in [
         " shiny",
@@ -3033,9 +3034,12 @@ class CardEditorApp:
             self._relayout_mag_cards = _relayout_mag_cards
 
             def _update_mag_list(*_):
-                query = self.mag_search_var.get().lower()
+                query_raw = self.mag_search_var.get().strip()
                 sort_key = self.mag_sort_var.get()
                 status_filter = self.mag_sold_filter_var.get()
+
+                normalized_query = normalize(query_raw, keep_spaces=True)
+                tokens = [tok for tok in normalized_query.split() if tok]
 
                 def _matches(row: dict) -> bool:
                     is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
@@ -3044,17 +3048,26 @@ class CardEditorApp:
                     if status_filter == "unsold" and is_sold:
                         return False
                     price_str = str(row.get("price", "")).replace(",", ".")
-                    variant = (row.get("variant") or "").lower()
-                    return (
-                        query in row.get("name", "").lower()
-                        or query in str(row.get("number", "")).lower()
-                        or query in row.get("set", "").lower()
-                        or query in row.get("warehouse_code", "").lower()
-                        or query in variant
-                        or query in price_str
-                        or (query == "sold" and is_sold)
-                        or (query == "unsold" and not is_sold)
-                    )
+                    fields = [
+                        normalize(row.get("name", "")),
+                        normalize(str(row.get("number", ""))),
+                        normalize(row.get("set", "")),
+                        normalize(row.get("warehouse_code", "")),
+                        normalize(row.get("variant") or ""),
+                        normalize(price_str),
+                    ]
+                    for token in tokens:
+                        if token == "sold":
+                            if not is_sold:
+                                return False
+                            continue
+                        if token == "unsold":
+                            if is_sold:
+                                return False
+                            continue
+                        if not any(token in field for field in fields):
+                            return False
+                    return True
 
                 indices = [i for i, r in enumerate(self.mag_card_rows) if _matches(r)]
                 if sort_key == "name":

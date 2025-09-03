@@ -99,6 +99,36 @@ def test_search_by_sold_status(tmp_path):
     assert len(app.mag_sold_labels) == 0
 
 
+def test_search_with_accents(tmp_path):
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        "name;number;set;warehouse_code;price;image\n"
+        "Pokémon Café;1;S;K1;1;foo.png\n"
+        "Pokemon Base;1;S;K2;1;foo.png\n",
+        encoding="utf-8",
+    )
+    app = _load_app(csv_path, (2, 2.0, 0, 0))
+
+    app.mag_search_var.set("pokemon cafe")
+    assert len(app.mag_card_labels) == 1
+    assert app.mag_card_labels[0].text == "Pokémon Café"
+
+
+def test_search_multiple_terms_across_fields(tmp_path):
+    csv_path = tmp_path / "magazyn.csv"
+    csv_path.write_text(
+        "name;number;set;warehouse_code;price;image\n"
+        "Pikachu;1;Base;K1;1;foo.png\n"
+        "Pikachu;1;Jungle;K2;1;foo.png\n",
+        encoding="utf-8",
+    )
+    app = _load_app(csv_path, (2, 2.0, 0, 0))
+
+    app.mag_search_var.set("pikachu base")
+    assert len(app.mag_card_labels) == 1
+    assert app.mag_card_labels[0].text == "Pikachu"
+
+
 def _load_app_with_delay(csv_path, stats):
     sys.modules["customtkinter"] = SimpleNamespace(
         CTkFrame=DummyCTkFrame,
