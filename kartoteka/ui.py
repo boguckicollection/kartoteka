@@ -1536,9 +1536,17 @@ class CardEditorApp:
             self.root, fg_color=BG_COLOR, corner_radius=10
         )
         self.start_frame.pack(expand=True, fill="both")
+        # Divide the start frame into a narrow menu on the left and a wider
+        # main content area on the right.  Approximately one third of the
+        # width is dedicated to the menu.
+        self.start_frame.grid_columnconfigure(0, weight=1)
+        self.start_frame.grid_columnconfigure(1, weight=2)
 
-        content_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
-        content_frame.pack(expand=True)
+        menu_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
+        menu_frame.grid(row=0, column=0, sticky="nsew")
+
+        main_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
+        main_frame.grid(row=0, column=1, sticky="nsew")
 
         logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
         if os.path.exists(logo_path):
@@ -1547,14 +1555,14 @@ class CardEditorApp:
                 logo_img.thumbnail((140, 140))
                 self.logo_photo = _create_image(logo_img)
                 logo_label = ctk.CTkLabel(
-                    content_frame,
+                    menu_frame,
                     image=self.logo_photo,
                     text="",
                 )
                 logo_label.pack(pady=(10, 10))
 
         greeting = ctk.CTkLabel(
-            content_frame,
+            main_frame,
             text="Witaj w aplikacji KARTOTEKA",
             text_color=TEXT_COLOR,
             font=("Segoe UI", 24, "bold"),
@@ -1562,7 +1570,7 @@ class CardEditorApp:
         greeting.pack(pady=5)
 
         desc = ctk.CTkLabel(
-            content_frame,
+            main_frame,
             text=(
                 "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
             ),
@@ -1575,46 +1583,40 @@ class CardEditorApp:
         count, total_value, _, _ = csv_utils.get_inventory_stats()
         if count == 0 and total_value == 0:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
-
-        button_frame = tk.Frame(
-            content_frame, bg=self.root.cget("background")
-        )
-        # Keep the buttons centered without stretching across the entire window
-        button_frame.pack(pady=10)
-
+        # Module buttons stacked vertically in the menu
         scan_btn = self.create_button(
-            button_frame,
+            menu_frame,
             text="\U0001f50d Skanuj",
             command=self.show_location_frame,
             fg_color=SCAN_BUTTON_COLOR,
         )
-        scan_btn.pack(side="left", padx=10, pady=5)
+        scan_btn.pack(padx=10, pady=5, fill="x")
         self.create_button(
-            button_frame,
+            menu_frame,
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
             fg_color=PRICE_BUTTON_COLOR,
-        ).pack(side="left", padx=10, pady=5)
+        ).pack(padx=10, pady=5, fill="x")
         self.create_button(
-            button_frame,
+            menu_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
             fg_color=SHOPER_BUTTON_COLOR,
-        ).pack(side="left", padx=10, pady=5)
+        ).pack(padx=10, pady=5, fill="x")
         self.create_button(
-            button_frame,
+            menu_frame,
             text="\U0001f4e6 Magazyn",
             command=self.show_magazyn_view,
             fg_color=MAGAZYN_BUTTON_COLOR,
-        ).pack(side="left", padx=10, pady=5)
+        ).pack(padx=10, pady=5, fill="x")
         self.create_button(
-            button_frame,
+            menu_frame,
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
             fg_color=AUCTION_BUTTON_COLOR,
-        ).pack(side="left", padx=10, pady=5)
+        ).pack(padx=10, pady=5, fill="x")
 
-        preview_container = ctk.CTkFrame(content_frame, fg_color=BG_COLOR)
+        preview_container = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
         preview_container.pack(pady=10, fill="x")
 
         box_frame = ctk.CTkFrame(preview_container, fg_color=BG_COLOR)
@@ -1658,22 +1660,22 @@ class CardEditorApp:
         self.inventory_value_label.pack(anchor="center", pady=(0, 5))
 
         config_btn = self.create_button(
-            content_frame,
+            menu_frame,
             text="\u2699\ufe0f Konfiguracja",
             command=self.open_config_dialog,
             fg_color="#404040",
         )
-        config_btn.pack(pady=5)
+        config_btn.pack(side="bottom", pady=5, padx=10, fill="x")
 
         author = ctk.CTkLabel(
-            content_frame,
-            text="Twórca: BOGUCKI | Właściciel: kartoteka.shop",
+            menu_frame,
+            text="Twórca: BOGUCKI 2025",
             wraplength=1400,
             justify="center",
             font=("Segoe UI", 14),
             text_color="#CCCCCC",
         )
-        author.pack(pady=5)
+        author.pack(side="bottom", pady=5)
 
     def update_inventory_stats(self):
         """Refresh labels showing total item count and value in the UI."""
