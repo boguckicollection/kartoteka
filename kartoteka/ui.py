@@ -154,25 +154,37 @@ def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int])
         overlay_ids = {}
     canvas.overlay_ids = overlay_ids
 
-    col_w = box_w / columns if columns else box_w
-
+    if box_num == SPECIAL_BOX_NUMBER:
+        inner_w = BOX_THUMB_SIZE - 2 * BOX100_X_INSET
+        inner_h = BOX_THUMB_SIZE - 2 * BOX100_Y_INSET
+        col_w = inner_w / columns if columns else inner_w
+    else:
+        col_w = box_w / columns if columns else box_w
     total_used = 0
     for col in range(1, columns + 1):
         used = occupancy.get(col, 0)
         total_used += used
         value = used / col_capacity if col_capacity else 0
-        fill_h = box_h * value
-        y1 = box_h - fill_h
-        x0 = (col - 1) * col_w
-        x1 = col * col_w
+        if box_num == SPECIAL_BOX_NUMBER:
+            fill_h = inner_h * value
+            x0 = BOX100_X_INSET + (col - 1) * col_w
+            x1 = x0 + col_w
+            y1 = BOX_THUMB_SIZE - BOX100_Y_INSET - fill_h
+            box_bottom = BOX_THUMB_SIZE - BOX100_Y_INSET
+        else:
+            fill_h = box_h * value
+            y1 = box_h - fill_h
+            x0 = (col - 1) * col_w
+            x1 = col * col_w
+            box_bottom = box_h
         color = _occupancy_color(value)
 
         rect_id = overlay_ids.get(col)
         if rect_id is None:
-            rect_id = canvas.create_rectangle(x0, y1, x1, box_h, fill=color, outline="")
+            rect_id = canvas.create_rectangle(x0, y1, x1, box_bottom, fill=color, outline="")
             overlay_ids[col] = rect_id
         else:
-            canvas.coords(rect_id, x0, y1, x1, box_h)
+            canvas.coords(rect_id, x0, y1, x1, box_bottom)
             canvas.itemconfigure(rect_id, fill=color)
 
     occupied_percent = total_used / total_capacity * 100 if total_capacity else 0
@@ -357,6 +369,8 @@ SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
 
 # Layout constants to simplify future adjustments
 BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
+BOX100_X_INSET = int(BOX_THUMB_SIZE * 235 / 600)
+BOX100_Y_INSET = int(BOX_THUMB_SIZE * 50 / 600)
 CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
 MAX_CARD_THUMB_SIZE = 160
