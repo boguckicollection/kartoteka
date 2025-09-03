@@ -2736,12 +2736,26 @@ class CardEditorApp:
         if not hasattr(self, "_box_photo"):
             img = Image.open(base_dir / "box.png").resize(
                 (BOX_THUMB_SIZE, BOX_THUMB_SIZE), Image.LANCZOS
-            )
+            ).convert("RGBA")
+            data = []
+            for px in img.getdata():
+                if px[:3] == (255, 255, 255):
+                    data.append((255, 255, 255, 0))
+                else:
+                    data.append(px)
+            img.putdata(data)
             self._box_photo = ImageTk.PhotoImage(img)
         if not hasattr(self, "_box100_photo"):
             img = Image.open(base_dir / "box100.png").resize(
                 (BOX_THUMB_SIZE, BOX_THUMB_SIZE), Image.LANCZOS
-            )
+            ).convert("RGBA")
+            data = []
+            for px in img.getdata():
+                if px[:3] == (255, 255, 255):
+                    data.append((255, 255, 255, 0))
+                else:
+                    data.append(px)
+            img.putdata(data)
             self._box100_photo = ImageTk.PhotoImage(img)
 
         for i, box_num in enumerate(self.mag_box_order):
