@@ -397,6 +397,7 @@ def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
 
 def send_csv_to_shoper(app, file_path: str):
     """Send a CSV file using the Shoper API or WebDAV fallback."""
+    from tkinter import messagebox  # ensure patched instance is used
     try:
         if getattr(app, "shoper_client", None):
             result = app.shoper_client.import_csv(file_path)
