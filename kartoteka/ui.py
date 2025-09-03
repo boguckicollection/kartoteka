@@ -37,6 +37,12 @@ import io
 import webbrowser
 import logging
 from gettext import gettext as _
+try:  # pragma: no cover - optional dependency
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+except Exception:  # pragma: no cover - optional dependency
+    Figure = None  # type: ignore[assignment]
+    FigureCanvasTkAgg = None  # type: ignore[assignment]
 try:
     from hash_db import HashDB
 except ImportError as exc:  # pragma: no cover - optional dependency
@@ -1641,6 +1647,21 @@ class CardEditorApp:
             justify="center",
         )
         self.inventory_value_label.pack(anchor="center", pady=(0, 5))
+
+        daily = csv_utils.get_daily_additions()
+        if Figure and FigureCanvasTkAgg and daily:
+            fig = Figure(figsize=(5, 2))
+            ax = fig.add_subplot(111)
+            dates = list(daily.keys())
+            counts = list(daily.values())
+            ax.bar(dates, counts, color="#4a90e2")
+            ax.set_ylabel("Dodane")
+            ax.set_title("Ostatnie 7 dni")
+            ax.tick_params(axis="x", labelrotation=45, labelsize=8)
+            canvas = FigureCanvasTkAgg(fig, master=info_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(anchor="center", pady=(10, 5))
+            self.daily_additions_chart = canvas
 
         config_btn = self.create_button(
             menu_frame,

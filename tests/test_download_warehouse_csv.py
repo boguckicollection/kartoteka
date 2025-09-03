@@ -19,6 +19,7 @@ def test_local_warehouse_csv_exists():
         "image",
         "variant",
         "sold",
+        "added_at",
     ]
 
 
