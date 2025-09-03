@@ -1,8 +1,14 @@
 class _Widget:
     def pack(self, *a, **k):
+        self.pack_calls = getattr(self, "pack_calls", [])
+        self.pack_calls.append((a, k))
+        self.pack_params = k
         return self
 
     def grid(self, *a, **k):
+        self.grid_calls = getattr(self, "grid_calls", [])
+        self.grid_calls.append((a, k))
+        self.grid_params = k
         return self
 
     def destroy(self):
