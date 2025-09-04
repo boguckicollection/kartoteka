@@ -115,8 +115,12 @@ except ValueError:
 
 _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehash.ImageHash]] = {}
 
-# simple cache for downloaded remote images
-_IMAGE_CACHE: dict[str, Optional[bytes]] = {}
+# simple cache for downloaded remote images; values store the raw bytes (or
+# ``None`` for failed downloads) along with the timestamp they were fetched.
+# Entries older than ``_IMAGE_CACHE_TTL`` seconds are considered stale and will
+# be refreshed on the next access.
+_IMAGE_CACHE_TTL = 300  # seconds
+_IMAGE_CACHE: dict[str, tuple[Optional[bytes], float]] = {}
 
 # cache for resized thumbnails keyed by source path/URL
 _THUMB_CACHE: dict[str, Image.Image] = {}
@@ -216,26 +220,31 @@ def _load_image(path: str) -> Optional[Image.Image]:
 
     parsed = urlparse(path)
     if parsed.scheme in ("http", "https"):
-        cached = _IMAGE_CACHE.get(path, ...)
-        if cached is not ...:
-            if cached is None:
+        cached = _IMAGE_CACHE.get(path)
+        if cached is not None:
+            data, ts = cached
+            if time.time() - ts < _IMAGE_CACHE_TTL:
+                if data is None:
+                    return None
+                img = load_rgba_image(io.BytesIO(data))
+                if img is not None:
+                    return img
                 return None
-            img = load_rgba_image(io.BytesIO(cached))
-            if img is not None:
-                return img
-            return None
+            else:
+                # expire stale entry
+                _IMAGE_CACHE.pop(path, None)
         try:
             resp = requests.get(path, timeout=5)
             resp.raise_for_status()
             data = resp.content
-            _IMAGE_CACHE[path] = data
+            _IMAGE_CACHE[path] = (data, time.time())
             img = load_rgba_image(io.BytesIO(data))
             if img is not None:
                 return img
             return None
         except requests.RequestException as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
-            _IMAGE_CACHE[path] = None
+            _IMAGE_CACHE[path] = (None, time.time())
             return None
 
     return None
