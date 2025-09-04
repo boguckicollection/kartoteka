@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 from . import csv_utils
 
-LAST_PRODUCT_CODE_FILE = "last_product_code.txt"
 LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 
 # Total card capacity per storage box.  Standard boxes hold 4000 cards in
@@ -20,19 +19,6 @@ BOX_COLUMNS: dict[int, int] = {**{b: 4 for b in range(1, BOX_COUNT + 1)}, 100: 1
 # Default per-column capacity for standard boxes.  Used as a fallback when
 # handling boxes outside of :data:`BOX_CAPACITY`.
 BOX_COLUMN_CAPACITY = 1000
-
-
-def load_last_product_code() -> int:
-    try:
-        with open(LAST_PRODUCT_CODE_FILE, "r", encoding="utf-8") as f:
-            return int(f.read().strip())
-    except (FileNotFoundError, ValueError):
-        return 0
-
-
-def save_last_product_code(value: int) -> None:
-    with open(LAST_PRODUCT_CODE_FILE, "w", encoding="utf-8") as f:
-        f.write(str(int(value)))
 
 
 def load_last_sets_check() -> datetime | None:

@@ -38,7 +38,6 @@ def make_dummy():
         folder_name="folder",
         file_to_key={},
         product_code_map={},
-        next_product_code=1,
         next_free_location=lambda: "K1R1P1",
         generate_location=lambda idx: "K1R1P1",
         output_data=[None],
@@ -79,5 +78,5 @@ def test_html_generated():
     assert "<li>Profesjonalna obsługa klienta</li>" in data["description"]
     assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
-    assert dummy.next_product_code == 2
+    assert data["product_code"] == "PKM-BASESET-4"
     assert data["warehouse_code"] == "K1R1P1"

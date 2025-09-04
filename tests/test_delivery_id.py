@@ -37,7 +37,6 @@ def test_delivery_field_constant():
         folder_name="folder",
         file_to_key={},
         product_code_map={},
-        next_product_code=1,
         next_free_location=lambda: "K1R1P1",
         generate_location=lambda idx: "K1R1P1",
         output_data=[None],
