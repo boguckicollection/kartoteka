@@ -1627,7 +1627,7 @@ class CardEditorApp:
             text="\U0001f50d Skanuj",
             command=self.show_location_frame,
             fg_color=SCAN_BUTTON_COLOR,
-            width=200,
+            width=150,
         )
         scan_btn.pack(padx=10, pady=5, fill="x")
         self.create_button(
@@ -1635,28 +1635,28 @@ class CardEditorApp:
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
             fg_color=PRICE_BUTTON_COLOR,
-            width=200,
+            width=150,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
             fg_color=SHOPER_BUTTON_COLOR,
-            width=200,
+            width=150,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f4e6 Magazyn",
             command=self.show_magazyn_view,
             fg_color=MAGAZYN_BUTTON_COLOR,
-            width=200,
+            width=150,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
             fg_color=AUCTION_BUTTON_COLOR,
-            width=200,
+            width=150,
         ).pack(padx=10, pady=5, fill="x")
 
         self.create_button(
@@ -1664,7 +1664,7 @@ class CardEditorApp:
             text="\U0001F4C8 Statystyki",
             command=getattr(self, "open_statistics_window", lambda: None),
             fg_color=STATS_BUTTON_COLOR,
-            width=200,
+            width=150,
         ).pack(padx=10, pady=5, fill="x")
 
         ctk.CTkLabel(
