@@ -2909,6 +2909,100 @@ class CardEditorApp:
         self.mag_sold_labels = []
         self.mag_card_image_labels: list[Optional[ctk.CTkLabel]] = []
 
+    def reload_mag_cards(self) -> None:
+        """(Re)load warehouse card data from CSV and prepare image placeholders."""
+        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
+        thumb_size = CARD_THUMB_SIZE
+        placeholder_img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
+        self.mag_placeholder_photo = _create_image(placeholder_img)
+
+        # reset containers
+        self.mag_card_rows = []
+        self.mag_card_images = []
+        self.mag_card_image_labels = []
+        self.mag_card_frames = []
+        self._image_threads = []
+
+        if not os.path.exists(csv_path):
+            self._mag_prev_thumb = 0
+            return
+
+        with open(csv_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            groups: dict[tuple[str, ...], list[dict]] = defaultdict(list)
+            for row in reader:
+                if not row.get("name"):
+                    logger.warning("Skipping row with missing name: %s", row)
+                    continue
+                key = (
+                    row.get("name"),
+                    row.get("number"),
+                    row.get("set"),
+                    row.get("variant") or "common",
+                    str(row.get("sold") or ""),
+                )
+                groups[key].append(row)
+
+            for rows in groups.values():
+                combined = dict(rows[0])
+                combined["image"] = next(
+                    (r.get("image") for r in rows if r.get("image")),
+                    "",
+                )
+                combined["variant"] = combined.get("variant") or "common"
+                codes = [
+                    r.get("warehouse_code", "") for r in rows if r.get("warehouse_code")
+                ]
+                combined["warehouse_code"] = ";".join(dict.fromkeys(codes))
+                combined["_count"] = len(rows)
+                idx = len(self.mag_card_rows)
+                self.mag_card_rows.append(combined)
+                self.mag_card_images.append(self.mag_placeholder_photo)
+                self.mag_card_image_labels.append(None)
+
+                img_path = combined.get("image") or ""
+                if urlparse(img_path).scheme in ("http", "https"):
+                    def _worker(i=idx, url=img_path):
+                        img = _load_image(url)
+                        if img is None:
+                            return
+                        img = _resize_to_width(img, thumb_size)
+
+                        def _update(img=img) -> None:
+                            photo = _create_image(img)
+                            self.mag_card_images[i] = photo
+                            lbl = self.mag_card_image_labels[i]
+                            if lbl is not None:
+                                if hasattr(lbl, "configure"):
+                                    lbl.configure(image=photo)
+                                else:  # simple dummy widgets in tests
+                                    lbl.image = photo
+                            relayout = getattr(self, "_relayout_mag_cards", None)
+                            if callable(relayout):
+                                after2 = getattr(self.root, "after", None)
+                                if callable(after2):
+                                    after2(0, relayout)
+                                else:
+                                    relayout()
+
+                        after = getattr(self.root, "after", None)
+                        if callable(after):
+                            after(0, _update)
+                        else:
+                            _update()
+
+                    th = threading.Thread(target=_worker, daemon=True)
+                    th.start()
+                    self._image_threads.append(th)
+                else:
+                    img = _load_image(img_path)
+                    if img is not None:
+                        img = _resize_to_width(img, thumb_size)
+                        photo = _create_image(img)
+                        self.mag_card_images[idx] = photo
+
+        self._mag_prev_thumb = 0
+
     def show_magazyn_view(self):
         """Display storage occupancy inside the main window."""
         # Unbind previous resize handlers if they exist before rebuilding the
@@ -3015,402 +3109,320 @@ class CardEditorApp:
         # store reference for resize handling
         self.mag_list_frame = list_frame
 
-        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
-        if os.path.exists(csv_path):
-            thumb_size = CARD_THUMB_SIZE
-            placeholder_img = Image.new("RGB", (thumb_size, thumb_size), "#111111")
-            self.mag_placeholder_photo = _create_image(placeholder_img)
+        # Populate warehouse card data from CSV
+        try:
+            CardEditorApp.reload_mag_cards(self)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Failed to reload warehouse cards")
 
-            # reset containers
-            self.mag_card_rows = []
-            self.mag_card_images = []
-            self.mag_card_image_labels = []
-            self.mag_card_frames = []
-            self._image_threads = []
-
-            with open(csv_path, encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                groups: dict[tuple[str, ...], list[dict]] = defaultdict(list)
-                for row in reader:
-                    if not row.get("name"):
-                        logger.warning("Skipping row with missing name: %s", row)
-                        continue
-                    key = (
-                        row.get("name"),
-                        row.get("number"),
-                        row.get("set"),
-                        row.get("variant") or "common",
-                        str(row.get("sold") or ""),
-                    )
-                    groups[key].append(row)
-
-                for rows in groups.values():
-                    combined = dict(rows[0])
-                    combined["image"] = next(
-                        (r.get("image") for r in rows if r.get("image")),
-                        "",
-                    )
-                    combined["variant"] = combined.get("variant") or "common"
-                    codes = [
-                        r.get("warehouse_code", "") for r in rows if r.get("warehouse_code")
-                    ]
-                    combined["warehouse_code"] = ";".join(dict.fromkeys(codes))
-                    combined["_count"] = len(rows)
-                    idx = len(self.mag_card_rows)
-                    self.mag_card_rows.append(combined)
-                    self.mag_card_images.append(self.mag_placeholder_photo)
-                    self.mag_card_image_labels.append(None)
-
-                    img_path = combined.get("image") or ""
-                    if urlparse(img_path).scheme in ("http", "https"):
-                        def _worker(i=idx, url=img_path):
-                            img = _load_image(url)
-                            if img is None:
-                                return
-                            img = _resize_to_width(img, thumb_size)
-
-                            def _update(img=img) -> None:
-                                photo = _create_image(img)
-                                self.mag_card_images[i] = photo
-                                lbl = self.mag_card_image_labels[i]
-                                if lbl is not None:
-                                    if hasattr(lbl, "configure"):
-                                        lbl.configure(image=photo)
-                                    else:  # simple dummy widgets in tests
-                                        lbl.image = photo
-                                relayout = getattr(self, "_relayout_mag_cards", None)
-                                if callable(relayout):
-                                    after2 = getattr(self.root, "after", None)
-                                    if callable(after2):
-                                        after2(0, relayout)
-                                    else:
-                                        relayout()
-
-                            after = getattr(self.root, "after", None)
-                            if callable(after):
-                                after(0, _update)
-                            else:
-                                _update()
-
-                        th = threading.Thread(target=_worker, daemon=True)
-                        th.start()
-                        self._image_threads.append(th)
-                    else:
-                        img = _load_image(img_path)
-                        if img is not None:
-                            img = _resize_to_width(img, thumb_size)
-                            photo = _create_image(img)
-                            self.mag_card_images[idx] = photo
-
-            self._mag_prev_thumb = 0
-
-            def _relayout_mag_cards(event=None):
-                """Recompute thumbnail size and update scroll region on resize."""
-                if getattr(self, "_mag_layout_running", False):
+        def _relayout_mag_cards(event=None):
+            """Recompute thumbnail size and update scroll region on resize."""
+            if getattr(self, "_mag_layout_running", False):
+                return
+            self._mag_layout_running = True
+            try:
+                exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
+                if not self.mag_list_frame or not exists_fn():
                     return
-                self._mag_layout_running = True
-                try:
-                    exists_fn = getattr(self.mag_list_frame, "winfo_exists", lambda: True)
-                    if not self.mag_list_frame or not exists_fn():
-                        return
-                    global CARD_THUMB_SIZE
-                    width = 0
-                    canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
-                    if canvas is not None:
-                        width_fn = getattr(canvas, "winfo_width", None)
-                        if callable(width_fn):
-                            width = width_fn()
-                    if width <= 1:
-                        width_fn = getattr(self.magazyn_frame, "winfo_width", lambda: 0)
+                global CARD_THUMB_SIZE
+                width = 0
+                canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
+                if canvas is not None:
+                    width_fn = getattr(canvas, "winfo_width", None)
+                    if callable(width_fn):
                         width = width_fn()
-                    if width <= 1:
-                        return
-                    max_thumb = MAX_CARD_THUMB_SIZE
-                    cols = max(1, width // (max_thumb + MAG_CARD_GAP * 2))
-                    thumb = max(
-                        32,
-                        min((width - MAG_CARD_GAP * 2 * cols) // cols, max_thumb),
-                    )
-                    if thumb != self._mag_prev_thumb:
-                        self._mag_prev_thumb = thumb
-                        CARD_THUMB_SIZE = thumb
-                        placeholder = Image.new("RGB", (thumb, thumb), "#111111")
-                        old_placeholder = getattr(self, "mag_placeholder_photo", None)
-                        self.mag_placeholder_photo = _create_image(placeholder)
-                        for i, img in enumerate(list(self.mag_card_images)):
-                            photo = img
-                            if photo is None or photo is old_placeholder:
-                                photo = self.mag_placeholder_photo
-                                self.mag_card_images[i] = photo
-                            else:
-                                if hasattr(photo, "configure") and hasattr(photo, "_light_image"):
-                                    try:
-                                        w, h = photo._light_image.size
-                                        new_h = max(1, int(h * thumb / w)) if w else thumb
-                                        photo.configure(size=(thumb, new_h))
-                                    except Exception:
-                                        pass
-                            lbl = self.mag_card_image_labels[i]
-                            if lbl is not None:
-                                # Ensure the label widget still exists before updating.
-                                exists_fn = getattr(lbl, "winfo_exists", None)
+                if width <= 1:
+                    width_fn = getattr(self.magazyn_frame, "winfo_width", lambda: 0)
+                    width = width_fn()
+                if width <= 1:
+                    return
+                max_thumb = MAX_CARD_THUMB_SIZE
+                cols = max(1, width // (max_thumb + MAG_CARD_GAP * 2))
+                thumb = max(
+                    32,
+                    min((width - MAG_CARD_GAP * 2 * cols) // cols, max_thumb),
+                )
+                if thumb != self._mag_prev_thumb:
+                    self._mag_prev_thumb = thumb
+                    CARD_THUMB_SIZE = thumb
+                    placeholder = Image.new("RGB", (thumb, thumb), "#111111")
+                    old_placeholder = getattr(self, "mag_placeholder_photo", None)
+                    self.mag_placeholder_photo = _create_image(placeholder)
+                    for i, img in enumerate(list(self.mag_card_images)):
+                        photo = img
+                        if photo is None or photo is old_placeholder:
+                            photo = self.mag_placeholder_photo
+                            self.mag_card_images[i] = photo
+                        else:
+                            if hasattr(photo, "configure") and hasattr(photo, "_light_image"):
                                 try:
-                                    exists = True if exists_fn is None else bool(exists_fn())
+                                    w, h = photo._light_image.size
+                                    new_h = max(1, int(h * thumb / w)) if w else thumb
+                                    photo.configure(size=(thumb, new_h))
                                 except Exception:
-                                    exists = False
-                                if exists:
-                                    if hasattr(lbl, "configure"):
-                                        lbl.configure(image=photo)
-                                    else:
-                                        lbl.image = photo
-
-                    col_conf = getattr(self.mag_list_frame, "grid_columnconfigure", None)
-                    if callable(col_conf):
-                        prev_cols = getattr(self, "_mag_prev_cols", 0)
-                        total = max(prev_cols, cols)
-                        for i in range(total):
-                            weight = 1 if i < cols else 0
-                            col_conf(i, weight=weight)
-                        self._mag_prev_cols = cols
-                    for i, frame in enumerate(self.mag_card_frames):
-                        if frame is None:
-                            continue
-                        exists_fn = getattr(frame, "winfo_exists", None)
-                        try:
-                            exists = True if exists_fn is None else bool(exists_fn())
-                        except Exception:
-                            exists = False
-                        if not exists:
-                            continue
-                        r = i // cols
-                        c = i % cols
-                        grid = getattr(frame, "grid", None)
-                        if callable(grid):
-                            grid(
-                                row=r,
-                                column=c,
-                                padx=MAG_CARD_GAP,
-                                pady=MAG_CARD_GAP,
-                                sticky="nsew",
-                            )
-
-                    canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
-                    if canvas is not None:
-                        def _update_scroll_region():
-                            yview_fn = getattr(canvas, "yview", None)
+                                    pass
+                        lbl = self.mag_card_image_labels[i]
+                        if lbl is not None:
+                            # Ensure the label widget still exists before updating.
+                            exists_fn = getattr(lbl, "winfo_exists", None)
                             try:
-                                yview = yview_fn() if callable(yview_fn) else None
+                                exists = True if exists_fn is None else bool(exists_fn())
                             except Exception:
-                                yview = None
-                            bbox = canvas.bbox("all") or (0, 0, 0, 0)
-                            canvas.configure(scrollregion=bbox)
-                            if yview:
-                                moveto = getattr(canvas, "yview_moveto", None)
-                                if callable(moveto):
-                                    try:
-                                        moveto(yview[0])
-                                    except Exception:
-                                        pass
+                                exists = False
+                            if exists:
+                                if hasattr(lbl, "configure"):
+                                    lbl.configure(image=photo)
+                                else:
+                                    lbl.image = photo
 
-                        after_idle = getattr(canvas, "after_idle", None)
-                        if callable(after_idle):
-                            after_idle(_update_scroll_region)
-                        else:
-                            _update_scroll_region()
-                finally:
-                    self._mag_layout_running = False
-
-            # Expose relayout function for worker threads
-            self._relayout_mag_cards = _relayout_mag_cards
-
-            def _update_mag_list(*_):
-                query_raw = self.mag_search_var.get().strip()
-                sort_key = self.mag_sort_var.get()
-                status_filter = self.mag_sold_filter_var.get()
-
-                normalized_query = normalize(query_raw, keep_spaces=True)
-                tokens = [tok for tok in normalized_query.split() if tok]
-
-                def _matches(row: dict) -> bool:
-                    is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-                    if status_filter == "sold" and not is_sold:
-                        return False
-                    if status_filter == "unsold" and is_sold:
-                        return False
-                    price_str = str(row.get("price", "")).replace(",", ".")
-                    fields = [
-                        normalize(row.get("name", "")),
-                        normalize(str(row.get("number", ""))),
-                        normalize(row.get("set", "")),
-                        normalize(row.get("warehouse_code", "")),
-                        normalize(row.get("variant") or ""),
-                        normalize(price_str),
-                    ]
-                    for token in tokens:
-                        if token == "sold":
-                            if not is_sold:
-                                return False
-                            continue
-                        if token == "unsold":
-                            if is_sold:
-                                return False
-                            continue
-                        if not any(token in field for field in fields):
-                            return False
-                    return True
-
-                indices = [i for i, r in enumerate(self.mag_card_rows) if _matches(r)]
-                if sort_key == "name":
-                    indices.sort(key=lambda i: self.mag_card_rows[i].get("name", ""))
-                elif sort_key == "price":
-                    def _price(i: int) -> float:
-                        val = str(self.mag_card_rows[i].get("price", "0")).replace(",", ".")
-                        try:
-                            return float(val)
-                        except ValueError:
-                            return 0.0
-
-                    indices.sort(key=_price)
-
-                unbind = getattr(self.mag_list_frame, "unbind", None)
-                if callable(unbind) and getattr(self, "_mag_bind_id", None):
-                    unbind("<Configure>", self._mag_bind_id)
-                    self._mag_bind_id = None
-                root_unbind = getattr(current_root, "unbind", None)
-                if callable(root_unbind) and getattr(self, "_root_mag_bind_id", None):
-                    root_unbind("<Configure>", self._root_mag_bind_id)
-                    self._root_mag_bind_id = None
-
-                frames = getattr(self, "mag_card_frames", [])
-                self.mag_card_frames = []
-                for frame in frames:
+                col_conf = getattr(self.mag_list_frame, "grid_columnconfigure", None)
+                if callable(col_conf):
+                    prev_cols = getattr(self, "_mag_prev_cols", 0)
+                    total = max(prev_cols, cols)
+                    for i in range(total):
+                        weight = 1 if i < cols else 0
+                        col_conf(i, weight=weight)
+                    self._mag_prev_cols = cols
+                for i, frame in enumerate(self.mag_card_frames):
+                    if frame is None:
+                        continue
+                    exists_fn = getattr(frame, "winfo_exists", None)
                     try:
-                        frame.destroy()
+                        exists = True if exists_fn is None else bool(exists_fn())
                     except Exception:
-                        pass
-                self.mag_card_labels = []
-                self.mag_sold_labels = []
-                displayed = set(indices)
-
-                for idx in indices:
-                    row = self.mag_card_rows[idx]
-                    photo = self.mag_card_images[idx]
-                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
-                    col_conf = getattr(frame, "grid_columnconfigure", None)
-                    if callable(col_conf):
-                        col_conf(0, weight=1)
-                    is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-                    text = row.get("name", "")
-                    color = TEXT_COLOR
-                    font = None
-                    if is_sold:
-                        text = f"[SOLD] {text}"
-                        color = SOLD_COLOR
-                        if hasattr(ctk, "CTkFont"):
-                            font = ctk.CTkFont(size=20, overstrike=True)
-                        else:
-                            font = ("TkDefaultFont", 20, "overstrike")
-
-                    img_label = ctk.CTkLabel(frame, image=photo, text="")
-                    grid = getattr(img_label, "grid", None)
+                        exists = False
+                    if not exists:
+                        continue
+                    r = i // cols
+                    c = i % cols
+                    grid = getattr(frame, "grid", None)
                     if callable(grid):
-                        grid(row=0, column=0, sticky="n")
-                    self.mag_card_image_labels[idx] = img_label
-
-                    count = int(row.get("_count", 1))
-                    if count > 1:
-                        badge = ctk.CTkLabel(
-                            frame,
-                            text=str(count),
-                            fg_color="#FF0000",
-                            text_color="white",
-                            width=20,
-                            height=20,
-                            corner_radius=10,
-                        )
-                        place = getattr(badge, "place", None)
-                        if callable(place):
-                            place(in_=img_label, relx=1.0, rely=0.0, anchor="ne")
-                            lift = getattr(badge, "lift", None)
-                            if callable(lift):
-                                lift()
-                        else:
-                            grid_badge = getattr(badge, "grid", None)
-                            if callable(grid_badge):
-                                grid_badge(row=0, column=0, sticky="ne")
-                            else:
-                                badge.pack()
-
-                    label_kwargs = {
-                        "text": text,
-                        "text_color": color,
-                        "width": CARD_THUMB_SIZE,
-                        "wraplength": CARD_THUMB_SIZE,
-                        "justify": "center",
-                    }
-                    if font is not None:
-                        label_kwargs["font"] = font
-                    label = ctk.CTkLabel(frame, **label_kwargs)
-                    grid = getattr(label, "grid", None)
-                    if callable(grid):
-                        grid(row=1, column=0, sticky="new")
-
-                    self.mag_card_frames.append(frame)
-
-                    for widget in (img_label, label):
-                        widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
-                        widget.bind(
-                            "<Double-Button-1>",
-                            lambda e, r=row: self.show_card_details(r),
+                        grid(
+                            row=r,
+                            column=c,
+                            padx=MAG_CARD_GAP,
+                            pady=MAG_CARD_GAP,
+                            sticky="nsew",
                         )
 
-                    if is_sold:
-                        self.mag_sold_labels.append(label)
-                    else:
-                        self.mag_card_labels.append(label)
-
-                for i in range(len(self.mag_card_image_labels)):
-                    if i not in displayed:
-                        self.mag_card_image_labels[i] = None
-                canvas = getattr(list_frame, "_parent_canvas", None)
+                canvas = getattr(self.mag_list_frame, "_parent_canvas", None)
                 if canvas is not None:
                     def _update_scroll_region():
+                        yview_fn = getattr(canvas, "yview", None)
+                        try:
+                            yview = yview_fn() if callable(yview_fn) else None
+                        except Exception:
+                            yview = None
                         bbox = canvas.bbox("all") or (0, 0, 0, 0)
                         canvas.configure(scrollregion=bbox)
+                        if yview:
+                            moveto = getattr(canvas, "yview_moveto", None)
+                            if callable(moveto):
+                                try:
+                                    moveto(yview[0])
+                                except Exception:
+                                    pass
 
-                    canvas_after_idle = getattr(canvas, "after_idle", None)
-                    if callable(canvas_after_idle):
-                        canvas_after_idle(_update_scroll_region)
+                    after_idle = getattr(canvas, "after_idle", None)
+                    if callable(after_idle):
+                        after_idle(_update_scroll_region)
                     else:
                         _update_scroll_region()
+            finally:
+                self._mag_layout_running = False
 
-                list_after_idle = getattr(list_frame, "after_idle", None)
-                if callable(list_after_idle):
-                    list_after_idle(_relayout_mag_cards)
+        # Expose relayout function for worker threads
+        self._relayout_mag_cards = _relayout_mag_cards
+
+        def _update_mag_list(*_):
+            query_raw = self.mag_search_var.get().strip()
+            sort_key = self.mag_sort_var.get()
+            status_filter = self.mag_sold_filter_var.get()
+
+            normalized_query = normalize(query_raw, keep_spaces=True)
+            tokens = [tok for tok in normalized_query.split() if tok]
+
+            def _matches(row: dict) -> bool:
+                is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                if status_filter == "sold" and not is_sold:
+                    return False
+                if status_filter == "unsold" and is_sold:
+                    return False
+                price_str = str(row.get("price", "")).replace(",", ".")
+                fields = [
+                    normalize(row.get("name", "")),
+                    normalize(str(row.get("number", ""))),
+                    normalize(row.get("set", "")),
+                    normalize(row.get("warehouse_code", "")),
+                    normalize(row.get("variant") or ""),
+                    normalize(price_str),
+                ]
+                for token in tokens:
+                    if token == "sold":
+                        if not is_sold:
+                            return False
+                        continue
+                    if token == "unsold":
+                        if is_sold:
+                            return False
+                        continue
+                    if not any(token in field for field in fields):
+                        return False
+                return True
+
+            indices = [i for i, r in enumerate(self.mag_card_rows) if _matches(r)]
+            if sort_key == "name":
+                indices.sort(key=lambda i: self.mag_card_rows[i].get("name", ""))
+            elif sort_key == "price":
+                def _price(i: int) -> float:
+                    val = str(self.mag_card_rows[i].get("price", "0")).replace(",", ".")
+                    try:
+                        return float(val)
+                    except ValueError:
+                        return 0.0
+
+                indices.sort(key=_price)
+
+            unbind = getattr(self.mag_list_frame, "unbind", None)
+            if callable(unbind) and getattr(self, "_mag_bind_id", None):
+                unbind("<Configure>", self._mag_bind_id)
+                self._mag_bind_id = None
+            root_unbind = getattr(current_root, "unbind", None)
+            if callable(root_unbind) and getattr(self, "_root_mag_bind_id", None):
+                root_unbind("<Configure>", self._root_mag_bind_id)
+                self._root_mag_bind_id = None
+
+            frames = getattr(self, "mag_card_frames", [])
+            self.mag_card_frames = []
+            for frame in frames:
+                try:
+                    frame.destroy()
+                except Exception:
+                    pass
+            self.mag_card_labels = []
+            self.mag_sold_labels = []
+            displayed = set(indices)
+
+            for idx in indices:
+                row = self.mag_card_rows[idx]
+                photo = self.mag_card_images[idx]
+                frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                col_conf = getattr(frame, "grid_columnconfigure", None)
+                if callable(col_conf):
+                    col_conf(0, weight=1)
+                is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                text = row.get("name", "")
+                color = TEXT_COLOR
+                font = None
+                if is_sold:
+                    text = f"[SOLD] {text}"
+                    color = SOLD_COLOR
+                    if hasattr(ctk, "CTkFont"):
+                        font = ctk.CTkFont(size=20, overstrike=True)
+                    else:
+                        font = ("TkDefaultFont", 20, "overstrike")
+
+                img_label = ctk.CTkLabel(frame, image=photo, text="")
+                grid = getattr(img_label, "grid", None)
+                if callable(grid):
+                    grid(row=0, column=0, sticky="n")
+                self.mag_card_image_labels[idx] = img_label
+
+                count = int(row.get("_count", 1))
+                if count > 1:
+                    badge = ctk.CTkLabel(
+                        frame,
+                        text=str(count),
+                        fg_color="#FF0000",
+                        text_color="white",
+                        width=20,
+                        height=20,
+                        corner_radius=10,
+                    )
+                    place = getattr(badge, "place", None)
+                    if callable(place):
+                        place(in_=img_label, relx=1.0, rely=0.0, anchor="ne")
+                        lift = getattr(badge, "lift", None)
+                        if callable(lift):
+                            lift()
+                    else:
+                        grid_badge = getattr(badge, "grid", None)
+                        if callable(grid_badge):
+                            grid_badge(row=0, column=0, sticky="ne")
+                        else:
+                            badge.pack()
+
+                label_kwargs = {
+                    "text": text,
+                    "text_color": color,
+                    "width": CARD_THUMB_SIZE,
+                    "wraplength": CARD_THUMB_SIZE,
+                    "justify": "center",
+                }
+                if font is not None:
+                    label_kwargs["font"] = font
+                label = ctk.CTkLabel(frame, **label_kwargs)
+                grid = getattr(label, "grid", None)
+                if callable(grid):
+                    grid(row=1, column=0, sticky="new")
+
+                self.mag_card_frames.append(frame)
+
+                for widget in (img_label, label):
+                    widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
+                    widget.bind(
+                        "<Double-Button-1>",
+                        lambda e, r=row: self.show_card_details(r),
+                    )
+
+                if is_sold:
+                    self.mag_sold_labels.append(label)
                 else:
-                    _relayout_mag_cards()
+                    self.mag_card_labels.append(label)
 
-                bind = getattr(self.mag_list_frame, "bind", None)
-                if callable(bind):
-                    self._mag_bind_id = bind("<Configure>", _relayout_mag_cards)
-                canvas_bind = getattr(canvas, "bind", None)
-                if callable(canvas_bind):
-                    self._mag_canvas_bind_id = canvas_bind("<Configure>", _relayout_mag_cards)
-                root_bind = getattr(current_root, "bind", None)
-                if callable(root_bind):
-                    self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
+            for i in range(len(self.mag_card_image_labels)):
+                if i not in displayed:
+                    self.mag_card_image_labels[i] = None
+            canvas = getattr(list_frame, "_parent_canvas", None)
+            if canvas is not None:
+                def _update_scroll_region():
+                    bbox = canvas.bbox("all") or (0, 0, 0, 0)
+                    canvas.configure(scrollregion=bbox)
 
-            self.mag_search_var.trace_add("write", _update_mag_list)
-            self.mag_sold_filter_var.trace_add("write", _update_mag_list)
-            if hasattr(sort_menu, "configure"):
-                sort_menu.configure(command=lambda _: _update_mag_list())
+                canvas_after_idle = getattr(canvas, "after_idle", None)
+                if callable(canvas_after_idle):
+                    canvas_after_idle(_update_scroll_region)
+                else:
+                    _update_scroll_region()
+
+            list_after_idle = getattr(list_frame, "after_idle", None)
+            if callable(list_after_idle):
+                list_after_idle(_relayout_mag_cards)
             else:
-                sort_menu.command = lambda _: _update_mag_list()
-            if hasattr(sold_filter_menu, "configure"):
-                sold_filter_menu.configure(command=lambda _: _update_mag_list())
-            else:
-                sold_filter_menu.command = lambda _: _update_mag_list()
-            _update_mag_list()
+                _relayout_mag_cards()
+
+            bind = getattr(self.mag_list_frame, "bind", None)
+            if callable(bind):
+                self._mag_bind_id = bind("<Configure>", _relayout_mag_cards)
+            canvas_bind = getattr(canvas, "bind", None)
+            if callable(canvas_bind):
+                self._mag_canvas_bind_id = canvas_bind("<Configure>", _relayout_mag_cards)
+            root_bind = getattr(current_root, "bind", None)
+            if callable(root_bind):
+                self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
+
+        self._update_mag_list = _update_mag_list
+        self.mag_search_var.trace_add("write", _update_mag_list)
+        self.mag_sold_filter_var.trace_add("write", _update_mag_list)
+        if hasattr(sort_menu, "configure"):
+            sort_menu.configure(command=lambda _: _update_mag_list())
+        else:
+            sort_menu.command = lambda _: _update_mag_list()
+        if hasattr(sold_filter_menu, "configure"):
+            sold_filter_menu.configure(command=lambda _: _update_mag_list())
+        else:
+            sold_filter_menu.command = lambda _: _update_mag_list()
+        _update_mag_list()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
@@ -3543,6 +3555,16 @@ class CardEditorApp:
 
     def refresh_magazyn(self):
         """Refresh storage view and update column usage bars."""
+        reload_fn = getattr(self, "reload_mag_cards", None)
+        if callable(reload_fn):
+            reload_fn()
+        update_fn = getattr(self, "_update_mag_list", None)
+        if callable(update_fn):
+            try:
+                update_fn()
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Failed to update magazyn list")
+
         if not getattr(self, "mag_progressbars", None):
             return
 
@@ -3777,16 +3799,6 @@ class CardEditorApp:
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
             writer.writeheader()
             writer.writerows(rows)
-
-        if target in codes:
-            codes.remove(target)
-            row["warehouse_code"] = ";".join(codes)
-        if "_count" in row:
-            try:
-                row["_count"] = max(int(row.get("_count", 1)) - 1, 0)
-            except Exception:
-                row["_count"] = max(len(codes), 0)
-        row["sold"] = "1" if not codes else ""
 
         if window is not None:
             try:
