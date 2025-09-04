@@ -69,8 +69,6 @@ def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
     monkeypatch.setattr(ui.tk, "Canvas", DummyCanvas)
     monkeypatch.setattr(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path))
     monkeypatch.setattr(ui, "_load_image", lambda path: None)
-    refresh_called: list[bool] = []
-
     dummy_root = SimpleNamespace(minsize=lambda *a, **k: None, title=lambda *a, **k: None)
     app = SimpleNamespace(
         root=dummy_root,
@@ -81,11 +79,22 @@ def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
         magazyn_frame=None,
         location_frame=None,
         create_button=lambda master, **kwargs: DummyCTkButton(master, **kwargs),
-        refresh_magazyn=lambda: refresh_called.append(True),
+        refresh_magazyn=lambda: None,
         back_to_welcome=lambda: None,
     )
 
     ui.CardEditorApp.show_magazyn_view(app)
+
+    # Wrap refresh_magazyn to observe calls but still execute logic
+    refresh_called: list[bool] = []
+
+    app.reload_mag_cards = lambda: ui.CardEditorApp.reload_mag_cards(app)
+
+    def refresh_wrapper():
+        refresh_called.append(True)
+        ui.CardEditorApp.refresh_magazyn(app)
+
+    app.refresh_magazyn = refresh_wrapper
 
     row = app.mag_card_rows[0]
     assert row["warehouse_code"] == "K1;K2"
@@ -102,13 +111,16 @@ def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
     assert any(r["warehouse_code"] == "K1" and r.get("sold") == "1" for r in rows)
     assert any(r["warehouse_code"] == "K2" and not r.get("sold") for r in rows)
 
-    assert row["warehouse_code"] == "K2"
-    assert row["_count"] == 1
-
     assert refresh_called
-    assert len(app.mag_card_rows) == 1
-    unsold = app.mag_card_rows[0]
-    assert not unsold.get("sold")
+    # After refresh there should be separate sold and unsold entries
+    assert len(app.mag_card_rows) == 2
+    unsold = next(r for r in app.mag_card_rows if not r.get("sold"))
+    sold = next(r for r in app.mag_card_rows if r.get("sold"))
     assert unsold["warehouse_code"] == "K2"
     assert unsold["_count"] == 1
+
+    # Filtering by sold should display the sold entry
+    app.mag_sold_filter_var.set("sold")
+    assert len(app.mag_sold_labels) == 1
+    assert sold["warehouse_code"] == "K1"
 
