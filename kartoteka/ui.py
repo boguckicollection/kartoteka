@@ -1650,7 +1650,7 @@ class CardEditorApp:
         ).pack(padx=10, pady=5, fill="x")
 
         box_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
-        box_frame.pack(pady=10)
+        box_frame.pack(anchor="w", padx=10, pady=10)
 
         CardEditorApp.build_home_box_preview(self, box_frame)
         # Refresh the initial box preview if possible.  The welcome screen does
@@ -1669,34 +1669,34 @@ class CardEditorApp:
                 logger.exception("Failed to refresh magazyn preview")
 
         info_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
-        info_frame.pack(anchor="n", pady=(0, 40))
+        info_frame.pack(anchor="w", padx=10, pady=(0, 40))
 
         self.inventory_count_label = ctk.CTkLabel(
             info_frame,
             text=f"📊 Łączna liczba kart: {unsold_count}",
             text_color=TEXT_COLOR,
             font=("Segoe UI", 24, "bold"),
-            justify="center",
+            justify="left",
         )
-        self.inventory_count_label.pack(anchor="center")
+        self.inventory_count_label.pack(anchor="w")
 
         self.inventory_value_label = ctk.CTkLabel(
             info_frame,
             text=f"💰 Łączna wartość: {unsold_total:.2f} PLN",
             text_color="#FFD700",
             font=("Segoe UI", 24, "bold"),
-            justify="center",
+            justify="left",
         )
-        self.inventory_value_label.pack(anchor="center")
+        self.inventory_value_label.pack(anchor="w")
 
         self.inventory_sold_count_label = ctk.CTkLabel(
             info_frame,
             text=f"Sprzedane karty: {sold_count}",
             text_color=TEXT_COLOR,
             font=("Segoe UI", 24, "bold"),
-            justify="center",
+            justify="left",
         )
-        self.inventory_sold_count_label.pack(anchor="center", pady=(0, 5))
+        self.inventory_sold_count_label.pack(anchor="w", pady=(0, 5))
 
         daily = dict(sorted(csv_utils.get_daily_additions().items()))
         if Figure and FigureCanvasTkAgg and daily:
