@@ -4907,15 +4907,24 @@ class CardEditorApp:
                 fp_match = None
             if fp_match and fp_match.distance == 0:
                 meta = fp_match.meta
-                name = meta.get("nazwa", meta.get("name", ""))
-                number = sanitize_number(
-                    str(meta.get("numer", meta.get("number", "")))
-                )
-                set_name = meta.get("set", meta.get("set_name", ""))
+                csv_row = None
+                code = meta.get("warehouse_code")
+                if code:
+                    csv_row = csv_utils.get_row_by_code(code)
+                if csv_row:
+                    name = csv_row.get("name", "")
+                    number = sanitize_number(str(csv_row.get("number", "")))
+                    set_name = csv_row.get("set", "")
+                else:
+                    name = meta.get("nazwa", meta.get("name", ""))
+                    number = sanitize_number(
+                        str(meta.get("numer", meta.get("number", "")))
+                    )
+                    set_name = meta.get("set", meta.get("set_name", ""))
                 duplicates = csv_utils.find_duplicates(name, number, set_name)
                 if duplicates:
                     codes = ", ".join(
-                        [row.get("warehouse_code", "") for row in duplicates if row.get("warehouse_code")]
+                        [d.get("warehouse_code", "") for d in duplicates if d.get("warehouse_code")]
                     )
                     msg = _(
                         "Card already exists in magazyn: {codes}. Add anyway?"
@@ -5067,15 +5076,30 @@ class CardEditorApp:
 
         if fp_match and fp_match.distance == 0:
             meta = fp_match.meta
-            result = {
-                "name": meta.get("nazwa", meta.get("name", "")),
-                "number": meta.get("numer", meta.get("number", "")),
-                "total": meta.get("total", ""),
-                "set": meta.get("set", meta.get("set_name", "")),
-                "set_code": meta.get("set_code", ""),
-                "orientation": 0,
-                "set_format": meta.get("set_format", ""),
-            }
+            csv_row = None
+            code = meta.get("warehouse_code")
+            if code:
+                csv_row = csv_utils.get_row_by_code(code)
+            if csv_row:
+                result = {
+                    "name": csv_row.get("name", ""),
+                    "number": sanitize_number(str(csv_row.get("number", ""))),
+                    "total": meta.get("total", ""),
+                    "set": csv_row.get("set", ""),
+                    "set_code": meta.get("set_code", ""),
+                    "orientation": 0,
+                    "set_format": meta.get("set_format", ""),
+                }
+            else:
+                result = {
+                    "name": meta.get("nazwa", meta.get("name", "")),
+                    "number": meta.get("numer", meta.get("number", "")),
+                    "total": meta.get("total", ""),
+                    "set": meta.get("set", meta.get("set_name", "")),
+                    "set_code": meta.get("set_code", ""),
+                    "orientation": 0,
+                    "set_format": meta.get("set_format", ""),
+                }
         else:
             result = analyze_card_image(
                 path,
@@ -5979,6 +6003,12 @@ class CardEditorApp:
         types = {name: var.get() for name, var in self.type_vars.items()}
         data["typ"] = ",".join([name for name, selected in types.items() if selected])
         data["types"] = types
+        existing_wc = ""
+        if getattr(self, "output_data", None) and 0 <= self.index < len(self.output_data):
+            current = self.output_data[self.index]
+            if current and current.get("warehouse_code"):
+                existing_wc = current["warehouse_code"]
+        data["warehouse_code"] = existing_wc or self.next_free_location()
         fp = getattr(self, "current_fingerprint", None)
         if (
             fp is None
@@ -5999,7 +6029,16 @@ class CardEditorApp:
         if fp is not None and getattr(self, "hash_db", None):
             meta = {
                 k: data.get(k, "")
-                for k in ("nazwa", "numer", "set", "era", "język", "stan", "typ")
+                for k in (
+                    "nazwa",
+                    "numer",
+                    "set",
+                    "era",
+                    "język",
+                    "stan",
+                    "typ",
+                    "warehouse_code",
+                )
             }
             card_id = f"{meta['set']} {meta['numer']}".strip()
             try:
@@ -6018,12 +6057,6 @@ class CardEditorApp:
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
-        existing_wc = ""
-        if getattr(self, "output_data", None) and 0 <= self.index < len(self.output_data):
-            current = self.output_data[self.index]
-            if current and current.get("warehouse_code"):
-                existing_wc = current["warehouse_code"]
-        data["warehouse_code"] = existing_wc or self.next_free_location()
         variant = (
             "Holo"
             if types.get("Holo")
