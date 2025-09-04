@@ -451,7 +451,7 @@ def reload_sets():
     global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp, tcg_sets_jp_code_map
     global tcg_sets_eng_abbr_map, tcg_sets_eng_abbr_name_map
     global tcg_sets_jp_abbr_map, tcg_sets_jp_abbr_name_map
-    global tcg_sets_eng_name_abbr_map, tcg_sets_jp_name_abbr_map
+    global tcg_sets_name_to_abbr, tcg_sets_jp_name_to_abbr
     global SET_TO_ERA
 
     tcg_sets_eng_code_map = globals().get("tcg_sets_eng_code_map", {})
@@ -460,8 +460,8 @@ def reload_sets():
     tcg_sets_eng_abbr_name_map = globals().get("tcg_sets_eng_abbr_name_map", {})
     tcg_sets_jp_abbr_map = globals().get("tcg_sets_jp_abbr_map", {})
     tcg_sets_jp_abbr_name_map = globals().get("tcg_sets_jp_abbr_name_map", {})
-    tcg_sets_eng_name_abbr_map = globals().get("tcg_sets_eng_name_abbr_map", {})
-    tcg_sets_jp_name_abbr_map = globals().get("tcg_sets_jp_name_abbr_map", {})
+    tcg_sets_name_to_abbr = globals().get("tcg_sets_name_to_abbr", {})
+    tcg_sets_jp_name_to_abbr = globals().get("tcg_sets_jp_name_to_abbr", {})
     SET_TO_ERA = {}
 
     try:
@@ -491,9 +491,8 @@ def reload_sets():
         for item in sets
         if "abbr" in item
     }
-    tcg_sets_eng_name_abbr_map = {
-        item["name"]: item.get("abbr")
-        or re.sub(r"[^A-Za-z0-9]", "", item["name"]).upper()
+    tcg_sets_name_to_abbr = {
+        item["name"]: item.get("abbr", "")
         for sets in tcg_sets_eng_by_era.values()
         for item in sets
     }
@@ -534,9 +533,8 @@ def reload_sets():
         for item in sets
         if "abbr" in item
     }
-    tcg_sets_jp_name_abbr_map = {
-        item["name"]: item.get("abbr")
-        or re.sub(r"[^A-Za-z0-9]", "", item["name"]).upper()
+    tcg_sets_jp_name_to_abbr = {
+        item["name"]: item.get("abbr", "")
         for sets in tcg_sets_jp_by_era.values()
         for item in sets
     }
@@ -636,20 +634,28 @@ def get_set_name(code: str) -> str:
 def get_set_abbr(name: str) -> str:
     """Return the abbreviation for a set name if available.
 
-    If the abbreviation is not known, a sanitized uppercase variant of the
-    provided name is returned.
+    Parameters
+    ----------
+    name:
+        Display name or abbreviation of the set.
+
+    Returns
+    -------
+    str
+        Matching abbreviation or an empty string when not found.
     """
+
     if not name:
         return ""
     search = name.strip()
     # remove trailing language or other short alphabetic suffixes like "EN", "JP"
     search = re.sub(r"[-_\s]+[a-z]{1,2}$", "", search, flags=re.IGNORECASE)
     lowered = search.lower()
-    for mapping in (tcg_sets_eng_name_abbr_map, tcg_sets_jp_name_abbr_map):
+    for mapping in (tcg_sets_name_to_abbr, tcg_sets_jp_name_to_abbr):
         for key, abbr in mapping.items():
-            if key.lower() == lowered or abbr.lower() == lowered:
-                return abbr
-    return re.sub(r"[^A-Za-z0-9]", "", search).upper()
+            if key.lower() == lowered or (abbr and abbr.lower() == lowered):
+                return abbr or ""
+    return ""
 
 
 def get_set_era(code_or_name: str) -> str:
