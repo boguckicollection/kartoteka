@@ -1617,6 +1617,7 @@ class CardEditorApp:
             text="\U0001f50d Skanuj",
             command=self.show_location_frame,
             fg_color=SCAN_BUTTON_COLOR,
+            width=200,
         )
         scan_btn.pack(padx=10, pady=5, fill="x")
         self.create_button(
@@ -1624,24 +1625,28 @@ class CardEditorApp:
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
             fg_color=PRICE_BUTTON_COLOR,
+            width=200,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
             fg_color=SHOPER_BUTTON_COLOR,
+            width=200,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f4e6 Magazyn",
             command=self.show_magazyn_view,
             fg_color=MAGAZYN_BUTTON_COLOR,
+            width=200,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
             fg_color=AUCTION_BUTTON_COLOR,
+            width=200,
         ).pack(padx=10, pady=5, fill="x")
 
         box_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
@@ -1856,7 +1861,7 @@ class CardEditorApp:
         if master is None:
             master = self.root
         fg_color = kwargs.pop("fg_color", ACCENT_COLOR)
-        width = kwargs.pop("width", 200)
+        width = kwargs.pop("width", 140)
         height = kwargs.pop("height", 60)
         font = kwargs.pop("font", ("Segoe UI", 20, "bold"))
         return ctk.CTkButton(
