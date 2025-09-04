@@ -1608,8 +1608,8 @@ class CardEditorApp:
             font=("Segoe UI", 18),
         )
         desc.pack(pady=5)
-        count, total_value, _, _ = csv_utils.get_inventory_stats()
-        if count == 0 and total_value == 0:
+        unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
+        if unsold_count == 0 and sold_count == 0:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         # Module buttons stacked vertically in the menu
         scan_btn = self.create_button(
@@ -1673,7 +1673,7 @@ class CardEditorApp:
 
         self.inventory_count_label = ctk.CTkLabel(
             info_frame,
-            text=f"📊 Łączna liczba kart: {count}",
+            text=f"📊 Łączna liczba kart: {unsold_count}",
             text_color=TEXT_COLOR,
             font=("Segoe UI", 24, "bold"),
             justify="center",
@@ -1682,12 +1682,21 @@ class CardEditorApp:
 
         self.inventory_value_label = ctk.CTkLabel(
             info_frame,
-            text=f"💰 Łączna wartość: {total_value:.2f} PLN",
+            text=f"💰 Łączna wartość: {unsold_total:.2f} PLN",
             text_color="#FFD700",
             font=("Segoe UI", 24, "bold"),
             justify="center",
         )
-        self.inventory_value_label.pack(anchor="center", pady=(0, 5))
+        self.inventory_value_label.pack(anchor="center")
+
+        self.inventory_sold_count_label = ctk.CTkLabel(
+            info_frame,
+            text=f"Sprzedane karty: {sold_count}",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 24, "bold"),
+            justify="center",
+        )
+        self.inventory_sold_count_label.pack(anchor="center", pady=(0, 5))
 
         daily = dict(sorted(csv_utils.get_daily_additions().items()))
         if Figure and FigureCanvasTkAgg and daily:
@@ -1748,6 +1757,7 @@ class CardEditorApp:
         widgets = []
         for attr in [
             "inventory_count_label",
+            "inventory_sold_count_label",
             "mag_inventory_count_label",
             "inventory_value_label",
             "mag_inventory_value_label",
