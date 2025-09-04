@@ -68,6 +68,7 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
             open_shoper_window=lambda: None,
             show_magazyn_view=lambda: None,
             open_auctions_window=lambda: None,
+            open_statistics_window=lambda: None,
         )
         app.refresh_home_preview = lambda: ui.CardEditorApp.refresh_home_preview(app)
         ui.CardEditorApp.setup_welcome_screen(app)
@@ -102,15 +103,16 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     assert app.start_frame._grid_columns[1]["weight"] == 2
 
     texts = [b.kwargs["text"] for b in created_buttons]
-    assert len(texts) == 6
-    assert texts[:5] == [
+    assert len(texts) == 7
+    assert texts[:6] == [
         "\U0001f50d Skanuj",
         "\U0001f4b0 Wyceniaj",
         "\U0001f5c3\ufe0f Shoper",
         "\U0001f4e6 Magazyn",
         "\U0001f528 Licytacje",
+        "\U0001F4C8 Statystyki",
     ]
-    for b in created_buttons[:5]:
+    for b in created_buttons[:6]:
         assert b.pack_params.get("side") in (None, "top")
 
     assert created_buttons[-1].kwargs["text"] == "\u2699\ufe0f Konfiguracja"

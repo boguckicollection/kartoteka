@@ -358,6 +358,7 @@ PRICE_BUTTON_COLOR = "#3498DB"  # blue
 SHOPER_BUTTON_COLOR = "#E67E22"  # orange
 MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
 AUCTION_BUTTON_COLOR = "#E74C3C"  # red
+STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
 # color highlighting current price labels
 CURRENT_PRICE_COLOR = "#FFD700"
@@ -1649,6 +1650,14 @@ class CardEditorApp:
             width=200,
         ).pack(padx=10, pady=5, fill="x")
 
+        self.create_button(
+            menu_frame,
+            text="\U0001F4C8 Statystyki",
+            command=getattr(self, "open_statistics_window", lambda: None),
+            fg_color=STATS_BUTTON_COLOR,
+            width=200,
+        ).pack(padx=10, pady=5, fill="x")
+
         box_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
         box_frame.pack(anchor="w", padx=10, pady=10)
 
@@ -1700,7 +1709,7 @@ class CardEditorApp:
 
         daily = dict(sorted(csv_utils.get_daily_additions().items()))
         if Figure and FigureCanvasTkAgg and daily:
-            fig = Figure(figsize=(5, 2), facecolor=BG_COLOR)
+            fig = Figure(figsize=(6, 3), facecolor=BG_COLOR)
             ax = fig.add_subplot(111)
             ax.set_facecolor(BG_COLOR)
             dates = list(daily.keys())
@@ -1727,7 +1736,7 @@ class CardEditorApp:
             canvas = FigureCanvasTkAgg(fig, master=info_frame)
             canvas.draw()
             widget = canvas.get_tk_widget()
-            widget.pack(anchor="center", pady=(10, 5))
+            widget.pack(anchor="w", pady=(20, 5))
             if hasattr(widget, "bind"):
                 widget.bind("<Button-1>", lambda _e: self.open_statistics_window())
             self.daily_additions_chart = canvas
