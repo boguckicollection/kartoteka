@@ -1,22 +1,20 @@
 from kartoteka import CardEditorApp
 import customtkinter as ctk
 import tkinter as tk
+import sys
 import logging
-import os
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()
-    ico_path = os.path.join(os.path.dirname(__file__), "logo-_1_.ico")
-    if os.path.exists(ico_path):
-        try:
-            root.iconbitmap(ico_path)
-        except Exception as exc:
-            logging.exception("Failed to load application icon: %s", exc)
-    icon_path = os.path.join(os.path.dirname(__file__), "logo.png")
-    if os.path.exists(icon_path):
-        root.iconphoto(True, tk.PhotoImage(file=icon_path))
+    try:
+        if sys.platform.startswith("win"):
+            root.iconbitmap("logo-_1_.ico")
+        else:
+            root.iconphoto(True, tk.PhotoImage(file="logo.png"))
+    except Exception as exc:
+        logging.exception("Failed to load application icon: %s", exc)
     app = CardEditorApp(root)
     root.mainloop()
