@@ -3026,6 +3026,17 @@ class CardEditorApp:
 
             for rows in groups.values():
                 combined = dict(rows[0])
+                added_dates: list[datetime.date] = []
+                for r in rows:
+                    value = (r.get("added_at") or "").strip()
+                    if not value:
+                        continue
+                    try:
+                        added_dates.append(datetime.date.fromisoformat(value))
+                    except ValueError:
+                        logger.warning("Skipping invalid added_at: %s", value)
+                if added_dates:
+                    combined["added_at"] = max(added_dates).isoformat()
                 combined["image"] = next(
                     (r.get("image") for r in rows if r.get("image")),
                     "",
