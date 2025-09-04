@@ -3179,8 +3179,12 @@ class CardEditorApp:
             control_frame,
             textvariable=self.mag_search_var,
             placeholder_text="Szukaj",
+            width=250,
         )
         search_entry.pack(side="left", padx=5, pady=5)
+
+        search_button = ctk.CTkButton(control_frame, text="Szukaj")
+        search_button.pack(side="left", padx=5, pady=5)
 
         self.mag_sort_var = _safe_var("added")
         sort_menu = ctk.CTkOptionMenu(
@@ -3521,7 +3525,12 @@ class CardEditorApp:
                 self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
 
         self._update_mag_list = _update_mag_list
-        self.mag_search_var.trace_add("write", _update_mag_list)
+        if hasattr(search_entry, "bind"):
+            search_entry.bind("<Return>", lambda _e: _update_mag_list())
+        if hasattr(search_button, "configure"):
+            search_button.configure(command=_update_mag_list)
+        else:
+            search_button.command = _update_mag_list
         self.mag_sold_filter_var.trace_add("write", _update_mag_list)
         if hasattr(sort_menu, "configure"):
             sort_menu.configure(command=lambda _: _update_mag_list())
