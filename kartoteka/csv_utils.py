@@ -135,6 +135,38 @@ def find_duplicates(name: str, number: str, set_name: str, variant: str = "commo
     return matches
 
 
+def get_row_by_code(code: str, path: str = WAREHOUSE_CSV) -> Optional[dict[str, str]]:
+    """Return the first row in ``path`` matching ``code``.
+
+    Parameters
+    ----------
+    code:
+        Warehouse code identifying a card.
+    path:
+        Optional path to the warehouse CSV. Defaults to :data:`WAREHOUSE_CSV`.
+
+    Returns
+    -------
+    dict | None
+        Matching row or ``None`` when the code is not found or the file is
+        inaccessible.
+    """
+
+    code = (code or "").strip()
+    if not code:
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                codes = [c.strip() for c in str(row.get("warehouse_code") or "").split(";") if c.strip()]
+                if code in codes:
+                    return row
+    except OSError:
+        return None
+    return None
+
+
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     """Return statistics for both unsold and sold items in the warehouse CSV.
 
