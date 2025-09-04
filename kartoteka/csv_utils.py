@@ -12,6 +12,7 @@ INVENTORY_CSV = os.getenv(
     "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 )
 WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", INVENTORY_CSV)
+STORE_EXPORT_CSV = os.getenv("STORE_EXPORT_CSV", "store_export.csv")
 
 # Track last modification time and cached statistics for the warehouse CSV
 WAREHOUSE_CSV_MTIME: Optional[float] = None
@@ -393,36 +394,48 @@ def load_csv_data(app):
     messagebox.showinfo("Sukces", "Plik CSV został scalony i zapisany.")
 
 
-def export_csv(app):
-    """Export collected data to a CSV file."""
-    file_path = filedialog.asksaveasfilename(
-        defaultextension=".csv", filetypes=[("CSV files", "*.csv")]
-    )
-    if not file_path:
-        return
+def export_csv(app, path: str = STORE_EXPORT_CSV):
+    """Export collected data to the store CSV file."""
 
-    combined = {}
+    combined: dict[str, dict[str, str | int]] = {}
+
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                product_code = row.get("product_code")
+                if not product_code:
+                    continue
+                try:
+                    row["stock"] = int(row.get("stock") or 0)
+                except ValueError:
+                    row["stock"] = 0
+                combined[product_code] = row
+
     for row in app.output_data:
         if row is None:
             continue
-        key = f"{row['nazwa']}|{row['numer']}|{row['set']}"
-        if key in combined:
-            combined[key]["stock"] += 1
+        product_code = str(row["product_code"])
+        if product_code in combined:
+            combined[product_code]["stock"] = int(combined[product_code]["stock"]) + 1
         else:
-            combined[key] = row.copy()
-            combined[key]["stock"] = 1
+            row_copy = row.copy()
+            row_copy["stock"] = 1
+            combined[product_code] = format_store_row(row_copy)
 
     fieldnames = STORE_FIELDNAMES
 
-    with open(file_path, mode="w", encoding="utf-8", newline="") as file:
+    with open(path, mode="w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
         writer.writeheader()
         for row in combined.values():
-            writer.writerow(format_store_row(row))
+            row_out = row.copy()
+            row_out["stock"] = str(row_out.get("stock", 0))
+            writer.writerow(row_out)
     append_warehouse_csv(app)
     messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
     if messagebox.askyesno("Wysyłka", "Czy wysłać plik do Shoper?"):
-        send_csv_to_shoper(app, file_path)
+        send_csv_to_shoper(app, path)
     app.back_to_welcome()
 
 

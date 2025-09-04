@@ -91,8 +91,53 @@ def test_save_current_appends_session(tmp_path):
         assert rows[0]["delivery"] == "3 dni"
 
 
-def test_product_code_persists_between_sessions(tmp_path):
-    dummy = make_dummy()
-    ui.CardEditorApp.save_current_data(dummy)
-    assert dummy.output_data[0]["product_code"] == "PKM-BASE-4"
+def test_export_accumulates_between_sessions(tmp_path, monkeypatch):
+    out_path = tmp_path / "out.csv"
+    inv_path = tmp_path / "inv.csv"
+    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
+    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
+    import importlib
+    importlib.reload(csv_utils)
+    importlib.reload(ui)
+
+    base_row = {
+        "nazwa": "Pikachu",
+        "numer": "1",
+        "set": "Base",
+        "era": "Era1",
+        "product_code": "PC1",
+        "cena": "10",
+        "category": "Karty Pokémon > Era1 > Base",
+        "producer": "Pokemon",
+        "short_description": "s",
+        "description": "d",
+        "image1": "img.jpg",
+    }
+    second_row = {
+        "nazwa": "Charmander",
+        "numer": "2",
+        "set": "Base",
+        "era": "Era1",
+        "product_code": "PC2",
+        "cena": "5",
+        "category": "Karty Pokémon > Era1 > Base",
+        "producer": "Pokemon",
+        "short_description": "s",
+        "description": "d",
+        "image1": "img.jpg",
+    }
+
+    dummy1 = SimpleNamespace(output_data=[base_row], back_to_welcome=lambda: None)
+    dummy2 = SimpleNamespace(output_data=[dict(base_row), second_row], back_to_welcome=lambda: None)
+
+    with patch("tkinter.messagebox.showinfo"), \
+         patch("tkinter.messagebox.askyesno", return_value=False):
+        ui.CardEditorApp.export_csv(dummy1)
+        ui.CardEditorApp.export_csv(dummy2)
+
+    with open(out_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        rows = {r["product_code"]: r for r in reader}
+        assert rows["PC1"]["stock"] == "2"
+        assert rows["PC2"]["stock"] == "1"
 
