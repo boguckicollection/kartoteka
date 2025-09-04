@@ -3171,13 +3171,15 @@ class CardEditorApp:
         )
         search_entry.pack(side="left", padx=5, pady=5)
 
-        self.mag_sort_var = _safe_var("name")
+        self.mag_sort_var = _safe_var("added")
         sort_menu = ctk.CTkOptionMenu(
-            control_frame, variable=self.mag_sort_var, values=["name", "price"]
+            control_frame,
+            variable=self.mag_sort_var,
+            values=["added", "price", "name", "quantity"],
         )
         sort_menu.pack(side="left", padx=5, pady=5)
 
-        self.mag_sold_filter_var = _safe_var("all")
+        self.mag_sold_filter_var = _safe_var("unsold")
         sold_filter_menu = ctk.CTkOptionMenu(
             control_frame,
             variable=self.mag_sold_filter_var,
@@ -3322,6 +3324,8 @@ class CardEditorApp:
 
             normalized_query = normalize(query_raw, keep_spaces=True)
             tokens = [tok for tok in normalized_query.split() if tok]
+            if "sold" in tokens or "unsold" in tokens:
+                status_filter = "all"
 
             def _matches(row: dict) -> bool:
                 is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
@@ -3352,7 +3356,12 @@ class CardEditorApp:
                 return True
 
             indices = [i for i, r in enumerate(self.mag_card_rows) if _matches(r)]
-            if sort_key == "name":
+            if sort_key == "added":
+                indices.sort(
+                    key=lambda i: self.mag_card_rows[i].get("added_at") or "",
+                    reverse=True,
+                )
+            elif sort_key == "name":
                 indices.sort(key=lambda i: self.mag_card_rows[i].get("name", ""))
             elif sort_key == "price":
                 def _price(i: int) -> float:
@@ -3363,6 +3372,14 @@ class CardEditorApp:
                         return 0.0
 
                 indices.sort(key=_price)
+            elif sort_key == "quantity":
+                def _quantity(i: int) -> int:
+                    try:
+                        return int(self.mag_card_rows[i].get("_count", 1))
+                    except (TypeError, ValueError):
+                        return 1
+
+                indices.sort(key=_quantity, reverse=True)
 
             unbind = getattr(self.mag_list_frame, "unbind", None)
             if callable(unbind) and getattr(self, "_mag_bind_id", None):

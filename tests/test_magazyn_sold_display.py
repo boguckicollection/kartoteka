@@ -76,6 +76,8 @@ def test_sold_cards_styled(tmp_path):
         )
 
         ui.CardEditorApp.show_magazyn_view(app)
+        app.mag_sold_filter_var.set("all")
+        app._update_mag_list()
 
     assert len(app.mag_card_labels) == 1
     assert len(app.mag_sold_labels) == 1
