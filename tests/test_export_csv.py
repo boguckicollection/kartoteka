@@ -14,6 +14,7 @@ def test_export_includes_new_fields(tmp_path, monkeypatch):
     out_path = tmp_path / "out.csv"
     inv_path = tmp_path / "inv.csv"
     monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
+    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
@@ -35,8 +36,7 @@ def test_export_includes_new_fields(tmp_path, monkeypatch):
     )
     dummy.back_to_welcome = lambda: None
 
-    with patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
-         patch("tkinter.messagebox.showinfo"), \
+    with patch("tkinter.messagebox.showinfo"), \
          patch("tkinter.messagebox.askyesno", return_value=False):
         ui.CardEditorApp.export_csv(dummy)
 
@@ -57,10 +57,11 @@ def test_export_includes_new_fields(tmp_path, monkeypatch):
         assert "psa10_price" not in reader.fieldnames
 
 
-def test_merge_ignores_era(tmp_path, monkeypatch):
+def test_merge_by_product_code(tmp_path, monkeypatch):
     out_path = tmp_path / "out.csv"
     inv_path = tmp_path / "inv.csv"
     monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
+    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
@@ -72,7 +73,7 @@ def test_merge_ignores_era(tmp_path, monkeypatch):
                 "numer": "1",
                 "set": "Base",
                 "era": "Era1",
-                "product_code": 1,
+                "product_code": "PC1",
                 "cena": "10",
                 "category": "Karty Pokémon > Era1 > Base",
                 "producer": "Pokemon",
@@ -81,12 +82,12 @@ def test_merge_ignores_era(tmp_path, monkeypatch):
                 "image1": "img.jpg",
             },
             {
-                "nazwa": "Pikachu",
-                "numer": "1",
+                "nazwa": "Charmander",
+                "numer": "2",
                 "set": "Base",
                 "era": "Era2",
-                "product_code": 2,
-                "cena": "10",
+                "product_code": "PC1",
+                "cena": "5",
                 "category": "Karty Pokémon > Era2 > Base",
                 "producer": "Pokemon",
                 "short_description": "s",
@@ -97,8 +98,7 @@ def test_merge_ignores_era(tmp_path, monkeypatch):
     )
     dummy.back_to_welcome = lambda: None
 
-    with patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
-         patch("tkinter.messagebox.showinfo"), \
+    with patch("tkinter.messagebox.showinfo"), \
          patch("tkinter.messagebox.askyesno", return_value=False):
         ui.CardEditorApp.export_csv(dummy)
 
@@ -108,7 +108,7 @@ def test_merge_ignores_era(tmp_path, monkeypatch):
         assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
         assert len(rows) == 1
         row = rows[0]
-        assert row["category"] == "Karty Pokémon > Era1 > Base"
+        assert row["product_code"] == "PC1"
         assert row["stock"] == "2"
 
 
@@ -116,6 +116,7 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
     out_path = tmp_path / "out.csv"
     inv_path = tmp_path / "inv.csv"
     monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
+    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
@@ -138,8 +139,7 @@ def test_export_appends_warehouse(tmp_path, monkeypatch):
     )
     dummy.back_to_welcome = lambda: None
 
-    with patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
-         patch("tkinter.messagebox.showinfo"), \
+    with patch("tkinter.messagebox.showinfo"), \
          patch("tkinter.messagebox.askyesno", return_value=False):
         ui.CardEditorApp.export_csv(dummy)
 

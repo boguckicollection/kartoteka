@@ -6194,7 +6194,7 @@ class CardEditorApp:
 
     def export_csv(self):
         self.in_scan = False
-        csv_utils.export_csv(self)
+        csv_utils.export_csv(self, csv_utils.STORE_EXPORT_CSV)
 
     def open_config_dialog(self):
         """Display a dialog for editing Shoper API configuration."""
