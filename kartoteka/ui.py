@@ -1667,8 +1667,15 @@ class CardEditorApp:
             width=200,
         ).pack(padx=10, pady=5, fill="x")
 
+        ctk.CTkLabel(
+            main_frame,
+            text="Podgląd kartonów",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 24, "bold"),
+        ).pack(pady=(20, 0))
+
         box_frame = ctk.CTkFrame(main_frame, fg_color=LIGHT_BG_COLOR)
-        box_frame.pack(anchor="w", padx=10, pady=10)
+        box_frame.pack(anchor="center", padx=10, pady=10)
 
         CardEditorApp.build_home_box_preview(self, box_frame)
         # Refresh the initial box preview if possible.  The welcome screen does
@@ -1686,8 +1693,15 @@ class CardEditorApp:
             except Exception:  # pragma: no cover - defensive logging
                 logger.exception("Failed to refresh magazyn preview")
 
+        ctk.CTkLabel(
+            main_frame,
+            text="Statystyki",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 24, "bold"),
+        ).pack(pady=(20, 0))
+
         info_frame = ctk.CTkFrame(main_frame, fg_color=LIGHT_BG_COLOR)
-        info_frame.pack(anchor="w", padx=10, pady=(0, 40))
+        info_frame.pack(anchor="center", padx=10, pady=(0, 40))
 
         self.inventory_count_label = ctk.CTkLabel(
             info_frame,
@@ -1696,7 +1710,7 @@ class CardEditorApp:
             font=("Segoe UI", 24, "bold"),
             justify="left",
         )
-        self.inventory_count_label.pack(anchor="w")
+        self.inventory_count_label.pack(anchor="center")
 
         self.inventory_value_label = ctk.CTkLabel(
             info_frame,
@@ -1705,7 +1719,7 @@ class CardEditorApp:
             font=("Segoe UI", 24, "bold"),
             justify="left",
         )
-        self.inventory_value_label.pack(anchor="w")
+        self.inventory_value_label.pack(anchor="center")
 
         self.inventory_sold_count_label = ctk.CTkLabel(
             info_frame,
