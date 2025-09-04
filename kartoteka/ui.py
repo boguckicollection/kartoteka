@@ -451,6 +451,7 @@ def reload_sets():
     global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp, tcg_sets_jp_code_map
     global tcg_sets_eng_abbr_map, tcg_sets_eng_abbr_name_map
     global tcg_sets_jp_abbr_map, tcg_sets_jp_abbr_name_map
+    global tcg_sets_eng_name_abbr_map, tcg_sets_jp_name_abbr_map
     global SET_TO_ERA
 
     tcg_sets_eng_code_map = globals().get("tcg_sets_eng_code_map", {})
@@ -459,6 +460,8 @@ def reload_sets():
     tcg_sets_eng_abbr_name_map = globals().get("tcg_sets_eng_abbr_name_map", {})
     tcg_sets_jp_abbr_map = globals().get("tcg_sets_jp_abbr_map", {})
     tcg_sets_jp_abbr_name_map = globals().get("tcg_sets_jp_abbr_name_map", {})
+    tcg_sets_eng_name_abbr_map = globals().get("tcg_sets_eng_name_abbr_map", {})
+    tcg_sets_jp_name_abbr_map = globals().get("tcg_sets_jp_name_abbr_map", {})
     SET_TO_ERA = {}
 
     try:
@@ -487,6 +490,12 @@ def reload_sets():
         for sets in tcg_sets_eng_by_era.values()
         for item in sets
         if "abbr" in item
+    }
+    tcg_sets_eng_name_abbr_map = {
+        item["name"]: item.get("abbr")
+        or re.sub(r"[^A-Za-z0-9]", "", item["name"]).upper()
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
     }
     tcg_sets_eng = [
         item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
@@ -524,6 +533,12 @@ def reload_sets():
         for sets in tcg_sets_jp_by_era.values()
         for item in sets
         if "abbr" in item
+    }
+    tcg_sets_jp_name_abbr_map = {
+        item["name"]: item.get("abbr")
+        or re.sub(r"[^A-Za-z0-9]", "", item["name"]).upper()
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
     }
     tcg_sets_jp = [
         item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
@@ -616,6 +631,25 @@ def get_set_name(code: str) -> str:
         f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana."
     )
     return code
+
+
+def get_set_abbr(name: str) -> str:
+    """Return the abbreviation for a set name if available.
+
+    If the abbreviation is not known, a sanitized uppercase variant of the
+    provided name is returned.
+    """
+    if not name:
+        return ""
+    search = name.strip()
+    # remove trailing language or other short alphabetic suffixes like "EN", "JP"
+    search = re.sub(r"[-_\s]+[a-z]{1,2}$", "", search, flags=re.IGNORECASE)
+    lowered = search.lower()
+    for mapping in (tcg_sets_eng_name_abbr_map, tcg_sets_jp_name_abbr_map):
+        for key, abbr in mapping.items():
+            if key.lower() == lowered or abbr.lower() == lowered:
+                return abbr
+    return re.sub(r"[^A-Za-z0-9]", "", search).upper()
 
 
 def get_set_era(code_or_name: str) -> str:
@@ -1520,7 +1554,6 @@ class CardEditorApp:
             self.hash_db = None
         self.auto_lookup = AUTO_HASH_LOOKUP
         self.current_fingerprint = None
-        self.next_product_code = storage.load_last_product_code() + 1
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
@@ -5985,9 +6018,14 @@ class CardEditorApp:
             if current and current.get("warehouse_code"):
                 existing_wc = current["warehouse_code"]
         data["warehouse_code"] = existing_wc or self.next_free_location()
-        data["product_code"] = self.next_product_code
-        self.next_product_code += 1
-        storage.save_last_product_code(self.next_product_code - 1)
+        variant = (
+            "Holo"
+            if types.get("Holo")
+            else "Reverse"
+            if types.get("Reverse")
+            else ""
+        )
+        data["product_code"] = csv_utils.build_product_code(set_name, number, variant)
         data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['era']} > {data['set']}"
         data["producer"] = "Pokémon"

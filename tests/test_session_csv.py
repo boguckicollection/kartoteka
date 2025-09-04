@@ -8,7 +8,6 @@ sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
 import kartoteka.csv_utils as csv_utils
-import kartoteka.storage as storage
 
 
 class DummyVar:
@@ -38,7 +37,6 @@ def make_dummy():
         folder_name="folder",
         file_to_key={},
         product_code_map={},
-        next_product_code=1,
         next_free_location=lambda: "K1R1P1",
         generate_location=lambda idx: "K1R1P1",
         output_data=[None],
@@ -94,32 +92,7 @@ def test_save_current_appends_session(tmp_path):
 
 
 def test_product_code_persists_between_sessions(tmp_path):
-    session_path = tmp_path / "session.csv"
-    last_code_file = tmp_path / "last_product_code.txt"
-
-    with patch.object(storage, "LAST_PRODUCT_CODE_FILE", str(last_code_file)):
-        dummy = make_dummy()
-        dummy.session_csv_path = str(session_path)
-        with open(session_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(
-                f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";"
-            )
-            writer.writeheader()
-
-        ui.CardEditorApp.save_current_data(dummy)
-
-        root = SimpleNamespace(
-            title=lambda *a, **k: None,
-            configure=lambda *a, **k: None,
-            option_add=lambda *a, **k: None,
-            after=lambda delay, func, *args: func(*args),
-        )
-
-        with patch.object(ui.CardEditorApp, "load_price_db", lambda self: {}), \
-             patch.object(ui.CardEditorApp, "show_loading_screen", lambda self: None), \
-             patch.object(ui.CardEditorApp, "startup_tasks", lambda self: None), \
-             patch("kartoteka.ui.tk.StringVar", lambda *a, **k: DummyVar(k.get("value", ""))):
-            app = ui.CardEditorApp(root)
-
-        assert app.next_product_code == 2
+    dummy = make_dummy()
+    ui.CardEditorApp.save_current_data(dummy)
+    assert dummy.output_data[0]["product_code"] == "PKM-BASE-4"
 

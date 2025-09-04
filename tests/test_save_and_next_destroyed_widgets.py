@@ -46,7 +46,6 @@ def make_dummy():
         folder_name="folder",
         file_to_key={},
         product_code_map={},
-        next_product_code=1,
         next_free_location=lambda: "K1R1P1",
         generate_location=lambda idx: "K1R1P1",
         output_data=[None, None],
@@ -61,8 +60,7 @@ def make_dummy():
 
 def test_save_and_next_with_destroyed_entries():
     dummy = make_dummy()
-    with patch.object(ui.storage, "save_last_product_code"), \
-        patch.object(ui.messagebox, "showinfo"), \
+    with patch.object(ui.messagebox, "showinfo"), \
         patch.object(ui.messagebox, "showwarning"):
         ui.CardEditorApp.save_and_next(dummy)
     assert dummy.output_data[0]["numer"] == "4"

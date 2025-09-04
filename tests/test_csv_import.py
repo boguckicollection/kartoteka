@@ -14,7 +14,7 @@ def run_load_csv(tmp_path, csv_content):
     out_path = tmp_path / "out.csv"
     in_path.write_text(csv_content, encoding="utf-8")
 
-    dummy = SimpleNamespace(product_code_map={}, next_product_code=1)
+    dummy = SimpleNamespace(product_code_map={})
 
     with patch("tkinter.filedialog.askopenfilename", return_value=str(in_path)), \
          patch("tkinter.filedialog.asksaveasfilename", return_value=str(out_path)), \
@@ -38,9 +38,8 @@ def test_old_csv_location_pattern(tmp_path):
     assert len(rows) == 1
     row = rows[0]
     assert row["warehouse_code"] == "K1R1P1"
-    assert row["product_code"] == "1"
+    assert row["product_code"] == "PKM-BASE-1"
     assert dummy.product_code_map == {}
-    assert dummy.next_product_code == 2
 
 
 def test_image_header_replaced(tmp_path):

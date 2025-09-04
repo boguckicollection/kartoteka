@@ -71,6 +71,19 @@ def _sanitize_number(value: str) -> str:
     return value.strip().lstrip("0") or "0"
 
 
+VARIANT_SUFFIXES = {"holo": "H", "reverse": "R"}
+
+
+def build_product_code(set_name: str, number: str, variant: str | None = None) -> str:
+    """Return a product code based on set abbreviation and card number."""
+    from .ui import get_set_abbr  # local import to avoid circular dependency
+
+    abbr = get_set_abbr(set_name)
+    num = _sanitize_number(str(number))
+    suffix = VARIANT_SUFFIXES.get((variant or "").strip().lower(), "")
+    return f"PKM-{abbr}-{num}{suffix}"
+
+
 def find_duplicates(name: str, number: str, set_name: str, variant: str = "common"):
     """Return rows from ``WAREHOUSE_CSV`` matching the given card details.
 
@@ -270,7 +283,6 @@ def format_warehouse_row(row):
 
 def load_csv_data(app):
     """Load a CSV file and merge duplicate rows."""
-    from . import storage
     file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
     if not file_path:
         return
@@ -340,9 +352,13 @@ def load_csv_data(app):
             combined[key] = new_row
 
     for row in combined.values():
-        row["product_code"] = app.next_product_code
-        app.next_product_code += 1
-        storage.save_last_product_code(app.next_product_code - 1)
+        if not row.get("product_code"):
+            number = row.get("numer") or row.get("number") or ""
+            row["product_code"] = build_product_code(
+                row.get("set", ""),
+                number,
+                row.get("variant"),
+            )
 
     if qty_field is None:
         qty_field = "ilość"
