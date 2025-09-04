@@ -344,9 +344,9 @@ except ValueError:
     pass
 
 # custom theme colors in grayscale
-BG_COLOR = "#2E2E2E"
+BG_COLOR = "#3A3A3A"
 # lighter variant for subtle section backgrounds
-LIGHT_BG_COLOR = "#3A3A3A"
+LIGHT_BG_COLOR = "#4A4A4A"
 ACCENT_COLOR = "#666666"
 HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
@@ -1571,7 +1571,7 @@ class CardEditorApp:
         self.start_frame.grid_columnconfigure(0, weight=1)
         self.start_frame.grid_columnconfigure(1, weight=2)
 
-        menu_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
+        menu_frame = ctk.CTkFrame(self.start_frame, fg_color=LIGHT_BG_COLOR)
         menu_frame.grid(row=0, column=0, sticky="nsew")
 
         main_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
@@ -1658,7 +1658,7 @@ class CardEditorApp:
             width=200,
         ).pack(padx=10, pady=5, fill="x")
 
-        box_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        box_frame = ctk.CTkFrame(main_frame, fg_color=LIGHT_BG_COLOR)
         box_frame.pack(anchor="w", padx=10, pady=10)
 
         CardEditorApp.build_home_box_preview(self, box_frame)
@@ -1677,7 +1677,7 @@ class CardEditorApp:
             except Exception:  # pragma: no cover - defensive logging
                 logger.exception("Failed to refresh magazyn preview")
 
-        info_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        info_frame = ctk.CTkFrame(main_frame, fg_color=LIGHT_BG_COLOR)
         info_frame.pack(anchor="w", padx=10, pady=(0, 40))
 
         self.inventory_count_label = ctk.CTkLabel(
