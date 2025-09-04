@@ -67,6 +67,7 @@ def test_search_by_variant(tmp_path):
     app = _load_app(csv_path, (2, 15.0, 0, 0))
 
     app.mag_search_var.set("holo")
+    app._update_mag_list()
     assert len(app.mag_card_labels) == 1
     assert app.mag_card_labels[0].text == "A"
 
@@ -82,14 +83,17 @@ def test_search_by_sold_status(tmp_path):
     app = _load_app(csv_path, (1, 1.0, 1, 1.0))
 
     app.mag_search_var.set("sold")
+    app._update_mag_list()
     assert len(app.mag_sold_labels) == 1
     assert len(app.mag_card_labels) == 0
 
     app.mag_search_var.set("unsold")
+    app._update_mag_list()
     assert len(app.mag_card_labels) == 1
     assert len(app.mag_sold_labels) == 0
 
     app.mag_search_var.set("")
+    app._update_mag_list()
     app.mag_sold_filter_var.set("sold")
     assert len(app.mag_sold_labels) == 1
     assert len(app.mag_card_labels) == 0
@@ -110,6 +114,7 @@ def test_search_with_accents(tmp_path):
     app = _load_app(csv_path, (2, 2.0, 0, 0))
 
     app.mag_search_var.set("pokemon cafe")
+    app._update_mag_list()
     assert len(app.mag_card_labels) == 1
     assert app.mag_card_labels[0].text == "Pokémon Café"
 
@@ -125,6 +130,7 @@ def test_search_multiple_terms_across_fields(tmp_path):
     app = _load_app(csv_path, (2, 2.0, 0, 0))
 
     app.mag_search_var.set("pikachu base")
+    app._update_mag_list()
     assert len(app.mag_card_labels) == 1
     assert app.mag_card_labels[0].text == "Pikachu"
 
@@ -193,7 +199,9 @@ def test_search_clear_keeps_thumbnails(tmp_path):
     app, photo, stack = _load_app_with_delay(csv_path, (1, 1.0, 0, 0))
     try:
         app.mag_search_var.set("x")
+        app._update_mag_list()
         app.mag_search_var.set("")
+        app._update_mag_list()
         for t in app._image_threads:
             t.join()
         assert app.mag_card_image_labels[0] is not None
