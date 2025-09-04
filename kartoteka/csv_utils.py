@@ -79,6 +79,8 @@ def build_product_code(set_name: str, number: str, variant: str | None = None) -
     from .ui import get_set_abbr  # local import to avoid circular dependency
 
     abbr = get_set_abbr(set_name)
+    if not abbr:
+        abbr = re.sub(r"[^A-Za-z0-9]", "", set_name).upper()
     num = _sanitize_number(str(number))
     suffix = VARIANT_SUFFIXES.get((variant or "").strip().lower(), "")
     return f"PKM-{abbr}-{num}{suffix}"
