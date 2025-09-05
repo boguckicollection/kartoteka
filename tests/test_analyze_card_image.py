@@ -619,27 +619,31 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
     name_entry = MagicMock()
     num_entry = MagicMock()
     set_var = MagicMock()
+    price_entry = MagicMock()
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     num_entry.delete = MagicMock()
     num_entry.insert = MagicMock()
     set_var.set = MagicMock()
+    price_entry.delete = MagicMock()
+    price_entry.insert = MagicMock()
 
     dummy = SimpleNamespace(
         root=SimpleNamespace(after=lambda delay, func: func()),
         lang_var=None,
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": DummyVar("")},
+        entries={
+            "nazwa": name_entry,
+            "numer": num_entry,
+            "set": set_var,
+            "era": DummyVar(""),
+            "cena": price_entry,
+        },
         index=0,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
         hash_db=SimpleNamespace(
             best_match=lambda fp, max_distance=None: SimpleNamespace(
-                meta={
-                    "name": "Pika",
-                    "number": "001",
-                    "set": SV01_NAME,
-                    "set_code": SV01_CODE,
-                },
+                meta={"warehouse_code": "K1", "set_code": SV01_CODE},
                 distance=0,
             )
         ),
@@ -649,6 +653,14 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(
         dummy, ui.CardEditorApp
     )
+    csv_row = {
+        "name": "Pika",
+        "number": "001",
+        "set": SV01_NAME,
+        "variant": None,
+        "price": "10",
+    }
+    monkeypatch.setattr(ui.csv_utils, "get_row_by_code", lambda code: csv_row)
 
     class DummyImage:
         def __enter__(self):
@@ -662,7 +674,7 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
 
     monkeypatch.setattr(ui, "compute_fingerprint", lambda img: "fp")
     with patch.object(ui.Image, "open", return_value=DummyImage()), patch.object(
-        ui, "analyze_card_image"
+        ui, "analyze_card_image",
     ) as mock_analyze:
         ui.CardEditorApp._analyze_and_fill(dummy, "/tmp/x", 0)
 
@@ -670,6 +682,8 @@ def test_analyze_and_fill_uses_hash_db(monkeypatch):
     name_entry.insert.assert_called_with(0, "Pika")
     num_entry.insert.assert_called_with(0, "1")
     set_var.set.assert_called_with(SV01_NAME)
+    price_entry.insert.assert_called_with(0, "10")
+    assert dummy.entries["era"].value == ui.get_set_era(SV01_NAME)
 
 
 def test_analyze_and_fill_runs_full_pipeline_for_non_matching_card(tmp_path):
