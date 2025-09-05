@@ -2063,6 +2063,9 @@ class CardEditorApp:
         if getattr(self, "location_frame", None):
             self.location_frame.destroy()
             self.location_frame = None
+        if getattr(self, "statistics_frame", None):
+            self.statistics_frame.destroy()
+            self.statistics_frame = None
         # Ensure the window has a reasonable minimum size
         self.root.minsize(1200, 800)
 
@@ -2198,7 +2201,9 @@ class CardEditorApp:
             self.location_frame = None
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
-
+        if getattr(self, "statistics_frame", None):
+            self.statistics_frame.destroy()
+            self.statistics_frame = None
         try:
             import bot
             if not getattr(bot, "_thread_started", False):
@@ -2239,26 +2244,82 @@ class CardEditorApp:
         self._update_auction_status()
 
     def open_statistics_window(self):
-        """Display extended inventory statistics in a new window."""
+        """Display inventory statistics inside the main window."""
+        if self.start_frame is not None:
+            self.start_frame.destroy()
+            self.start_frame = None
+        for attr in (
+            "pricing_frame",
+            "shoper_frame",
+            "frame",
+            "magazyn_frame",
+            "location_frame",
+            "auction_frame",
+            "statistics_frame",
+        ):
+            if getattr(self, attr, None):
+                getattr(self, attr).destroy()
+                setattr(self, attr, None)
+
         start_var = tk.StringVar(
             value=(datetime.date.today() - datetime.timedelta(days=6)).isoformat()
         )
         end_var = tk.StringVar(value=datetime.date.today().isoformat())
 
-        win = ctk.CTkToplevel(self.root)
-        win.title("Statystyki")
+        self.root.minsize(1200, 800)
+        self.statistics_frame = tk.Frame(
+            self.root, bg=self.root.cget("background")
+        )
+        self.statistics_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        filter_frame = ctk.CTkFrame(win)
+        filter_frame = ctk.CTkFrame(self.statistics_frame, fg_color=BG_COLOR)
         filter_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(filter_frame, text="Od:").pack(side="left", padx=5)
+        ctk.CTkLabel(filter_frame, text="Od:", text_color=TEXT_COLOR).pack(
+            side="left", padx=5
+        )
         ctk.CTkEntry(filter_frame, textvariable=start_var, width=100).pack(
             side="left"
         )
-        ctk.CTkLabel(filter_frame, text="Do:").pack(side="left", padx=5)
-        ctk.CTkEntry(filter_frame, textvariable=end_var, width=100).pack(side="left")
+        ctk.CTkLabel(filter_frame, text="Do:", text_color=TEXT_COLOR).pack(
+            side="left", padx=5
+        )
+        ctk.CTkEntry(filter_frame, textvariable=end_var, width=100).pack(
+            side="left"
+        )
 
-        text = tk.Text(win, height=15, bg=self.root.cget("background"), fg="white")
-        text.pack(expand=True, fill="both", padx=5, pady=5)
+        summary_frame = ctk.CTkFrame(self.statistics_frame, fg_color=BG_COLOR)
+        summary_frame.pack(fill="x", pady=5)
+        self.stats_total_label = ctk.CTkLabel(
+            summary_frame,
+            text="",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        )
+        self.stats_total_label.pack(anchor="w")
+        self.stats_count_label = ctk.CTkLabel(
+            summary_frame,
+            text="",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        )
+        self.stats_count_label.pack(anchor="w")
+        self.stats_max_sale_label = ctk.CTkLabel(
+            summary_frame,
+            text="",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        )
+        self.stats_max_sale_label.pack(anchor="w")
+        self.stats_max_order_label = ctk.CTkLabel(
+            summary_frame,
+            text="",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        )
+        self.stats_max_order_label.pack(anchor="w")
+
+        chart_frame = tk.Frame(self.statistics_frame, bg=self.root.cget("background"))
+        chart_frame.pack(expand=True, fill="both", pady=5)
 
         def _update():
             try:
@@ -2268,32 +2329,91 @@ class CardEditorApp:
                 messagebox.showerror("Błąd", "Niepoprawny format daty (RRRR-MM-DD)")
                 return
             data = stats_utils.get_statistics(start, end)
-            text.delete("1.0", tk.END)
-            text.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
-
-        def _export():
+            cumulative = data.get("cumulative", {})
+            count = cumulative.get("count", 0)
+            total_value = cumulative.get("total_value", 0.0)
+            daily = data.get("daily", {})
+            max_order = max((d.get("sold", 0) for d in daily.values()), default=0)
+            max_price = 0.0
             try:
-                start = datetime.date.fromisoformat(start_var.get())
-                end = datetime.date.fromisoformat(end_var.get())
-            except ValueError:
-                messagebox.showerror("Błąd", "Niepoprawny format daty (RRRR-MM-DD)")
-                return
-            data = stats_utils.get_statistics(start, end)
-            path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV", "*.csv")],
+                with open(csv_utils.WAREHOUSE_CSV, encoding="utf-8") as f:
+                    reader = csv.DictReader(f, delimiter=";")
+                    for row in reader:
+                        added = str(row.get("added_at") or "")
+                        try:
+                            added_date = datetime.date.fromisoformat(added.split("T", 1)[0])
+                        except ValueError:
+                            continue
+                        if not (start <= added_date <= end):
+                            continue
+                        sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                        if not sold:
+                            continue
+                        price_raw = str(row.get("price") or "0").replace(",", ".")
+                        try:
+                            price = float(price_raw)
+                        except ValueError:
+                            price = 0.0
+                        if price > max_price:
+                            max_price = price
+            except OSError:
+                pass
+
+            self.stats_total_label.configure(
+                text=f"Wartość kolekcji: {total_value:.2f} zł"
             )
-            if not path:
-                return
-            stats_utils.export_statistics_csv(data, path)
-            messagebox.showinfo("Zapisano", path)
+            self.stats_count_label.configure(text=f"Liczba kart: {count}")
+            self.stats_max_sale_label.configure(
+                text=f"Najdroższa sprzedaż: {max_price:.2f} zł"
+            )
+            self.stats_max_order_label.configure(
+                text=f"Największe zamówienie: {max_order}"
+            )
+
+            if Figure and FigureCanvasTkAgg and daily:
+                dates = list(daily.keys())
+                added_vals = [v.get("added", 0) for v in daily.values()]
+                sold_vals = [v.get("sold", 0) for v in daily.values()]
+                fig = Figure(figsize=(8, 4), facecolor=BG_COLOR)
+                ax1 = fig.add_subplot(121)
+                ax1.set_facecolor(BG_COLOR)
+                ax1.bar(range(len(dates)), added_vals, color="#4a90e2")
+                ax1.set_title("Dodane", color="#BBBBBB")
+                ax1.set_xticks(range(len(dates)))
+                ax1.set_xticklabels(
+                    dates, rotation=45, ha="right", color="#BBBBBB", fontsize=8
+                )
+                ax1.tick_params(axis="y", colors="#BBBBBB")
+                for spine in ax1.spines.values():
+                    spine.set_color("#BBBBBB")
+                ax2 = fig.add_subplot(122)
+                ax2.set_facecolor(BG_COLOR)
+                ax2.bar(range(len(dates)), sold_vals, color="#e74c3c")
+                ax2.set_title("Sprzedane", color="#BBBBBB")
+                ax2.set_xticks(range(len(dates)))
+                ax2.set_xticklabels(
+                    dates, rotation=45, ha="right", color="#BBBBBB", fontsize=8
+                )
+                ax2.tick_params(axis="y", colors="#BBBBBB")
+                for spine in ax2.spines.values():
+                    spine.set_color("#BBBBBB")
+                fig.tight_layout()
+                if getattr(self, "statistics_chart", None):
+                    self.statistics_chart.get_tk_widget().destroy()
+                canvas = FigureCanvasTkAgg(fig, master=chart_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(expand=True, fill="both")
+                self.statistics_chart = canvas
+            elif getattr(self, "statistics_chart", None):
+                self.statistics_chart.get_tk_widget().destroy()
+                self.statistics_chart = None
 
         ctk.CTkButton(filter_frame, text="Odśwież", command=_update).pack(
             side="left", padx=5
         )
-        ctk.CTkButton(filter_frame, text="Eksport", command=_export).pack(
-            side="left", padx=5
-        )
+        self.create_button(
+            self.statistics_frame, text="Powrót", command=self.back_to_welcome
+        ).pack(pady=5)
         _update()
 
     def _build_auction_widgets(self, container):
@@ -4334,6 +4454,9 @@ class CardEditorApp:
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
             self.auction_frame = None
+        if getattr(self, "statistics_frame", None):
+            self.statistics_frame.destroy()
+            self.statistics_frame = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
