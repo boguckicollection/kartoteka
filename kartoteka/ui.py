@@ -5195,6 +5195,14 @@ class CardEditorApp:
                 self.entries["numer"].insert(0, number)
                 self.entries["set"].set("")
                 self.entries["set"].set(set_name)
+                era_name = get_set_era(set_name)
+                self.entries["era"].set(era_name)
+                cena = self.get_price_from_db(name, number, set_name)
+                if cena is None:
+                    cena = self.fetch_card_price(name, number, set_name)
+                if cena is not None:
+                    self.entries["cena"].delete(0, tk.END)
+                    self.entries["cena"].insert(0, str(cena))
                 if isinstance(meta.get("typ"), str):
                     for name in meta["typ"].split(","):
                         name = name.strip()
