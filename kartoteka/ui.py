@@ -1621,6 +1621,8 @@ class CardEditorApp:
 
         menu_frame = ctk.CTkFrame(self.start_frame, fg_color=LIGHT_BG_COLOR)
         menu_frame.grid(row=0, column=0, sticky="nsew")
+        if hasattr(menu_frame, "pack_propagate"):
+            menu_frame.pack_propagate(False)
 
         main_frame = ctk.CTkFrame(self.start_frame, fg_color=BG_COLOR)
         main_frame.grid(row=0, column=1, sticky="nsew")
@@ -1629,7 +1631,7 @@ class CardEditorApp:
         if os.path.exists(logo_path):
             logo_img = load_rgba_image(logo_path)
             if logo_img:
-                logo_img.thumbnail((140, 140))
+                logo_img.thumbnail((200, 200))
                 self.logo_photo = _create_image(logo_img)
                 logo_label = ctk.CTkLabel(
                     menu_frame,
@@ -1666,7 +1668,7 @@ class CardEditorApp:
             text="\U0001f50d Skanuj",
             command=self.show_location_frame,
             fg_color=SCAN_BUTTON_COLOR,
-            width=150,
+            width=100,
         )
         scan_btn.pack(padx=10, pady=5, fill="x")
         self.create_button(
@@ -1674,28 +1676,28 @@ class CardEditorApp:
             text="\U0001f4b0 Wyceniaj",
             command=self.setup_pricing_ui,
             fg_color=PRICE_BUTTON_COLOR,
-            width=150,
+            width=100,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f5c3\ufe0f Shoper",
             command=self.open_shoper_window,
             fg_color=SHOPER_BUTTON_COLOR,
-            width=150,
+            width=100,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f4e6 Magazyn",
             command=self.show_magazyn_view,
             fg_color=MAGAZYN_BUTTON_COLOR,
-            width=150,
+            width=100,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
             text="\U0001f528 Licytacje",
             command=self.open_auctions_window,
             fg_color=AUCTION_BUTTON_COLOR,
-            width=150,
+            width=100,
         ).pack(padx=10, pady=5, fill="x")
 
         self.create_button(
@@ -1703,7 +1705,7 @@ class CardEditorApp:
             text="\U0001F4C8 Statystyki",
             command=getattr(self, "open_statistics_window", lambda: None),
             fg_color=STATS_BUTTON_COLOR,
-            width=150,
+            width=100,
         ).pack(padx=10, pady=5, fill="x")
 
         ctk.CTkLabel(
@@ -1767,7 +1769,7 @@ class CardEditorApp:
             font=("Segoe UI", 24, "bold"),
             justify="left",
         )
-        self.inventory_sold_count_label.pack(anchor="w", pady=(0, 5))
+        self.inventory_sold_count_label.pack(anchor="center", pady=(0, 5))
 
         daily = dict(sorted(csv_utils.get_daily_additions().items()))
         if Figure and FigureCanvasTkAgg and daily:
@@ -1808,8 +1810,9 @@ class CardEditorApp:
             text="\u2699\ufe0f Konfiguracja",
             command=self.open_config_dialog,
             fg_color="#404040",
+            width=100,
         )
-        config_btn.pack(side="bottom", pady=5, padx=10, fill="x")
+        config_btn.pack(side="bottom", pady=15, padx=10, fill="x", anchor="s")
 
         author = ctk.CTkLabel(
             menu_frame,
