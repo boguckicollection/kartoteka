@@ -5215,6 +5215,18 @@ class CardEditorApp:
                 if cena is not None:
                     self.entries["cena"].delete(0, tk.END)
                     self.entries["cena"].insert(0, str(cena))
+                    is_rev = getattr(self, "price_reverse_var", None)
+                    price = self.apply_variant_multiplier(
+                        cena, is_reverse=is_rev.get() if is_rev else False
+                    )
+                    try:
+                        self.price_pool_total += float(price)
+                    except (TypeError, ValueError):
+                        pass
+                    if getattr(self, "pool_total_label", None):
+                        self.pool_total_label.config(
+                            text=f"Suma puli: {self.price_pool_total:.2f}"
+                        )
                 if isinstance(meta.get("typ"), str):
                     for name in meta["typ"].split(","):
                         name = name.strip()
