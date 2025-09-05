@@ -1590,6 +1590,7 @@ class CardEditorApp:
         self.in_scan = False
         self.current_image_path = ""
         self.current_analysis_thread = None
+        self.current_location = ""
         self.show_loading_screen()
         self.root.after(0, self.startup_tasks)
 
@@ -5063,6 +5064,7 @@ class CardEditorApp:
         filename = os.path.basename(image_path)
         self.current_image_path = image_path
         self.current_fingerprint = None
+        self.current_location = ""
         cache_key = self.file_to_key.get(filename)
         if not cache_key:
             cache_key = self._guess_key_from_filename(image_path)
@@ -5189,6 +5191,12 @@ class CardEditorApp:
                         if progress_cb:
                             progress_cb(1.0, hide=True)
                         return
+                    self.current_location = self.next_free_location()
+                    if hasattr(self, "location_label"):
+                        self.location_label.configure(text=self.current_location)
+                    logger.info(
+                        "Assigned storage location %s to duplicate card", self.current_location
+                    )
                 self.entries["nazwa"].delete(0, tk.END)
                 self.entries["numer"].delete(0, tk.END)
                 self.entries["nazwa"].insert(0, name)
@@ -5197,9 +5205,13 @@ class CardEditorApp:
                 self.entries["set"].set(set_name)
                 era_name = get_set_era(set_name)
                 self.entries["era"].set(era_name)
-                cena = self.get_price_from_db(name, number, set_name)
+                cena = getattr(
+                    self, "get_price_from_db", lambda *a, **k: None
+                )(name, number, set_name)
                 if cena is None:
-                    cena = self.fetch_card_price(name, number, set_name)
+                    cena = getattr(
+                        self, "fetch_card_price", lambda *a, **k: None
+                    )(name, number, set_name)
                 if cena is not None:
                     self.entries["cena"].delete(0, tk.END)
                     self.entries["cena"].insert(0, str(cena))
@@ -6269,7 +6281,8 @@ class CardEditorApp:
             current = self.output_data[self.index]
             if current and current.get("warehouse_code"):
                 existing_wc = current["warehouse_code"]
-        data["warehouse_code"] = existing_wc or self.next_free_location()
+        current_loc = getattr(self, "current_location", "")
+        data["warehouse_code"] = existing_wc or current_loc or self.next_free_location()
         fp = getattr(self, "current_fingerprint", None)
         if (
             fp is None
@@ -6422,6 +6435,8 @@ class CardEditorApp:
                     delimiter=";",
                 )
                 writer.writerow(csv_utils.format_store_row(data))
+        if hasattr(self, "current_location"):
+            self.current_location = ""
 
     def save_and_next(self):
         """Save the current card data and display the next scan."""
