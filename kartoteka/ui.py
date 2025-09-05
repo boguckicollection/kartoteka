@@ -1992,6 +1992,9 @@ class CardEditorApp:
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
             self.magazyn_frame = None
+            labels = getattr(self, "mag_card_image_labels", [])
+            for i in range(len(labels)):
+                labels[i] = None
         if getattr(self, "frame", None):
             self.frame.destroy()
             self.frame = None
@@ -2234,6 +2237,9 @@ class CardEditorApp:
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
             self.magazyn_frame = None
+            labels = getattr(self, "mag_card_image_labels", [])
+            for i in range(len(labels)):
+                labels[i] = None
         if getattr(self, "location_frame", None):
             self.location_frame.destroy()
             self.location_frame = None
@@ -3298,11 +3304,16 @@ class CardEditorApp:
                             photo = _create_image(img)
                             self.mag_card_images[i] = photo
                             lbl = self.mag_card_image_labels[i]
-                            if lbl is not None:
-                                if hasattr(lbl, "configure"):
+                            exists_fn = getattr(lbl, "winfo_exists", None)
+                            if not lbl or (exists_fn and not exists_fn()):
+                                return
+                            if hasattr(lbl, "configure"):
+                                try:
                                     lbl.configure(image=photo)
-                                else:  # simple dummy widgets in tests
-                                    lbl.image = photo
+                                except tk.TclError:
+                                    return
+                            else:  # simple dummy widgets in tests
+                                lbl.image = photo
                             relayout = getattr(self, "_relayout_mag_cards", None)
                             if callable(relayout):
                                 after2 = getattr(self.root, "after", None)
@@ -3363,6 +3374,10 @@ class CardEditorApp:
             self.frame = None
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
+            self.magazyn_frame = None
+            labels = getattr(self, "mag_card_image_labels", [])
+            for i in range(len(labels)):
+                labels[i] = None
         if getattr(self, "location_frame", None):
             self.location_frame.destroy()
             self.location_frame = None
@@ -3646,6 +3661,9 @@ class CardEditorApp:
                     frame.destroy()
                 except Exception:
                     pass
+            labels = getattr(self, "mag_card_image_labels", [])
+            for i in range(len(labels)):
+                labels[i] = None
             self.mag_card_labels = []
             self.mag_sold_labels = []
             displayed = set(indices)
@@ -4487,6 +4505,9 @@ class CardEditorApp:
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
             self.magazyn_frame = None
+            labels = getattr(self, "mag_card_image_labels", [])
+            for i in range(len(labels)):
+                labels[i] = None
         if getattr(self, "location_frame", None):
             self.location_frame.destroy()
             self.location_frame = None
