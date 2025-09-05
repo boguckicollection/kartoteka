@@ -215,11 +215,14 @@ class HashDB:
         tiles_b = fp_b["tile_phash"]
         score += sum(hamming_distance(a, b) for a, b in zip(tiles_a, tiles_b))
 
-        orb_matches = match_orb(fp_a.get("orb", np.empty((0, 32), dtype=np.uint8)), fp_b.get("orb", np.empty((0, 32), dtype=np.uint8)))
+        orb_matches = match_orb(
+            fp_a.get("orb", np.empty((0, 32), dtype=np.uint8)),
+            fp_b.get("orb", np.empty((0, 32), dtype=np.uint8)),
+        )
         # more ORB matches should reduce the distance
         score -= orb_matches
 
-        return int(score)
+        return max(0, int(score))
 
     def candidates(self, source, limit: int = 4) -> List[Candidate]:
         """Return best matching candidates for ``source``.
