@@ -138,10 +138,16 @@ class HashDB:
         if isinstance(source, Mapping):
             return source
         if isinstance(source, Image.Image):
-            return compute_fingerprint(source)
+            try:
+                return compute_fingerprint(source, use_orb=True)
+            except TypeError:
+                return compute_fingerprint(source)
         # otherwise treat the argument as a filesystem path
         with Image.open(source) as img:
-            return compute_fingerprint(img)
+            try:
+                return compute_fingerprint(img, use_orb=True)
+            except TypeError:
+                return compute_fingerprint(img)
 
     # ------------------------------------------------------------------
     # insert methods
@@ -157,7 +163,10 @@ class HashDB:
         meta_dict = dict(meta or {})
         meta_dict.update(kwargs)
         with Image.open(image_path) as img:
-            fp = compute_fingerprint(img)
+            try:
+                fp = compute_fingerprint(img, use_orb=True)
+            except TypeError:
+                fp = compute_fingerprint(img)
         return self.add_card_from_fp(fp, meta_dict)
 
     def add_card_from_fp(self, fp: Mapping[str, np.ndarray], meta: Optional[Mapping[str, str]] = None, **kwargs) -> int:
