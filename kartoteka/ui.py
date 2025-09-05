@@ -1822,7 +1822,10 @@ class CardEditorApp:
         author.pack(side="bottom", pady=5)
 
     def update_inventory_stats(self):
-        """Refresh labels showing total item count and value in the UI."""
+        """Refresh labels showing total item count and value in the UI.
+
+        Also refreshes the daily additions bar chart if matplotlib is available.
+        """
         # Collect widgets that are available and still exist.  The start screen
         # may not yet be created which would leave these attributes undefined.
         widgets = []
@@ -1863,6 +1866,79 @@ class CardEditorApp:
                 widget.configure(text=text)
             except tk.TclError:
                 pass
+
+        # Refresh the daily additions chart to reflect newly added cards
+        daily = dict(sorted(csv_utils.get_daily_additions().items()))
+        if Figure and FigureCanvasTkAgg and daily:
+            try:
+                if getattr(self, "daily_additions_chart", None):
+                    fig = self.daily_additions_chart.figure
+                    ax = fig.axes[0] if fig.axes else fig.add_subplot(111)
+                    ax.clear()
+                    ax.set_facecolor(BG_COLOR)
+                    dates = list(daily.keys())
+                    counts = list(daily.values())
+                    colors = [
+                        "#4a90e2",
+                        "#50b848",
+                        "#f39c12",
+                        "#e74c3c",
+                        "#9b59b6",
+                        "#1abc9c",
+                        "#7f8c8d",
+                    ]
+                    ax.bar(range(len(dates)), counts, color=colors[: len(dates)])
+                    ax.set_ylabel("Dodane", color="#BBBBBB")
+                    ax.set_title("Ostatnie 7 dni", color="#BBBBBB")
+                    ax.set_xticks(range(len(dates)))
+                    ax.set_xticklabels(dates, rotation=45, ha="right", color="#BBBBBB")
+                    ax.tick_params(axis="x", labelsize=8, colors="#BBBBBB")
+                    ax.tick_params(axis="y", colors="#BBBBBB")
+                    for spine in ax.spines.values():
+                        spine.set_color("#BBBBBB")
+                    fig.tight_layout()
+                    self.daily_additions_chart.draw()
+                elif hasattr(self, "inventory_count_label"):
+                    parent = getattr(self.inventory_count_label, "master", None)
+                    if parent:
+                        fig = Figure(figsize=(6, 3), facecolor=BG_COLOR)
+                        ax = fig.add_subplot(111)
+                        ax.set_facecolor(BG_COLOR)
+                        dates = list(daily.keys())
+                        counts = list(daily.values())
+                        colors = [
+                            "#4a90e2",
+                            "#50b848",
+                            "#f39c12",
+                            "#e74c3c",
+                            "#9b59b6",
+                            "#1abc9c",
+                            "#7f8c8d",
+                        ]
+                        ax.bar(range(len(dates)), counts, color=colors[: len(dates)])
+                        ax.set_ylabel("Dodane", color="#BBBBBB")
+                        ax.set_title("Ostatnie 7 dni", color="#BBBBBB")
+                        ax.set_xticks(range(len(dates)))
+                        ax.set_xticklabels(
+                            dates, rotation=45, ha="right", color="#BBBBBB"
+                        )
+                        ax.tick_params(axis="x", labelsize=8, colors="#BBBBBB")
+                        ax.tick_params(axis="y", colors="#BBBBBB")
+                        for spine in ax.spines.values():
+                            spine.set_color("#BBBBBB")
+                        fig.tight_layout()
+                        canvas = FigureCanvasTkAgg(fig, master=parent)
+                        canvas.draw()
+                        widget = canvas.get_tk_widget()
+                        widget.pack(anchor="w", pady=(20, 5))
+                        if hasattr(widget, "bind"):
+                            widget.bind(
+                                "<Button-1>",
+                                lambda _e: self.open_statistics_window(),
+                            )
+                        self.daily_additions_chart = canvas
+            except Exception:
+                logger.exception("Failed to update daily additions chart")
 
     def placeholder_btn(self, text: str, master=None):
         if master is None:
