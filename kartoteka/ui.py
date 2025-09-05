@@ -5176,7 +5176,14 @@ class CardEditorApp:
                         str(meta.get("numer", meta.get("number", "")))
                     )
                     set_name = meta.get("set", meta.get("set_name", ""))
-                duplicates = csv_utils.find_duplicates(name, number, set_name)
+                variant = (
+                    csv_row.get("variant")
+                    if csv_row
+                    else meta.get("wariant") or meta.get("variant")
+                )
+                duplicates = csv_utils.find_duplicates(
+                    name, number, set_name, variant
+                )
                 if duplicates:
                     codes = ", ".join(
                         [d.get("warehouse_code", "") for d in duplicates if d.get("warehouse_code")]
@@ -5374,6 +5381,7 @@ class CardEditorApp:
                     "set_code": meta.get("set_code", ""),
                     "orientation": 0,
                     "set_format": meta.get("set_format", ""),
+                    "variant": csv_row.get("variant"),
                 }
             else:
                 result = {
@@ -5384,6 +5392,7 @@ class CardEditorApp:
                     "set_code": meta.get("set_code", ""),
                     "orientation": 0,
                     "set_format": meta.get("set_format", ""),
+                    "variant": meta.get("wariant") or meta.get("variant"),
                 }
         else:
             result = analyze_card_image(
@@ -5423,7 +5432,10 @@ class CardEditorApp:
             self.update_set_options()
             self.entries["set"].set(set_name)
 
-            duplicates = csv_utils.find_duplicates(name, number, set_name)
+            variant = result.get("variant")
+            duplicates = csv_utils.find_duplicates(
+                name, number, set_name, variant
+            )
             if duplicates:
                 codes = ", ".join(
                     [d.get("warehouse_code", "") for d in duplicates if d.get("warehouse_code")]

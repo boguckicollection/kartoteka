@@ -56,7 +56,7 @@ def test_apply_analysis_result_duplicate_cancel(monkeypatch):
         {"name": "Pika", "number": "001", "set": "Set X", "era": ""}, 0
     )
 
-    find_mock.assert_called_once_with("Pika", "1", "Set X")
+    find_mock.assert_called_once_with("Pika", "1", "Set X", None)
     ask_mock.assert_called_once()
     assert dummy._update_card_progress.call_args_list == [
         call(0, hide=True),
@@ -77,7 +77,7 @@ def test_apply_analysis_result_duplicate_confirm(monkeypatch):
         {"name": "Pika", "number": "001", "set": "Set X", "era": ""}, 0
     )
 
-    find_mock.assert_called_once_with("Pika", "1", "Set X")
+    find_mock.assert_called_once_with("Pika", "1", "Set X", None)
     ask_mock.assert_called_once()
     dummy._update_card_progress.assert_called_once_with(0, hide=True)
     dummy.next_free_location.assert_called_once()

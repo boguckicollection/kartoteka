@@ -87,7 +87,9 @@ def build_product_code(set_name: str, number: str, variant: str | None = None) -
     return f"PKM-{abbr}-{num}{suffix}"
 
 
-def find_duplicates(name: str, number: str, set_name: str, variant: str = "common"):
+def find_duplicates(
+    name: str, number: str, set_name: str, variant: str | None = None
+):
     """Return rows from ``WAREHOUSE_CSV`` matching the given card details.
 
     Parameters
@@ -95,7 +97,7 @@ def find_duplicates(name: str, number: str, set_name: str, variant: str = "commo
     name, number, set_name:
         Card attributes to match against ``WAREHOUSE_CSV`` entries.
     variant:
-        Card variant, defaults to ``"common"``.
+        Optional card variant. When ``None`` or falsy any variant matches.
 
     Returns
     -------
@@ -109,7 +111,7 @@ def find_duplicates(name: str, number: str, set_name: str, variant: str = "commo
     number = _sanitize_number(str(number))
     name_norm = normalize(name)
     set_norm = normalize(set_name)
-    variant_norm = normalize(variant or "common") or "common"
+    variant_norm = normalize(variant) if variant else None
 
     if not os.path.exists(WAREHOUSE_CSV):
         return matches
@@ -126,7 +128,7 @@ def find_duplicates(name: str, number: str, set_name: str, variant: str = "commo
                     row_name == name_norm
                     and row_number == number
                     and row_set == set_norm
-                    and row_variant == variant_norm
+                    and (variant_norm is None or row_variant == variant_norm)
                 ):
                     matches.append(row)
     except OSError:

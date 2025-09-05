@@ -91,7 +91,7 @@ def test_show_card_warns_on_magazyn_duplicate(tmp_path, monkeypatch):
     with patch.object(ui.Image, "open", return_value=DummyImage()):
         ui.CardEditorApp.show_card(dummy)
 
-    find_mock.assert_called_once_with("Pika", "1", "Set X")
+    find_mock.assert_called_once_with("Pika", "1", "Set X", None)
     assert ask_mock.called
     assert name_entry.get() == ""
     assert num_entry.get() == ""
