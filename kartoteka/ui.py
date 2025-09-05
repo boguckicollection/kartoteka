@@ -5182,7 +5182,10 @@ class CardEditorApp:
         ):
             try:
                 with Image.open(image_path) as img_fp:
-                    fp = compute_fingerprint(img_fp)
+                    try:
+                        fp = compute_fingerprint(img_fp, use_orb=True)
+                    except TypeError:
+                        fp = compute_fingerprint(img_fp)
                 self.current_fingerprint = fp
                 fp_match = self.hash_db.best_match(
                     fp, max_distance=HASH_MATCH_THRESHOLD
@@ -5385,7 +5388,10 @@ class CardEditorApp:
         if getattr(self, "hash_db", None) and getattr(self, "auto_lookup", False):
             try:
                 with Image.open(path) as img:
-                    fp = compute_fingerprint(img)
+                    try:
+                        fp = compute_fingerprint(img, use_orb=True)
+                    except TypeError:
+                        fp = compute_fingerprint(img)
                 self.current_fingerprint = fp
                 fp_match = self.hash_db.best_match(
                     fp, max_distance=HASH_MATCH_THRESHOLD
@@ -6389,7 +6395,10 @@ class CardEditorApp:
         ):
             try:
                 with Image.open(self.current_image_path) as img:
-                    fp = compute_fingerprint(img)
+                    try:
+                        fp = compute_fingerprint(img, use_orb=True)
+                    except TypeError:
+                        fp = compute_fingerprint(img)
             except (OSError, UnidentifiedImageError, ValueError) as exc:
                 logger.warning(
                     "Failed to compute fingerprint for %s: %s",
