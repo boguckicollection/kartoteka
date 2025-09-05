@@ -5400,6 +5400,8 @@ class CardEditorApp:
                     "orientation": 0,
                     "set_format": meta.get("set_format", ""),
                     "variant": csv_row.get("variant"),
+                    "price": csv_row.get("price"),
+                    "era": get_set_era(csv_row.get("set", "")),
                 }
             else:
                 result = {
@@ -5441,12 +5443,18 @@ class CardEditorApp:
                     number, total = m.group(1), m.group(2)
             set_name = result.get("set", "")
             era_name = result.get("era", "") or get_set_era(set_name)
+            price = result.get("price")
             number = sanitize_number(str(number))
             self.entries["nazwa"].delete(0, tk.END)
             self.entries["nazwa"].insert(0, name)
             self.entries["numer"].delete(0, tk.END)
             self.entries["numer"].insert(0, number)
             self.entries["era"].set(era_name)
+            if price is not None:
+                price_entry = self.entries.get("cena")
+                if price_entry is not None:
+                    price_entry.delete(0, tk.END)
+                    price_entry.insert(0, price)
             self.update_set_options()
             self.entries["set"].set(set_name)
 
