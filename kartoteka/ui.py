@@ -94,7 +94,7 @@ PRICE_MULTIPLIER = 1.23
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
-HASH_MATCH_THRESHOLD = 0  # maximum allowed fingerprint distance
+HASH_MATCH_THRESHOLD = 5  # maximum allowed fingerprint distance
 HASH_SIZE = (32, 32)
 PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
 
@@ -5190,7 +5190,7 @@ class CardEditorApp:
             except (OSError, UnidentifiedImageError, ValueError) as exc:
                 logger.warning("Fingerprint lookup failed for %s: %s", image_path, exc)
                 fp_match = None
-            if fp_match and fp_match.distance == 0:
+            if fp_match:
                 meta = fp_match.meta
                 csv_row = None
                 code = meta.get("warehouse_code")
@@ -5396,7 +5396,7 @@ class CardEditorApp:
         if update_progress:
             self.root.after(0, lambda: update_progress(0.5))
 
-        if fp_match and fp_match.distance == 0:
+        if fp_match:
             meta = fp_match.meta
             csv_row = None
             code = meta.get("warehouse_code")
