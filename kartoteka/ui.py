@@ -5422,6 +5422,29 @@ class CardEditorApp:
             self.entries["era"].set(era_name)
             self.update_set_options()
             self.entries["set"].set(set_name)
+
+            duplicates = csv_utils.find_duplicates(name, number, set_name)
+            if duplicates:
+                codes = ", ".join(
+                    [d.get("warehouse_code", "") for d in duplicates if d.get("warehouse_code")]
+                )
+                msg = _("Card already exists in magazyn: {codes}. Add anyway?").format(
+                    codes=codes
+                )
+                if not messagebox.askyesno(_("Duplicate"), msg):
+                    logger.info(
+                        "Skipping duplicate card %s #%s in set %s", name, number, set_name
+                    )
+                    if progress_cb:
+                        progress_cb(1.0, hide=True)
+                    self.current_analysis_thread = None
+                    return
+                self.current_location = self.next_free_location()
+                if hasattr(self, "location_label"):
+                    self.location_label.configure(text=self.current_location)
+                logger.info(
+                    "Assigned storage location %s to duplicate card", self.current_location
+                )
             rect = result.get("rect")
             self._analysis_orientation = result.get("orientation", 0)
             if rect and hasattr(self, "current_card_image"):
