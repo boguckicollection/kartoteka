@@ -1996,17 +1996,30 @@ class CardEditorApp:
         form.pack(pady=5)
         for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
             ctk.CTkLabel(form, text=label).grid(row=0, column=idx, padx=5, pady=2)
-        ctk.CTkEntry(form, textvariable=self.start_box_var, width=60).grid(row=1, column=0, padx=5)
-        ctk.CTkEntry(form, textvariable=self.start_col_var, width=60).grid(row=1, column=1, padx=5)
-        ctk.CTkEntry(form, textvariable=self.start_pos_var, width=60).grid(row=1, column=2, padx=5)
+        ctk.CTkEntry(form, textvariable=self.start_box_var, width=120).grid(
+            row=1, column=0, padx=5
+        )
+        ctk.CTkEntry(form, textvariable=self.start_col_var, width=120).grid(
+            row=1, column=1, padx=5
+        )
+        ctk.CTkEntry(form, textvariable=self.start_pos_var, width=120).grid(
+            row=1, column=2, padx=5
+        )
 
         folder_frame = tk.Frame(frame, bg=self.root.cget("background"))
         folder_frame.pack(pady=5)
         ctk.CTkLabel(folder_frame, text="Folder").grid(row=0, column=0, padx=5, pady=2)
-        ctk.CTkEntry(folder_frame, textvariable=self.scan_folder_var, width=200).grid(row=0, column=1, padx=5)
+        ctk.CTkEntry(folder_frame, textvariable=self.scan_folder_var, width=300).grid(
+            row=0, column=1, padx=5
+        )
         self.create_button(folder_frame, text="Wybierz", command=self.select_scan_folder).grid(row=0, column=2, padx=5)
 
-        self.create_button(frame, text="Dalej", command=self.start_browse_scans).pack(pady=5)
+        self.create_button(frame, text="Dalej", command=self.start_browse_scans).pack(
+            pady=5
+        )
+        self.create_button(frame, text="Powrót", command=self.back_to_welcome).pack(
+            pady=(0, 5)
+        )
 
     def select_scan_folder(self):
         """Open a dialog to choose the folder with scans."""
