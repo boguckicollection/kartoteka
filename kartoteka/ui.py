@@ -1565,6 +1565,7 @@ class CardEditorApp:
         self.card_cache = {}
         self.file_to_key = {}
         self.product_code_map = {}
+        self.store_data = csv_utils.load_store_export()
         try:
             if HashDB and HASH_DB_FILE:
                 db_path = Path(HASH_DB_FILE)
@@ -5422,6 +5423,19 @@ class CardEditorApp:
                 preview_cb=getattr(self, "update_set_area_preview", None),
                 preview_image=getattr(self, "current_card_image", None),
             )
+        product_code = csv_utils.build_product_code(
+            result.get("set", ""),
+            result.get("number", ""),
+            result.get("variant"),
+        )
+        result["product_code"] = product_code
+        store_row = getattr(self, "store_data", {}).get(product_code)
+        if store_row:
+            result.update(store_row)
+            cat = store_row.get("category", "")
+            parts = [p.strip() for p in cat.split(">")]
+            if len(parts) >= 2:
+                result["era"] = parts[1]
         if update_progress:
             self.root.after(0, lambda: update_progress(1.0))
 
