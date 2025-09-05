@@ -370,11 +370,31 @@ def test_extract_set_code_ocr_filters_single_letter(tmp_path, monkeypatch):
     ocr.assert_called_once()
     processed = ocr.call_args.args[0]
     assert processed.mode == "L"
-    assert processed.size == (40, 16)
+    assert processed.size == (40, 8)
     assert (
         ocr.call_args.kwargs.get("config")
         == "--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ/-"
     )
+
+
+def test_extract_set_code_ocr_crops_bottom_region(tmp_path):
+    img = Image.new("L", (50, 50), color=0)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 40, 49, 49), fill=255)
+    path = tmp_path / "img.png"
+    img.convert("RGB").save(path)
+
+    def fake_ocr(im, config=""):
+        # After cropping bottom 20% (10px) with padding 5/2 and resizing x4
+        assert im.size == (160, 24)
+        assert all(p == 255 for p in im.getdata())
+        return "SV01"
+
+    with patch("pytesseract.image_to_string", side_effect=fake_ocr) as ocr:
+        result = ui.extract_set_code_ocr(str(path), (0, 0, 50, 50), h_pad=5, v_pad=2)
+
+    assert result == [SV01_CODE]
+    ocr.assert_called_once()
 
 
 def test_analyze_card_image_bad_json(monkeypatch):

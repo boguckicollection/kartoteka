@@ -1084,7 +1084,11 @@ def identify_set_by_hash(
 
 
 def extract_set_code_ocr(
-    scan_path: str, rect: tuple[int, int, int, int], debug: bool = False
+    scan_path: str,
+    rect: tuple[int, int, int, int],
+    debug: bool = False,
+    h_pad: int = 0,
+    v_pad: int = 0,
 ) -> list[str]:
     """Extract potential set codes from the scan using OCR.
 
@@ -1098,6 +1102,12 @@ def extract_set_code_ocr(
     debug:
         When ``True``, save intermediate crop to ``OCR`` directory for
         diagnostic purposes. Errors during saving are ignored.
+    h_pad:
+        Optional horizontal padding (in pixels) removed from both left and
+        right sides of the cropped region.
+    v_pad:
+        Optional vertical padding (in pixels) removed from both the top and
+        bottom of the cropped region *after* the initial bottom slice.
 
     Returns
     -------
@@ -1110,7 +1120,15 @@ def extract_set_code_ocr(
         with Image.open(scan_path) as im:
             crop = im.crop(rect)
             h = crop.height
-            crop = crop.crop((0, int(h * 0.6), crop.width, h))
+            # Focus on the bottom 20% of the region where the set code appears.
+            top = int(h * 0.8)
+            crop = crop.crop((0, top, crop.width, h))
+            if h_pad or v_pad:
+                left = min(max(h_pad, 0), crop.width // 2)
+                upper = min(max(v_pad, 0), crop.height // 2)
+                right = max(crop.width - left, left)
+                lower = max(crop.height - upper, upper)
+                crop = crop.crop((left, upper, right, lower))
         if debug:
             try:
                 from pathlib import Path
