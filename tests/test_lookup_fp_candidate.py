@@ -27,22 +27,37 @@ def test_lookup_fp_candidate_threshold(monkeypatch):
         return "chosen"
 
     # mixed candidates: dialog should receive only the valid one
+    candidate_calls: list[int] = []
+
+    def fake_candidates(fp, limit=5, max_distance=None):
+        candidate_calls.append(1)
+        return [good, bad]
+
     app = SimpleNamespace(
-        hash_db=SimpleNamespace(candidates=lambda fp, limit=5: [good, bad]),
+        hash_db=SimpleNamespace(
+            best_match=lambda fp, max_distance=None: good,
+            candidates=fake_candidates,
+        ),
         _show_candidates_dialog=fake_dialog,
     )
     result = ui.CardEditorApp._lookup_fp_candidate(app, fp)
     assert result == "chosen"
     assert calls == [[good]]
+    assert candidate_calls == [1]
 
     calls.clear()
+    candidate_calls.clear()
 
     # only invalid candidate: dialog should not be invoked
     app = SimpleNamespace(
-        hash_db=SimpleNamespace(candidates=lambda fp, limit=5: [bad]),
+        hash_db=SimpleNamespace(
+            best_match=lambda fp, max_distance=None: None,
+            candidates=fake_candidates,
+        ),
         _show_candidates_dialog=fake_dialog,
     )
     result = ui.CardEditorApp._lookup_fp_candidate(app, fp)
     assert result is None
     assert calls == []
+    assert candidate_calls == []
 
