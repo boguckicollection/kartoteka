@@ -5402,6 +5402,9 @@ class CardEditorApp:
         except Exception as exc:
             logger.warning("Fingerprint lookup failed: %s", exc)
             return None
+        candidates = [c for c in candidates if c.distance <= HASH_MATCH_THRESHOLD]
+        if not candidates:
+            return None
         return self._show_candidates_dialog(candidates)
 
     def update_set_area_preview(self, rect, image):
