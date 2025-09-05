@@ -55,6 +55,35 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
+def load_store_export(path: str = STORE_EXPORT_CSV) -> dict[str, dict[str, str]]:
+    """Return mapping of ``product_code`` to rows from the store export CSV.
+
+    Parameters
+    ----------
+    path:
+        Optional path to the store export CSV.  Defaults to
+        :data:`STORE_EXPORT_CSV`.
+
+    Returns
+    -------
+    dict[str, dict[str, str]]
+        Mapping where keys are product codes and values are the corresponding
+        CSV rows.  Missing files result in an empty mapping.
+    """
+
+    data: dict[str, dict[str, str]] = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                code = (row.get("product_code") or "").strip()
+                if code:
+                    data[code] = row
+    except OSError:
+        return {}
+    return data
+
+
 def _sanitize_number(value: str) -> str:
     """Return ``value`` without leading zeros.
 
