@@ -5356,28 +5356,36 @@ class CardEditorApp:
         event = threading.Event()
 
         def _ask_user():
-            dialog = tk.Toplevel(self.root)
+            dialog = ctk.CTkToplevel(self.root)
             dialog.title(_("Possible duplicates"))
 
-            listbox = tk.Listbox(dialog)
-            for cand in candidates:
+            radio_var = tk.IntVar(value=-1)
+
+            frame = ctk.CTkScrollableFrame(dialog)
+            frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+            for idx, cand in enumerate(candidates):
                 code = cand.meta.get("warehouse_code", "")
-                listbox.insert(tk.END, f"{code} (d={cand.distance})")
-            listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+                ctk.CTkRadioButton(
+                    frame,
+                    text=f"{code} (d={cand.distance})",
+                    variable=radio_var,
+                    value=idx,
+                ).pack(anchor="w")
 
             def _select():
-                sel = listbox.curselection()
-                if sel:
-                    selection["candidate"] = candidates[sel[0]]
+                sel = radio_var.get()
+                if sel >= 0:
+                    selection["candidate"] = candidates[sel]
                 dialog.destroy()
 
             def _cancel():
                 dialog.destroy()
 
-            btn_frame = tk.Frame(dialog)
-            btn_frame.pack(fill=tk.X, padx=10, pady=5)
-            tk.Button(btn_frame, text=_("Select"), command=_select).pack(side=tk.LEFT, expand=True)
-            tk.Button(btn_frame, text=_("Skip"), command=_cancel).pack(side=tk.RIGHT, expand=True)
+            btn_frame = ctk.CTkFrame(dialog)
+            btn_frame.pack(fill="x", padx=10, pady=5)
+            ctk.CTkButton(btn_frame, text=_("Select"), command=_select).pack(side="left", expand=True)
+            ctk.CTkButton(btn_frame, text=_("Skip"), command=_cancel).pack(side="right", expand=True)
 
             dialog.transient(self.root)
             dialog.grab_set()
