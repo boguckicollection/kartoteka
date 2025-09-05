@@ -1,6 +1,6 @@
 import importlib
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 import tkinter as tk
 
 import kartoteka.ui as ui
@@ -34,3 +34,52 @@ def test_apply_analysis_result_updates_fields():
     name_entry.insert.assert_called_with(0, "Pikachu")
     num_entry.insert.assert_called_with(0, "37")
     set_var.set.assert_called_with("Set X")
+
+
+def make_dummy_with_progress():
+    dummy, name_entry, num_entry, set_var = make_dummy()
+    dummy._update_card_progress = MagicMock()
+    dummy.next_free_location = MagicMock(return_value="K1R1P1")
+    dummy.location_label = SimpleNamespace(configure=MagicMock())
+    dummy.current_analysis_thread = "t"
+    return dummy, name_entry, num_entry, set_var
+
+
+def test_apply_analysis_result_duplicate_cancel(monkeypatch):
+    dummy, _, _, _ = make_dummy_with_progress()
+    find_mock = MagicMock(return_value=[{"warehouse_code": "K1"}])
+    ask_mock = MagicMock(return_value=False)
+    monkeypatch.setattr(ui.csv_utils, "find_duplicates", find_mock)
+    monkeypatch.setattr(ui.messagebox, "askyesno", ask_mock)
+
+    dummy._apply_analysis_result(
+        {"name": "Pika", "number": "001", "set": "Set X", "era": ""}, 0
+    )
+
+    find_mock.assert_called_once_with("Pika", "1", "Set X")
+    ask_mock.assert_called_once()
+    assert dummy._update_card_progress.call_args_list == [
+        call(0, hide=True),
+        call(1.0, hide=True),
+    ]
+    dummy.next_free_location.assert_not_called()
+    assert dummy.current_analysis_thread is None
+
+
+def test_apply_analysis_result_duplicate_confirm(monkeypatch):
+    dummy, _, _, _ = make_dummy_with_progress()
+    find_mock = MagicMock(return_value=[{"warehouse_code": "K1"}])
+    ask_mock = MagicMock(return_value=True)
+    monkeypatch.setattr(ui.csv_utils, "find_duplicates", find_mock)
+    monkeypatch.setattr(ui.messagebox, "askyesno", ask_mock)
+
+    dummy._apply_analysis_result(
+        {"name": "Pika", "number": "001", "set": "Set X", "era": ""}, 0
+    )
+
+    find_mock.assert_called_once_with("Pika", "1", "Set X")
+    ask_mock.assert_called_once()
+    dummy._update_card_progress.assert_called_once_with(0, hide=True)
+    dummy.next_free_location.assert_called_once()
+    dummy.location_label.configure.assert_called_once_with(text="K1R1P1")
+    assert dummy.current_location == "K1R1P1"
