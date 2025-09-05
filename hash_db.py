@@ -233,11 +233,20 @@ class HashDB:
 
         return max(0, int(score))
 
-    def candidates(self, source, limit: int = 4) -> List[Candidate]:
+    def candidates(
+        self, source, limit: int = 4, max_distance: Optional[int] = None
+    ) -> List[Candidate]:
         """Return best matching candidates for ``source``.
 
         ``source`` may either be a fingerprint mapping or any value accepted by
         :func:`PIL.Image.open`.
+
+        Parameters
+        ----------
+        max_distance:
+            Optional maximum allowed distance for returned candidates.  Once
+            ``limit`` candidates within this distance have been found the
+            search stops early.
         """
 
         fp_query = self._prepare_fp(source)
@@ -256,8 +265,12 @@ class HashDB:
                 "orb": unpack_ndarray(row["orb"]) if row["orb"] else np.empty((0, 32), dtype=np.uint8),
             }
             dist = self._distance(fp_query, fp_row)
+            if max_distance is not None and dist > max_distance:
+                continue
             meta = json.loads(row["meta"] or "{}")
             results.append(Candidate(meta=meta, distance=dist))
+            if max_distance is not None and len(results) >= limit:
+                break
 
         results.sort(key=lambda c: c.distance)
         return results[:limit]
@@ -274,7 +287,7 @@ class HashDB:
             candidate exceeds this distance, ``None`` is returned instead.
         """
 
-        candidates = self.candidates(source, limit=1)
+        candidates = self.candidates(source, limit=1, max_distance=max_distance)
         if not candidates:
             return None
         best = candidates[0]

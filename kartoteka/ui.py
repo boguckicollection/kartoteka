@@ -5406,7 +5406,12 @@ class CardEditorApp:
         if not getattr(self, "hash_db", None):
             return None
         try:
-            candidates = self.hash_db.candidates(fp, limit=5)
+            best = self.hash_db.best_match(fp, max_distance=HASH_MATCH_THRESHOLD)
+            if not best:
+                return None
+            candidates = self.hash_db.candidates(
+                fp, limit=5, max_distance=HASH_MATCH_THRESHOLD
+            )
         except Exception as exc:
             logger.warning("Fingerprint lookup failed: %s", exc)
             return None
