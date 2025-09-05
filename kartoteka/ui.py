@@ -5106,25 +5106,36 @@ class CardEditorApp:
         if hasattr(self, "location_label"):
             self.location_label.configure(text=self.next_free_location())
 
-        for key, entry in self.entries.items():
-            tk_entry_cls = getattr(tk, "Entry", None)
-            ctk_entry_cls = getattr(ctk, "CTkEntry", None)
-            entry_types = tuple(
-                t for t in (tk_entry_cls, ctk_entry_cls) if isinstance(t, type)
-            )
-            if entry_types and isinstance(entry, entry_types):
-                entry.delete(0, tk.END)
-            elif isinstance(tk.StringVar, type) and isinstance(entry, tk.StringVar):
-                if key == "język":
-                    entry.set("ENG")
-                elif key == "stan":
-                    entry.set("NM")
+        for key, entry in list(self.entries.items()):
+            if hasattr(entry, "winfo_exists"):
+                try:
+                    if not entry.winfo_exists():
+                        self.entries.pop(key, None)
+                        continue
+                except tk.TclError:
+                    self.entries.pop(key, None)
+                    continue
+            try:
+                tk_entry_cls = getattr(tk, "Entry", None)
+                ctk_entry_cls = getattr(ctk, "CTkEntry", None)
+                entry_types = tuple(
+                    t for t in (tk_entry_cls, ctk_entry_cls) if isinstance(t, type)
+                )
+                if entry_types and isinstance(entry, entry_types):
+                    entry.delete(0, tk.END)
+                elif isinstance(tk.StringVar, type) and isinstance(entry, tk.StringVar):
+                    if key == "język":
+                        entry.set("ENG")
+                    elif key == "stan":
+                        entry.set("NM")
+                    else:
+                        entry.set("")
                 else:
-                    entry.set("")
-            else:
-                bool_var_cls = getattr(tk, "BooleanVar", None)
-                if isinstance(bool_var_cls, type) and isinstance(entry, bool_var_cls):
-                    entry.set(False)
+                    bool_var_cls = getattr(tk, "BooleanVar", None)
+                    if isinstance(bool_var_cls, type) and isinstance(entry, bool_var_cls):
+                        entry.set(False)
+            except tk.TclError:
+                self.entries.pop(key, None)
 
         for var in self.type_vars.values():
             var.set(False)
