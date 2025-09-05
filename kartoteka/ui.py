@@ -4282,12 +4282,13 @@ class CardEditorApp:
             text="Wyszukaj",
             command=self.run_pricing_search,
             width=120,
+            fg_color="#00a000",
         ).grid(row=0, column=0, padx=5)
 
         self.create_button(
             btn_frame,
-            text="Powrót",
-            command=self.back_to_welcome,
+            text="Wyczyść",
+            command=self.clear_price_pool,
             width=120,
         ).grid(row=0, column=1, padx=5)
 
@@ -4309,8 +4310,8 @@ class CardEditorApp:
         self.pool_total_label.pack(side="left")
         self.create_button(
             self.pool_frame,
-            text="Wyczyść",
-            command=self.clear_price_pool,
+            text="Powrót",
+            command=self.back_to_welcome,
             width=120,
         ).pack(side="left", padx=5)
 
