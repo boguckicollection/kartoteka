@@ -44,10 +44,11 @@ except Exception:  # pragma: no cover - optional dependency
     Figure = None  # type: ignore[assignment]
     FigureCanvasTkAgg = None  # type: ignore[assignment]
 try:
-    from hash_db import HashDB
+    from hash_db import HashDB, Candidate
 except ImportError as exc:  # pragma: no cover - optional dependency
     logging.getLogger(__name__).info("HashDB import failed: %s", exc)
     HashDB = None  # type: ignore[assignment]
+    Candidate = None  # type: ignore[assignment]
 from fingerprint import compute_fingerprint
 from tooltip import Tooltip
 from .image_utils import load_rgba_image
@@ -1579,6 +1580,7 @@ class CardEditorApp:
             self.hash_db = None
         self.auto_lookup = AUTO_HASH_LOOKUP
         self.current_fingerprint = None
+        self.selected_candidate_meta = None
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
@@ -5141,6 +5143,7 @@ class CardEditorApp:
             var.set(False)
 
         skip_analysis = False
+        self.selected_candidate_meta = None
         if cache_key and cache_key in self.card_cache:
             cached = self.card_cache[cache_key]
             for field, value in cached.get("entries", {}).items():
@@ -5187,18 +5190,26 @@ class CardEditorApp:
                     except TypeError:
                         fp = compute_fingerprint(img_fp)
                 self.current_fingerprint = fp
-                fp_match = self.hash_db.best_match(
-                    fp, max_distance=HASH_MATCH_THRESHOLD
-                )
+                lookup = getattr(self, "_lookup_fp_candidate", None)
+                if lookup:
+                    fp_match = lookup(fp)
+                else:
+                    fp_match = getattr(self.hash_db, "best_match", lambda *a, **k: None)(
+                        fp, max_distance=HASH_MATCH_THRESHOLD
+                    )
             except (OSError, UnidentifiedImageError, ValueError) as exc:
                 logger.warning("Fingerprint lookup failed for %s: %s", image_path, exc)
                 fp_match = None
             if fp_match:
                 meta = fp_match.meta
+                self.selected_candidate_meta = meta
                 csv_row = None
                 code = meta.get("warehouse_code")
                 if code:
                     csv_row = csv_utils.get_row_by_code(code)
+                    self.current_location = code
+                    if hasattr(self, "location_label"):
+                        self.location_label.configure(text=code)
                 if csv_row:
                     name = csv_row.get("name", "")
                     number = sanitize_number(str(csv_row.get("number", "")))
@@ -5335,6 +5346,64 @@ class CardEditorApp:
         except tk.TclError:
             pass
 
+    def _show_candidates_dialog(self, candidates: list[Candidate]) -> Optional[Candidate]:
+        """Present a dialog allowing the user to choose from *candidates*."""
+
+        if not candidates:
+            return None
+
+        selection: dict[str, Optional[Candidate]] = {"candidate": None}
+        event = threading.Event()
+
+        def _ask_user():
+            dialog = tk.Toplevel(self.root)
+            dialog.title(_("Possible duplicates"))
+
+            listbox = tk.Listbox(dialog)
+            for cand in candidates:
+                code = cand.meta.get("warehouse_code", "")
+                listbox.insert(tk.END, f"{code} (d={cand.distance})")
+            listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+            def _select():
+                sel = listbox.curselection()
+                if sel:
+                    selection["candidate"] = candidates[sel[0]]
+                dialog.destroy()
+
+            def _cancel():
+                dialog.destroy()
+
+            btn_frame = tk.Frame(dialog)
+            btn_frame.pack(fill=tk.X, padx=10, pady=5)
+            tk.Button(btn_frame, text=_("Select"), command=_select).pack(side=tk.LEFT, expand=True)
+            tk.Button(btn_frame, text=_("Skip"), command=_cancel).pack(side=tk.RIGHT, expand=True)
+
+            dialog.transient(self.root)
+            dialog.grab_set()
+            self.root.wait_window(dialog)
+            event.set()
+
+        if threading.current_thread() is threading.main_thread():
+            _ask_user()
+        else:
+            self.root.after(0, _ask_user)
+            event.wait()
+
+        return selection["candidate"]
+
+    def _lookup_fp_candidate(self, fp) -> Optional[Candidate]:
+        """Return candidate chosen by the user for the fingerprint ``fp``."""
+
+        if not getattr(self, "hash_db", None):
+            return None
+        try:
+            candidates = self.hash_db.candidates(fp, limit=5)
+        except Exception as exc:
+            logger.warning("Fingerprint lookup failed: %s", exc)
+            return None
+        return self._show_candidates_dialog(candidates)
+
     def update_set_area_preview(self, rect, image):
         """Overlay ``rect`` on ``image`` and display it on ``image_label``."""
         if not rect or image is None:
@@ -5393,9 +5462,15 @@ class CardEditorApp:
                     except TypeError:
                         fp = compute_fingerprint(img)
                 self.current_fingerprint = fp
-                fp_match = self.hash_db.best_match(
-                    fp, max_distance=HASH_MATCH_THRESHOLD
-                )
+                lookup = getattr(self, "_lookup_fp_candidate", None)
+                if lookup:
+                    fp_match = lookup(fp)
+                    if fp_match:
+                        self.selected_candidate_meta = fp_match.meta
+                else:
+                    fp_match = getattr(self.hash_db, "best_match", lambda *a, **k: None)(
+                        fp, max_distance=HASH_MATCH_THRESHOLD
+                    )
             except (OSError, UnidentifiedImageError, ValueError) as exc:
                 logger.warning("Fingerprint lookup failed for %s: %s", path, exc)
                 fp_match = None
@@ -5420,6 +5495,7 @@ class CardEditorApp:
                     "variant": csv_row.get("variant"),
                     "price": csv_row.get("price"),
                     "era": get_set_era(csv_row.get("set", "")),
+                    "warehouse_code": code,
                 }
             else:
                 result = {
@@ -5431,6 +5507,7 @@ class CardEditorApp:
                     "orientation": 0,
                     "set_format": meta.get("set_format", ""),
                     "variant": meta.get("wariant") or meta.get("variant"),
+                    "warehouse_code": code,
                 }
         else:
             result = analyze_card_image(
@@ -5488,6 +5565,12 @@ class CardEditorApp:
                     price_entry.insert(0, price)
             self.update_set_options()
             self.entries["set"].set(set_name)
+
+            code = result.get("warehouse_code")
+            if code:
+                self.current_location = code
+                if hasattr(self, "location_label"):
+                    self.location_label.configure(text=code)
 
             variant = result.get("variant")
             duplicates = csv_utils.find_duplicates(
@@ -6408,24 +6491,28 @@ class CardEditorApp:
                 fp = None
             self.current_fingerprint = fp
         if fp is not None and getattr(self, "hash_db", None):
-            meta = {
-                k: data.get(k, "")
-                for k in (
-                    "nazwa",
-                    "numer",
-                    "set",
-                    "era",
-                    "język",
-                    "stan",
-                    "typ",
-                    "warehouse_code",
-                )
-            }
-            card_id = f"{meta['set']} {meta['numer']}".strip()
+            if self.selected_candidate_meta:
+                meta = self.selected_candidate_meta
+            else:
+                meta = {
+                    k: data.get(k, "")
+                    for k in (
+                        "nazwa",
+                        "numer",
+                        "set",
+                        "era",
+                        "język",
+                        "stan",
+                        "typ",
+                        "warehouse_code",
+                    )
+                }
+            card_id = f"{meta.get('set', '')} {meta.get('numer', '')}".strip()
             try:
                 self.hash_db.add_card_from_fp(fp, meta, card_id=card_id)
             except Exception as exc:
                 logger.exception("Failed to store fingerprint")
+            self.selected_candidate_meta = None
         key = f"{data['nazwa']}|{data['numer']}|{data['set']}|{data.get('era', '')}"
         data["ilość"] = 1
         self.card_cache[key] = {
