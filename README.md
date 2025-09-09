@@ -24,3 +24,13 @@ Examples:
 * `PKM-BS-1-R`
 
 When exporting, the application creates a single consolidated CSV file. Entries with the same card code are merged so duplicates appear only once.
+
+## Storage configuration
+
+Box layout and capacities are centralised in `kartoteka/storage_config.py`.
+The module defines shared constants such as the number of regular boxes
+(`BOX_COUNT`), column counts (`STANDARD_BOX_COLUMNS`), per-column capacity
+(`BOX_COLUMN_CAPACITY`), total capacity of each box (`BOX_CAPACITY`), and
+details for the overflow box (`SPECIAL_BOX_NUMBER`, `SPECIAL_BOX_CAPACITY`).
+Both `storage.py` and `ui.py` import these values so any changes to the
+physical warehouse setup only need to be made in a single place.

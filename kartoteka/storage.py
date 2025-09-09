@@ -2,24 +2,24 @@ import csv
 import re
 from datetime import datetime
 from . import csv_utils
+from .storage_config import (
+    BOX_CAPACITY,
+    BOX_COLUMNS,
+    BOX_COLUMN_CAPACITY,
+    BOX_COUNT,
+    SPECIAL_BOX_CAPACITY,
+    SPECIAL_BOX_NUMBER,
+    STANDARD_BOX_CAPACITY,
+    STANDARD_BOX_COLUMNS,
+)
 
 LAST_SETS_CHECK_FILE = "last_sets_check.txt"
 LAST_LOCATION_FILE = "last_location.txt"
 
-# Total card capacity per storage box.  Standard boxes hold 4000 cards in
-# four columns, while the special box ``100`` is a single 500-card column.
-BOX_COUNT = 10  # number of standard boxes
-BOX_CAPACITY: dict[int, int] = {**{b: 4000 for b in range(1, BOX_COUNT + 1)}, 100: 500}
-
-# Number of columns per storage box.  All regular boxes (1-10) have four
-# columns, while the overflow box ``100`` only one.  The mapping is kept
-# explicit so the column layout can be adjusted independently of
-# :data:`BOX_CAPACITY`.
-BOX_COLUMNS: dict[int, int] = {**{b: 4 for b in range(1, BOX_COUNT + 1)}, 100: 1}
-
-# Default per-column capacity for standard boxes.  Used as a fallback when
-# handling boxes outside of :data:`BOX_CAPACITY`.
-BOX_COLUMN_CAPACITY = 1000
+# Constants are provided by :mod:`kartoteka.storage_config` to keep the storage
+# layout in one place.  The mappings above describe the capacity and column
+# counts for each storage box.  ``STANDARD_BOX_CAPACITY`` and
+# ``BOX_COLUMN_CAPACITY`` are used when performing index calculations.
 
 
 class NoFreeLocationError(Exception):
@@ -86,9 +86,13 @@ def location_to_index(code: str) -> int:
     if not match:
         return 0
     box, column, pos = map(int, match.groups())
-    if box == 100:
-        return BOX_COUNT * 4000 + (pos - 1)
-    return (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
+    if box == SPECIAL_BOX_NUMBER:
+        return BOX_COUNT * STANDARD_BOX_CAPACITY + (pos - 1)
+    return (
+        (box - 1) * STANDARD_BOX_CAPACITY
+        + (column - 1) * BOX_COLUMN_CAPACITY
+        + (pos - 1)
+    )
 
 
 def location_from_code(code: str) -> str:
@@ -102,22 +106,24 @@ def location_from_code(code: str) -> str:
 def generate_location(idx):
     """Return a warehouse code for a sequential slot index.
 
-    The first 40 000 indices map to boxes 1-10 (four 1000-card columns each).
-    Subsequent indices map to the special box 100 which has a single
-    500-card column.
+    The first ``BOX_COUNT * STANDARD_BOX_CAPACITY`` indices map to boxes
+    ``1`` through ``BOX_COUNT`` (each consisting of
+    ``STANDARD_BOX_COLUMNS`` columns of ``BOX_COLUMN_CAPACITY`` slots).
+    Subsequent indices map to the special box ``SPECIAL_BOX_NUMBER`` which
+    has a single ``SPECIAL_BOX_CAPACITY``-card column.
     """
 
-    if idx < BOX_COUNT * 4000:
-        pos = idx % 1000 + 1
-        column = (idx // 1000) % 4 + 1
-        box = (idx // 4000) + 1
+    if idx < BOX_COUNT * STANDARD_BOX_CAPACITY:
+        pos = idx % BOX_COLUMN_CAPACITY + 1
+        column = (idx // BOX_COLUMN_CAPACITY) % STANDARD_BOX_COLUMNS + 1
+        box = (idx // STANDARD_BOX_CAPACITY) + 1
         return f"K{box:02d}R{column}P{pos:04d}"
 
-    idx -= BOX_COUNT * 4000
-    if idx < 500:
+    idx -= BOX_COUNT * STANDARD_BOX_CAPACITY
+    if idx < SPECIAL_BOX_CAPACITY:
         # box 100, only one column
         pos = idx + 1
-        return f"K100R1P{pos:04d}"
+        return f"K{SPECIAL_BOX_NUMBER}R1P{pos:04d}"
 
     raise ValueError("Index out of range for known storage boxes")
 
@@ -136,10 +142,14 @@ def next_free_location(app):
             box = int(match.group(1))
             column = int(match.group(2))
             pos = int(match.group(3))
-            if box == 100:
-                idx = BOX_COUNT * 4000 + (pos - 1)
+            if box == SPECIAL_BOX_NUMBER:
+                idx = BOX_COUNT * STANDARD_BOX_CAPACITY + (pos - 1)
             else:
-                idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
+                idx = (
+                    (box - 1) * STANDARD_BOX_CAPACITY
+                    + (column - 1) * BOX_COLUMN_CAPACITY
+                    + (pos - 1)
+                )
             used.add(idx)
 
     last_idx = load_last_location() if not output_data else 0
@@ -159,7 +169,10 @@ def compute_column_occupancy() -> dict[int, dict[int, int]]:
     """
 
     occ: dict[int, dict[int, int]] = {
-        box: {col: 0 for col in range(1, BOX_COLUMNS.get(box, 4) + 1)}
+        box: {
+            col: 0
+            for col in range(1, BOX_COLUMNS.get(box, STANDARD_BOX_COLUMNS) + 1)
+        }
         for box in BOX_COLUMNS
     }
     try:
