@@ -1600,6 +1600,7 @@ class CardEditorApp:
         self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
         self.mag_percent_labels: dict[tuple[int, int], ctk.CTkLabel] = {}
         self.mag_labels: list[ctk.CTkLabel] = []
+        self._mag_csv_mtime: Optional[float] = None
         self.log_widget = None
         self.cheat_frame = None
         self.set_logos = {}
@@ -3246,6 +3247,7 @@ class CardEditorApp:
 
         if not os.path.exists(csv_path):
             self._mag_prev_thumb = 0
+            self._mag_csv_mtime = None
             return
 
         with open(csv_path, encoding="utf-8") as f:
@@ -3339,6 +3341,10 @@ class CardEditorApp:
                         self.mag_card_images[idx] = photo
 
         self._mag_prev_thumb = 0
+        try:
+            self._mag_csv_mtime = os.path.getmtime(csv_path)
+        except OSError:
+            self._mag_csv_mtime = None
 
     def show_magazyn_view(self):
         """Display storage occupancy inside the main window."""
@@ -3925,9 +3931,15 @@ class CardEditorApp:
 
     def refresh_magazyn(self):
         """Refresh storage view and update column usage bars."""
-        reload_fn = getattr(self, "reload_mag_cards", None)
-        if callable(reload_fn):
-            reload_fn()
+        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
+        try:
+            current_mtime = os.path.getmtime(csv_path)
+        except OSError:
+            current_mtime = None
+        if getattr(self, "_mag_csv_mtime", None) != current_mtime:
+            reload_fn = getattr(self, "reload_mag_cards", None)
+            if callable(reload_fn):
+                reload_fn()
         update_fn = getattr(self, "_update_mag_list", None)
         if callable(update_fn):
             try:
