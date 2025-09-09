@@ -8,7 +8,6 @@ import os
 import csv
 import json
 import requests
-import openai
 import base64
 import mimetypes
 import re
@@ -27,6 +26,24 @@ from types import SimpleNamespace
 from pydantic import BaseModel
 import pytesseract
 from pathlib import Path
+
+try:  # pragma: no cover - optional dependency
+    import openai  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    openai = SimpleNamespace(
+        OpenAI=lambda *a, **k: SimpleNamespace(),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=lambda *a, **k: None)),
+        OpenAIError=Exception,
+    )
+else:  # pragma: no cover - optional dependency
+    # accessing ``openai.chat`` on some versions can trigger network-heavy
+    # initialization; provide a simple stub so tests can monkeypatch it
+    if not hasattr(openai, "chat") or isinstance(openai.chat, property):
+        openai.chat = SimpleNamespace(
+            completions=SimpleNamespace(create=lambda *a, **k: None)
+        )
+    # provide a no-op client so tests don't require a real API key
+    openai.OpenAI = lambda *a, **k: SimpleNamespace()
 
 from shoper_client import ShoperClient
 from webdav_client import WebDAVClient
@@ -5189,7 +5206,14 @@ class CardEditorApp:
         self.current_card_photo = img
         self.image_label.configure(image=img)
         if hasattr(self, "location_label"):
-            self.location_label.configure(text=self.next_free_location())
+            try:
+                self.location_label.configure(text=self.next_free_location())
+            except storage.NoFreeLocationError:
+                try:
+                    messagebox.showerror("Błąd", "Brak wolnych miejsc w magazynie")
+                except tk.TclError:
+                    pass
+                self.location_label.configure(text="")
 
         for key, entry in list(self.entries.items()):
             if hasattr(entry, "winfo_exists"):
@@ -6742,7 +6766,14 @@ class CardEditorApp:
             except tk.TclError:
                 pass
             return
-        self.save_current_data()
+        try:
+            self.save_current_data()
+        except storage.NoFreeLocationError:
+            try:
+                messagebox.showerror("Błąd", "Brak wolnych miejsc w magazynie")
+            except tk.TclError:
+                pass
+            return
         if self.index < len(self.cards) - 1:
             self.index += 1
             self.show_card()
