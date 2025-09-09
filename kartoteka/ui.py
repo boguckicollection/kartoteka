@@ -4700,13 +4700,6 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
-        self.load_button = self.create_button(
-            self.button_frame,
-            text="Import",
-            command=self.browse_scans,
-        )
-        self.load_button.pack(side="left", padx=5)
-
         self.end_button = self.create_button(
             self.button_frame,
             text="Zakończ i zapisz",
