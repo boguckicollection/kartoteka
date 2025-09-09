@@ -2044,6 +2044,28 @@ class CardEditorApp:
                     text="",
                 ).pack(pady=(0, 10))
 
+        # show last used location to inform the user where scanning previously ended
+        last_idx = storage.load_last_location()
+        try:
+            last_code = storage.generate_location(last_idx)
+        except Exception:
+            last_code = ""
+        if last_code:
+            ctk.CTkLabel(frame, text=storage.location_from_code(last_code)).pack(
+                pady=(0, 10)
+            )
+
+        # prefill inputs with the next free location
+        try:
+            next_code = self.next_free_location()
+            match = re.match(r"K(\d+)R(\d+)P(\d+)", next_code)
+            if match:
+                self.start_box_var.set(str(int(match.group(1))))
+                self.start_col_var.set(str(int(match.group(2))))
+                self.start_pos_var.set(str(int(match.group(3))))
+        except Exception:
+            pass
+
         form = tk.Frame(frame, bg=self.root.cget("background"))
         form.pack(pady=5)
         for idx, label in enumerate(["Karton", "Kolumna", "Pozycja"]):
