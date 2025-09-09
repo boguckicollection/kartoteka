@@ -36,6 +36,7 @@ class DummyVar:
 
 def test_extract_card_info_openai_maps_set(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
 
     img = tmp_path / "x.jpg"
     img.write_bytes(b"data")
