@@ -69,6 +69,14 @@ except ImportError as exc:  # pragma: no cover - optional dependency
 from fingerprint import compute_fingerprint
 from tooltip import Tooltip
 from .image_utils import load_rgba_image
+from .storage_config import (
+    BOX_COUNT,
+    BOX_COLUMN_CAPACITY,
+    SPECIAL_BOX_CAPACITY,
+    SPECIAL_BOX_NUMBER,
+    STANDARD_BOX_CAPACITY,
+    STANDARD_BOX_COLUMNS,
+)
 
 # Ensure tkinter dialog modules provide the expected functions even when tests
 # replace them with simple stubs.  Missing attributes are replaced with no-op
@@ -164,7 +172,7 @@ def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int])
 
     box_w = BOX_THUMB_SIZE
     box_h = BOX_THUMB_SIZE
-    columns = storage.BOX_COLUMNS.get(box_num, 4)
+    columns = storage.BOX_COLUMNS.get(box_num, STANDARD_BOX_COLUMNS)
     total_capacity = storage.BOX_CAPACITY.get(
         box_num, columns * storage.BOX_COLUMN_CAPACITY
     )
@@ -403,13 +411,11 @@ CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
 MAX_CARD_THUMB_SIZE = 160
 MAG_CARD_GAP = 3  # spacing between card frames in magazine view
-GRID_COLUMNS = 4  # number of columns per storage box
+GRID_COLUMNS = STANDARD_BOX_COLUMNS  # number of columns per storage box
 WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
-BOX_COLUMN_CAPACITY = 1000  # slots per column in a regular box
-BOX_COUNT = 10  # number of standard boxes
-SPECIAL_BOX_NUMBER = 100  # identifier for the large overflow box
-SPECIAL_BOX_CAPACITY = 500  # slots in the special box
-BOX_CAPACITY = GRID_COLUMNS * BOX_COLUMN_CAPACITY  # slots in a standard box
+# BOX_COLUMN_CAPACITY, BOX_COUNT, SPECIAL_BOX_NUMBER and SPECIAL_BOX_CAPACITY
+# are imported from :mod:`kartoteka.storage_config`.
+BOX_CAPACITY = STANDARD_BOX_CAPACITY  # slots in a standard box
 
 
 def _occupancy_color(value: float) -> str:
@@ -3213,7 +3219,9 @@ class CardEditorApp:
             )
             lbl.pack(anchor="w")
             self.mag_labels.append(lbl)
-            for col in range(1, storage.BOX_COLUMNS.get(box_num, 4) + 1):
+            for col in range(
+                1, storage.BOX_COLUMNS.get(box_num, STANDARD_BOX_COLUMNS) + 1
+            ):
                 row_frame = ctk.CTkFrame(frame, fg_color=BG_COLOR)
                 row_frame.pack(fill="x", padx=2, pady=2)
                 bar = ctk.CTkProgressBar(
