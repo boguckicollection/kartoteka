@@ -18,7 +18,7 @@ import kartoteka.ui as ui
 
 
 def test_next_free_location_raises_when_full():
-    dummy = SimpleNamespace(output_data=[{"warehouse_code": "K100R1P0500"}])
+    dummy = SimpleNamespace(output_data=[{"warehouse_code": "K100R2P1000"}])
     with pytest.raises(storage.NoFreeLocationError):
         storage.next_free_location(dummy)
 

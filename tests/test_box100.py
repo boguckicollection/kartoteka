@@ -29,7 +29,7 @@ def test_compute_box_occupancy_box100(tmp_path, monkeypatch):
     occ = storage.compute_box_occupancy()
     assert occ[100] == 1
     percent = occ[100] / storage.BOX_CAPACITY[100] * 100
-    assert percent == pytest.approx(0.2)
+    assert percent == pytest.approx(0.05)
 
 
 def test_generate_and_next_free_location_box100():
@@ -93,7 +93,7 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
     from kartoteka import storage
 
     percent = occ[100] / storage.BOX_CAPACITY[100] * 100
-    assert percent == pytest.approx(0.2)
+    assert percent == pytest.approx(0.05)
 
     bar = app.mag_progressbars[(100, 1)]
-    assert bar.get() == pytest.approx(1 / ui.storage.BOX_CAPACITY[100])
+    assert bar.get() == pytest.approx(1 / ui.storage.BOX_COLUMN_CAPACITY)
