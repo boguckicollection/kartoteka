@@ -396,6 +396,12 @@ MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
 AUCTION_BUTTON_COLOR = "#E74C3C"  # red
 STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
+# vivid colors for key workflow buttons
+SAVE_BUTTON_COLOR = "#27AE60"  # green
+NEXT_BUTTON_COLOR = "#2980B9"  # blue
+API_BUTTON_COLOR = "#F1C40F"  # yellow
+END_BUTTON_COLOR = "#E74C3C"  # red
+
 # color highlighting current price labels
 CURRENT_PRICE_COLOR = "#FFD700"
 
@@ -4704,6 +4710,7 @@ class CardEditorApp:
             self.button_frame,
             text="Zakończ i zapisz",
             command=self.export_csv,
+            fg_color=END_BUTTON_COLOR,
         )
         self.end_button.pack(side="left", padx=5)
 
@@ -4726,6 +4733,7 @@ class CardEditorApp:
             self.button_frame,
             text="Nast\u0119pna \u23ed",
             command=self.next_card,
+            fg_color=NEXT_BUTTON_COLOR,
         )
         self.next_button.pack(side="left", padx=5)
 
@@ -4911,6 +4919,7 @@ class CardEditorApp:
             self.info_frame,
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
+            fg_color=API_BUTTON_COLOR,
         )
         self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
         self.cardmarket_button = self.create_button(
@@ -4926,6 +4935,7 @@ class CardEditorApp:
             self.info_frame,
             text="Zapisz i dalej",
             command=self.save_and_next,
+            fg_color=SAVE_BUTTON_COLOR,
         )
         self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
