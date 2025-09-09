@@ -199,6 +199,56 @@ def test_show_magazyn_view_remote_thumbnail(tmp_path):
     assert app.mag_card_images[0] is photo_mock
 
 
+def test_show_magazyn_view_local_thumbnail(tmp_path):
+    ui = _setup_module(tmp_path)
+
+    img_path = tmp_path / "card.png"
+    Image.new("RGB", (10, 10), "white").save(img_path, format="PNG")
+    csv_path = tmp_path / "magazyn.csv"
+    _write_csv(csv_path, str(img_path))
+
+    placeholder_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
+    photo_mock = SimpleNamespace(width=lambda: 64, height=lambda: 64)
+
+    dummy_root = SimpleNamespace(
+        minsize=lambda *a, **k: None,
+        title=lambda *a, **k: None,
+    )
+
+    app = SimpleNamespace(
+        root=dummy_root,
+        start_frame=None,
+        pricing_frame=None,
+        shoper_frame=None,
+        frame=None,
+        magazyn_frame=None,
+        location_frame=None,
+        create_button=lambda master, **kwargs: DummyCTkButton(master, **kwargs),
+        refresh_magazyn=lambda: None,
+        back_to_welcome=lambda: None,
+        show_card_details=lambda *a, **k: None,
+    )
+
+    calls = iter([placeholder_mock, photo_mock])
+
+    def _photo_side_effect(*a, **k):
+        try:
+            return next(calls)
+        except StopIteration:
+            return photo_mock
+
+    with patch.object(ui.ImageTk, "PhotoImage", side_effect=_photo_side_effect), \
+         patch.object(ui.tk, "Canvas", DummyCanvas), \
+         patch.object(ui.csv_utils, "WAREHOUSE_CSV", str(csv_path)), \
+         patch.object(ui.messagebox, "showinfo", lambda *a, **k: None):
+        ui.CardEditorApp.show_magazyn_view(app)
+        assert app._image_threads  # ensures a thread was spawned
+        for t in app._image_threads:
+            t.join()
+
+    assert app.mag_card_images[0] is photo_mock
+
+
 def test_show_card_details_remote_uses_cache(tmp_path):
     ui = _setup_module(tmp_path)
 
