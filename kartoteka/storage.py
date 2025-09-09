@@ -7,9 +7,6 @@ from .storage_config import (
     BOX_COLUMNS,
     BOX_COLUMN_CAPACITY,
     BOX_COUNT,
-    SPECIAL_BOX_CAPACITY,
-    SPECIAL_BOX_NUMBER,
-    STANDARD_BOX_CAPACITY,
     STANDARD_BOX_COLUMNS,
 )
 
@@ -18,8 +15,21 @@ LAST_LOCATION_FILE = "last_location.txt"
 
 # Constants are provided by :mod:`kartoteka.storage_config` to keep the storage
 # layout in one place.  The mappings above describe the capacity and column
-# counts for each storage box.  ``STANDARD_BOX_CAPACITY`` and
-# ``BOX_COLUMN_CAPACITY`` are used when performing index calculations.
+# counts for each storage box.  ``BOX_OFFSETS`` below holds the sequential start
+# index for each configured box and is derived from :data:`BOX_CAPACITY`.
+
+# Build ordered list of boxes and compute their starting offsets.  Regular boxes
+# (``1``..``BOX_COUNT``) are followed by any additional boxes defined in
+# :data:`BOX_CAPACITY` such as the special overflow box.
+_box_order = list(range(1, BOX_COUNT + 1)) + [
+    b for b in sorted(BOX_CAPACITY) if b > BOX_COUNT
+]
+BOX_OFFSETS: dict[int, int] = {}
+_offset = 0
+for b in _box_order:
+    BOX_OFFSETS[b] = _offset
+    _offset += BOX_CAPACITY[b]
+del _box_order, _offset
 
 
 class NoFreeLocationError(Exception):
@@ -86,13 +96,10 @@ def location_to_index(code: str) -> int:
     if not match:
         return 0
     box, column, pos = map(int, match.groups())
-    if box == SPECIAL_BOX_NUMBER:
-        return BOX_COUNT * STANDARD_BOX_CAPACITY + (pos - 1)
-    return (
-        (box - 1) * STANDARD_BOX_CAPACITY
-        + (column - 1) * BOX_COLUMN_CAPACITY
-        + (pos - 1)
-    )
+    offset = BOX_OFFSETS.get(box)
+    if offset is None:
+        return 0
+    return offset + (column - 1) * BOX_COLUMN_CAPACITY + (pos - 1)
 
 
 def location_from_code(code: str) -> str:
@@ -105,26 +112,25 @@ def location_from_code(code: str) -> str:
 
 def generate_location(idx):
     """Return a warehouse code for a sequential slot index.
-
-    The first ``BOX_COUNT * STANDARD_BOX_CAPACITY`` indices map to boxes
-    ``1`` through ``BOX_COUNT`` (each consisting of
-    ``STANDARD_BOX_COLUMNS`` columns of ``BOX_COLUMN_CAPACITY`` slots).
-    Subsequent indices map to the special box ``SPECIAL_BOX_NUMBER`` which
-    has a single ``SPECIAL_BOX_CAPACITY``-card column.
+    
+    Uses :data:`BOX_OFFSETS` so that the mapping stays in sync with
+    :func:`location_to_index`.
     """
 
-    if idx < BOX_COUNT * STANDARD_BOX_CAPACITY:
-        pos = idx % BOX_COLUMN_CAPACITY + 1
-        column = (idx // BOX_COLUMN_CAPACITY) % STANDARD_BOX_COLUMNS + 1
-        box = (idx // STANDARD_BOX_CAPACITY) + 1
-        return f"K{box:02d}R{column}P{pos:04d}"
+    total = max_capacity()
+    if idx < 0 or idx >= total:
+        raise ValueError("Index out of range for known storage boxes")
 
-    idx -= BOX_COUNT * STANDARD_BOX_CAPACITY
-    if idx < SPECIAL_BOX_CAPACITY:
-        # box 100, only one column
-        pos = idx + 1
-        return f"K{SPECIAL_BOX_NUMBER}R1P{pos:04d}"
+    # Determine which box ``idx`` falls into by subtracting capacities in order.
+    for box in BOX_OFFSETS:
+        cap = BOX_CAPACITY[box]
+        if idx < cap:
+            pos = idx % BOX_COLUMN_CAPACITY + 1
+            column = idx // BOX_COLUMN_CAPACITY + 1
+            return f"K{box:02d}R{column}P{pos:04d}"
+        idx -= cap
 
+    # Should not reach here because of the range check above
     raise ValueError("Index out of range for known storage boxes")
 
 
@@ -142,14 +148,10 @@ def next_free_location(app):
             box = int(match.group(1))
             column = int(match.group(2))
             pos = int(match.group(3))
-            if box == SPECIAL_BOX_NUMBER:
-                idx = BOX_COUNT * STANDARD_BOX_CAPACITY + (pos - 1)
-            else:
-                idx = (
-                    (box - 1) * STANDARD_BOX_CAPACITY
-                    + (column - 1) * BOX_COLUMN_CAPACITY
-                    + (pos - 1)
-                )
+            offset = BOX_OFFSETS.get(box)
+            if offset is None:
+                continue
+            idx = offset + (column - 1) * BOX_COLUMN_CAPACITY + (pos - 1)
             used.add(idx)
 
     last_idx = load_last_location() if not output_data else 0
