@@ -1873,8 +1873,14 @@ class CardEditorApp:
         )
         author.pack(side="bottom", pady=5)
 
-    def update_inventory_stats(self):
+    def update_inventory_stats(self, force: bool = False):
         """Refresh labels showing total item count and value in the UI.
+
+        Parameters
+        ----------
+        force:
+            When ``True`` statistics are recomputed even if cached values are
+            available.
 
         Also refreshes the daily additions bar chart if matplotlib is available.
         """
@@ -1902,7 +1908,9 @@ class CardEditorApp:
         if not widgets:
             return
 
-        unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats()
+        unsold_count, unsold_total, sold_count, sold_total = csv_utils.get_inventory_stats(
+            force=force
+        )
         if unsold_count == 0 and sold_count == 0:
             messagebox.showinfo("Magazyn", "Brak kart w magazynie")
         unsold_count_text = f"📊 Łączna liczba kart: {unsold_count}"

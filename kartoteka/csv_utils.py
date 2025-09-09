@@ -516,9 +516,12 @@ def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
                 continue
             writer.writerow(format_warehouse_row(row))
 
+    # Recompute and cache inventory statistics to include newly written rows
+    get_inventory_stats(path, force=True)
+
     if hasattr(app, "update_inventory_stats"):
         try:
-            app.update_inventory_stats()
+            app.update_inventory_stats(force=True)
         except TclError:
             pass
 
