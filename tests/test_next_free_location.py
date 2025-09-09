@@ -5,6 +5,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 sys.modules.setdefault("customtkinter", MagicMock())
+sys.modules.setdefault("openai", MagicMock())
+sys.modules.setdefault("dotenv", MagicMock(load_dotenv=lambda *a, **k: None, set_key=lambda *a, **k: None))
+sys.modules.setdefault("pydantic", MagicMock(BaseModel=object))
+sys.modules.setdefault("pytesseract", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import kartoteka.ui as ui
 importlib.reload(ui)
@@ -20,10 +24,10 @@ def test_next_free_location_sequential():
     )
     dummy.generate_location = lambda idx: ui.CardEditorApp.generate_location(dummy, idx)
     first = ui.CardEditorApp.next_free_location(dummy)
-    assert first == "K01R1P0002"
+    assert first == "K01R1P0004"
     dummy.output_data.append({"warehouse_code": first})
     second = ui.CardEditorApp.next_free_location(dummy)
-    assert second == "K01R1P0004"
+    assert second == "K01R1P0005"
 
 
 def test_next_free_location_from_start_idx():

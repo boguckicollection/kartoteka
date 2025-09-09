@@ -6569,6 +6569,9 @@ class CardEditorApp:
                 existing_wc = current["warehouse_code"]
         current_loc = getattr(self, "current_location", "")
         data["warehouse_code"] = existing_wc or current_loc or self.next_free_location()
+        # remember last used location index for subsequent sessions
+        idx = storage.location_to_index(data["warehouse_code"].split(";")[0].strip())
+        storage.save_last_location(idx)
         fp = getattr(self, "current_fingerprint", None)
         if (
             fp is None

@@ -4,6 +4,7 @@ from datetime import datetime
 from . import csv_utils
 
 LAST_SETS_CHECK_FILE = "last_sets_check.txt"
+LAST_LOCATION_FILE = "last_location.txt"
 
 # Total card capacity per storage box.  Standard boxes hold 4000 cards in
 # four columns, while the special box ``100`` is a single 500-card column.
@@ -37,6 +38,39 @@ def save_last_sets_check(value: datetime | None = None) -> None:
         value = datetime.now()
     with open(LAST_SETS_CHECK_FILE, "w", encoding="utf-8") as f:
         f.write(value.isoformat())
+
+
+def load_last_location() -> int:
+    """Return index of last used warehouse slot.
+
+    Falls back to ``0`` when the file does not exist or contains
+    invalid data.
+    """
+
+    try:
+        with open(LAST_LOCATION_FILE, "r", encoding="utf-8") as f:
+            return int(f.read().strip() or 0)
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def save_last_location(idx: int) -> None:
+    """Persist ``idx`` as the last used warehouse slot."""
+
+    with open(LAST_LOCATION_FILE, "w", encoding="utf-8") as f:
+        f.write(str(idx))
+
+
+def location_to_index(code: str) -> int:
+    """Convert ``warehouse_code`` to its sequential index."""
+
+    match = re.match(r"K(\d+)R(\d)P(\d+)", code or "")
+    if not match:
+        return 0
+    box, column, pos = map(int, match.groups())
+    if box == 100:
+        return BOX_COUNT * 4000 + (pos - 1)
+    return (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
 
 
 def location_from_code(code: str) -> str:
@@ -73,7 +107,8 @@ def generate_location(idx):
 def next_free_location(app):
     used = set()
     pattern = re.compile(r"K(\d+)R(\d)P(\d+)")
-    for row in getattr(app, "output_data", []):
+    output_data = getattr(app, "output_data", [])
+    for row in output_data:
         if not row:
             continue
         for code in str(row.get("warehouse_code") or "").split(";"):
@@ -89,10 +124,10 @@ def next_free_location(app):
                 idx = (box - 1) * 4000 + (column - 1) * 1000 + (pos - 1)
             used.add(idx)
 
-    idx = getattr(app, "starting_idx", 0)
-    while idx in used:
-        idx += 1
-    return generate_location(idx)
+    last_idx = load_last_location() if not output_data else 0
+    base_idx = getattr(app, "starting_idx", 0)
+    next_idx = max(used | {last_idx, base_idx - 1}) + 1
+    return generate_location(next_idx)
 
 
 def compute_column_occupancy() -> dict[int, dict[int, int]]:
