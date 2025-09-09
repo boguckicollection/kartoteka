@@ -5185,6 +5185,9 @@ class CardEditorApp:
         self.show_card()
 
     def show_card(self):
+        progress_cb = getattr(self, "_update_card_progress", None)
+        if progress_cb:
+            progress_cb(0, show=True)
         if self.index >= len(self.cards):
             if getattr(self, "failed_cards", None):
                 msg = "Failed to load images:\n" + "\n".join(self.failed_cards)
@@ -5419,7 +5422,7 @@ class CardEditorApp:
                         fp_match.distance,
                     )
                     if progress_cb:
-                        progress_cb(1.0, hide=True)
+                        progress_cb(1.0)
 
         if not skip_analysis:
             if progress_cb:
@@ -5461,7 +5464,7 @@ class CardEditorApp:
             return f"{name}|{number}|{set_name}|"
         return None
 
-    def _update_card_progress(self, value: float, show: bool = False, hide: bool = False):
+    def _update_card_progress(self, value: float, show: bool = False):
         """Update the progress bar for analyzing a single card."""
         if not hasattr(self, "progress_bar"):
             return
@@ -5469,8 +5472,6 @@ class CardEditorApp:
             self.progress_bar.set(value)
             if show and hasattr(self, "progress_frame"):
                 self.progress_frame.grid()
-            if hide and hasattr(self, "progress_frame"):
-                self.progress_frame.grid_remove()
         except tk.TclError:
             pass
 
@@ -5684,7 +5685,7 @@ class CardEditorApp:
             return
         progress_cb = getattr(self, "_update_card_progress", None)
         if progress_cb:
-            progress_cb(0, hide=True)
+            progress_cb(1.0)
         if result:
             name = result.get("name", "")
             number = result.get("number", "")
@@ -5732,7 +5733,7 @@ class CardEditorApp:
                         "Skipping duplicate card %s #%s in set %s", name, number, set_name
                     )
                     if progress_cb:
-                        progress_cb(1.0, hide=True)
+                        progress_cb(1.0)
                     self.current_analysis_thread = None
                     return
                 self.current_location = self.next_free_location()
