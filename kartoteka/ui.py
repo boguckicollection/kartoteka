@@ -3318,10 +3318,10 @@ class CardEditorApp:
                         img = _load_image(url)
                         if img is None:
                             return
-                        img = _resize_to_width(img, thumb_size)
 
                         def _update(img=img) -> None:
-                            photo = _create_image(img)
+                            img_resized = _resize_to_width(img, thumb_size)
+                            photo = _create_image(img_resized)
                             self.mag_card_images[i] = photo
                             lbl = self.mag_card_image_labels[i]
                             exists_fn = getattr(lbl, "winfo_exists", None)
@@ -3352,11 +3352,43 @@ class CardEditorApp:
                     th.start()
                     self._image_threads.append(th)
                 else:
-                    img = _load_image(img_path)
-                    if img is not None:
-                        img = _resize_to_width(img, thumb_size)
-                        photo = _create_image(img)
-                        self.mag_card_images[idx] = photo
+                    def _worker(i=idx, path=img_path):
+                        img = _load_image(path)
+                        if img is None:
+                            return
+
+                        def _update(img=img) -> None:
+                            img_resized = _resize_to_width(img, thumb_size)
+                            photo = _create_image(img_resized)
+                            self.mag_card_images[i] = photo
+                            lbl = self.mag_card_image_labels[i]
+                            exists_fn = getattr(lbl, "winfo_exists", None)
+                            if not lbl or (exists_fn and not exists_fn()):
+                                return
+                            if hasattr(lbl, "configure"):
+                                try:
+                                    lbl.configure(image=photo)
+                                except tk.TclError:
+                                    return
+                            else:  # simple dummy widgets in tests
+                                lbl.image = photo
+                            relayout = getattr(self, "_relayout_mag_cards", None)
+                            if callable(relayout):
+                                after2 = getattr(self.root, "after", None)
+                                if callable(after2):
+                                    after2(0, relayout)
+                                else:
+                                    relayout()
+
+                        after = getattr(self.root, "after", None)
+                        if callable(after):
+                            after(0, _update)
+                        else:
+                            _update()
+
+                    th = threading.Thread(target=_worker, daemon=True)
+                    th.start()
+                    self._image_threads.append(th)
 
         self._mag_prev_thumb = 0
         try:
