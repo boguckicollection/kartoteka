@@ -650,8 +650,9 @@ def get_set_name(code: str) -> str:
         for key, name in mapping.items():
             if key.lower() == search:
                 return name
-    print(
-        f"Nie znaleziono nazwy dla setu '{code}'. Weryfikacja ręczna wymagana."
+    logger.warning(
+        "Nie znaleziono nazwy dla setu '%s'. Weryfikacja ręczna wymagana.",
+        code,
     )
     return code
 
