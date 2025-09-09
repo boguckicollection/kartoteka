@@ -46,7 +46,11 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     import kartoteka.ui as ui
     importlib.reload(ui)
 
-    monkeypatch.setattr(ui.csv_utils, "get_inventory_stats", lambda path="": (0, 0.0, 0, 0.0))
+    monkeypatch.setattr(
+        ui.csv_utils,
+        "get_inventory_stats",
+        lambda path="", force=False: (0, 0.0, 0, 0.0),
+    )
 
     photo_mock = SimpleNamespace(width=lambda: 150, height=lambda: 150)
     with patch.object(ui.ImageTk, "PhotoImage", return_value=photo_mock), patch.object(

@@ -74,7 +74,7 @@ def _load_app(csv_path, stats, frame_cls=DummyCTkFrame):
     ui.ImageTk.PhotoImage = lambda *a, **k: photo_mock
     ui.tk.Canvas = DummyCanvas
     ui.csv_utils.WAREHOUSE_CSV = str(csv_path)
-    ui.csv_utils.get_inventory_stats = lambda: stats
+    ui.csv_utils.get_inventory_stats = lambda path=ui.csv_utils.WAREHOUSE_CSV, force=False: stats
 
     dummy_root = SimpleNamespace(
         minsize=lambda *a, **k: None,

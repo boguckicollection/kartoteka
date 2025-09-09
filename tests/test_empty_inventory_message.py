@@ -19,7 +19,7 @@ def test_update_inventory_stats_empty_shows_message(monkeypatch):
     monkeypatch.setattr(
         ui.csv_utils,
         "get_inventory_stats",
-        lambda path=ui.csv_utils.WAREHOUSE_CSV: (0, 0.0, 0, 0.0),
+        lambda path=ui.csv_utils.WAREHOUSE_CSV, force=False: (0, 0.0, 0, 0.0),
     )
     with patch.object(ui.messagebox, "showinfo") as mock_info:
         ui.CardEditorApp.update_inventory_stats(app)
