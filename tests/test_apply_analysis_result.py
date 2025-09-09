@@ -59,8 +59,8 @@ def test_apply_analysis_result_duplicate_cancel(monkeypatch):
     find_mock.assert_called_once_with("Pika", "1", "Set X", None)
     ask_mock.assert_called_once()
     assert dummy._update_card_progress.call_args_list == [
-        call(0, hide=True),
-        call(1.0, hide=True),
+        call(1.0),
+        call(1.0),
     ]
     dummy.next_free_location.assert_not_called()
     assert dummy.current_analysis_thread is None
@@ -79,7 +79,7 @@ def test_apply_analysis_result_duplicate_confirm(monkeypatch):
 
     find_mock.assert_called_once_with("Pika", "1", "Set X", None)
     ask_mock.assert_called_once()
-    dummy._update_card_progress.assert_called_once_with(0, hide=True)
+    dummy._update_card_progress.assert_called_once_with(1.0)
     dummy.next_free_location.assert_called_once()
     dummy.location_label.configure.assert_called_once_with(text="K1R1P1")
     assert dummy.current_location == "K1R1P1"
