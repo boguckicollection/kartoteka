@@ -2088,12 +2088,14 @@ class CardEditorApp:
         )
         self.create_button(folder_frame, text="Wybierz", command=self.select_scan_folder).grid(row=0, column=2, padx=5)
 
-        self.create_button(frame, text="Dalej", command=self.start_browse_scans).pack(
-            pady=5
-        )
-        self.create_button(frame, text="Powrót", command=self.back_to_welcome).pack(
-            pady=(0, 5)
-        )
+        button_frame = ctk.CTkFrame(frame)
+        button_frame.pack(pady=5)
+        self.create_button(
+            button_frame, text="Dalej", command=self.start_browse_scans
+        ).grid(row=0, column=0, padx=5, pady=5)
+        self.create_button(
+            button_frame, text="Powrót", command=self.back_to_welcome
+        ).grid(row=0, column=1, padx=5, pady=5)
 
     def select_scan_folder(self):
         """Open a dialog to choose the folder with scans."""
