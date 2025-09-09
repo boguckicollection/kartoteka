@@ -3244,15 +3244,18 @@ class CardEditorApp:
         self.mag_card_image_labels = []
         self.mag_card_frames = []
         self._image_threads = []
+        self._mag_column_occ: dict[tuple[int, int], int] = {}
 
         if not os.path.exists(csv_path):
             self._mag_prev_thumb = 0
             self._mag_csv_mtime = None
+            self._mag_column_occ = {}
             return
 
         with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             groups: dict[tuple[str, ...], list[dict]] = defaultdict(list)
+            column_occ: dict[tuple[int, int], int] = {}
             for row in reader:
                 if not row.get("name"):
                     logger.warning("Skipping row with missing name: %s", row)
@@ -3265,6 +3268,21 @@ class CardEditorApp:
                     str(row.get("sold") or ""),
                 )
                 groups[key].append(row)
+
+                if str(row.get("sold") or "").lower() in {"1", "true", "yes"}:
+                    continue
+                codes = str(row.get("warehouse_code") or "").split(";")
+                for code in codes:
+                    code = code.strip()
+                    if not code:
+                        continue
+                    m = re.match(r"K(\d+)R(\d)P(\d+)", code)
+                    if not m:
+                        continue
+                    box = int(m.group(1))
+                    col = int(m.group(2))
+                    column_occ[(box, col)] = column_occ.get((box, col), 0) + 1
+            self._mag_column_occ = column_occ
 
             for rows in groups.values():
                 combined = dict(rows[0])
@@ -3950,10 +3968,10 @@ class CardEditorApp:
         if not getattr(self, "mag_progressbars", None):
             return
 
-        col_occ = storage.compute_column_occupancy()
+        col_occ = getattr(self, "_mag_column_occ", {})
 
         for (box, col), bar in self.mag_progressbars.items():
-            filled = col_occ.get(box, {}).get(col, 0)
+            filled = col_occ.get((box, col), 0)
             columns = storage.BOX_COLUMNS.get(box, 4)
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
