@@ -5366,63 +5366,64 @@ class CardEditorApp:
                         logger.info(
                             "Skipping duplicate card %s #%s in set %s", name, number, set_name
                         )
-                        if progress_cb:
-                            progress_cb(1.0, hide=True)
-                        return
-                    self.current_location = self.next_free_location()
-                    if hasattr(self, "location_label"):
-                        self.location_label.configure(text=self.current_location)
-                    logger.info(
-                        "Assigned storage location %s to duplicate card", self.current_location
-                    )
-                self.entries["nazwa"].delete(0, tk.END)
-                self.entries["numer"].delete(0, tk.END)
-                self.entries["nazwa"].insert(0, name)
-                self.entries["numer"].insert(0, number)
-                self.entries["set"].set("")
-                self.entries["set"].set(set_name)
-                era_name = get_set_era(set_name)
-                self.entries["era"].set(era_name)
-                cena = getattr(
-                    self, "get_price_from_db", lambda *a, **k: None
-                )(name, number, set_name)
-                if cena is None:
-                    cena = getattr(
-                        self, "fetch_card_price", lambda *a, **k: None
-                    )(name, number, set_name)
-                if cena is not None:
-                    self.entries["cena"].delete(0, tk.END)
-                    self.entries["cena"].insert(0, str(cena))
-                    is_rev = getattr(self, "price_reverse_var", None)
-                    price = self.apply_variant_multiplier(
-                        cena, is_reverse=is_rev.get() if is_rev else False
-                    )
-                    try:
-                        self.price_pool_total += float(price)
-                    except (TypeError, ValueError):
-                        pass
-                    if getattr(self, "pool_total_label", None):
-                        self.pool_total_label.config(
-                            text=f"Suma puli: {self.price_pool_total:.2f}"
+                        fp_match = None
+                        skip_analysis = False
+                    else:
+                        self.current_location = self.next_free_location()
+                        if hasattr(self, "location_label"):
+                            self.location_label.configure(text=self.current_location)
+                        logger.info(
+                            "Assigned storage location %s to duplicate card", self.current_location
                         )
-                if isinstance(meta.get("typ"), str):
-                    for name in meta["typ"].split(","):
-                        name = name.strip()
-                        if name in self.type_vars:
-                            self.type_vars[name].set(True)
-                self.update_set_options()
-                skip_analysis = True
-                logger.info(
-                    "Skipping analysis for %s: fingerprint match with distance %s",
-                    filename,
-                    fp_match.distance,
-                )
-                if progress_cb:
-                    progress_cb(1.0, hide=True)
+                if fp_match:
+                    self.entries["nazwa"].delete(0, tk.END)
+                    self.entries["numer"].delete(0, tk.END)
+                    self.entries["nazwa"].insert(0, name)
+                    self.entries["numer"].insert(0, number)
+                    self.entries["set"].set("")
+                    self.entries["set"].set(set_name)
+                    era_name = get_set_era(set_name)
+                    self.entries["era"].set(era_name)
+                    cena = getattr(
+                        self, "get_price_from_db", lambda *a, **k: None
+                    )(name, number, set_name)
+                    if cena is None:
+                        cena = getattr(
+                            self, "fetch_card_price", lambda *a, **k: None
+                        )(name, number, set_name)
+                    if cena is not None:
+                        self.entries["cena"].delete(0, tk.END)
+                        self.entries["cena"].insert(0, str(cena))
+                        is_rev = getattr(self, "price_reverse_var", None)
+                        price = self.apply_variant_multiplier(
+                            cena, is_reverse=is_rev.get() if is_rev else False
+                        )
+                        try:
+                            self.price_pool_total += float(price)
+                        except (TypeError, ValueError):
+                            pass
+                        if getattr(self, "pool_total_label", None):
+                            self.pool_total_label.config(
+                                text=f"Suma puli: {self.price_pool_total:.2f}"
+                            )
+                    if isinstance(meta.get("typ"), str):
+                        for name in meta["typ"].split(","):
+                            name = name.strip()
+                            if name in self.type_vars:
+                                self.type_vars[name].set(True)
+                    self.update_set_options()
+                    skip_analysis = True
+                    logger.info(
+                        "Skipping analysis for %s: fingerprint match with distance %s",
+                        filename,
+                        fp_match.distance,
+                    )
+                    if progress_cb:
+                        progress_cb(1.0, hide=True)
 
         if not skip_analysis:
             if progress_cb:
-                progress_cb(0, hide=True)
+                progress_cb(0, show=True)
             thread = threading.Thread(
                 target=self._analyze_and_fill,
                 args=(image_path, self.index),
@@ -5433,7 +5434,7 @@ class CardEditorApp:
                 btn = getattr(self, btn_name, None)
                 if btn is not None:
                     try:
-                        btn.configure(state=tk.DISABLED)
+                        btn.configure(state=tk.NORMAL)
                     except Exception:
                         pass
             thread.start()
