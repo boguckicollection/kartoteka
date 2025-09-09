@@ -895,7 +895,8 @@ def extract_cardmarket_price(card):
     ``None`` is returned when no positive price can be determined.
     """
 
-    cardmarket = card.get("prices", {}).get("cardmarket", {}) or {}
+    prices = (card or {}).get("prices") or {}
+    cardmarket = prices.get("cardmarket") or {}
 
     def _get_float(key: str) -> float:
         try:
