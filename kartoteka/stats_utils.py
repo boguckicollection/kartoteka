@@ -1,11 +1,15 @@
 import csv
 import os
 import re
+import logging
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Dict, List, Tuple
 
-from . import csv_utils
+try:  # pragma: no cover - allow running as a script
+    from . import csv_utils
+except Exception:  # pragma: no cover
+    import csv_utils  # type: ignore
 
 
 def _parse_date(value: str) -> date | None:
@@ -52,7 +56,9 @@ def get_statistics(start: date, end: date, path: str | None = None) -> Dict:
     for row in rows:
         added = _parse_date(str(row.get("added_at") or ""))
         if added is None:
-            continue
+            logging.warning("Missing added_at value, using today's date")
+            added = date.today()
+            row["added_at"] = added.isoformat()
         if start <= added <= end:
             filtered.append(row)
 
