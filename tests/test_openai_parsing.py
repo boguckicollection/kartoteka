@@ -22,6 +22,7 @@ SV01_NAME = ui.get_set_name(SV01_CODE)
 
 def test_parse_code_fence(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
 
     img = tmp_path / "x.jpg"
     img.write_bytes(b"data")

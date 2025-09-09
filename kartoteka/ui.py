@@ -42,8 +42,6 @@ else:  # pragma: no cover - optional dependency
         openai.chat = SimpleNamespace(
             completions=SimpleNamespace(create=lambda *a, **k: None)
         )
-    # provide a no-op client so tests don't require a real API key
-    openai.OpenAI = lambda *a, **k: SimpleNamespace()
 
 from shoper_client import ShoperClient
 from webdav_client import WebDAVClient
@@ -112,8 +110,11 @@ WEBDAV_URL = os.getenv("WEBDAV_URL")
 WEBDAV_USER = os.getenv("WEBDAV_USER")
 WEBDAV_PASSWORD = os.getenv("WEBDAV_PASSWORD")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+USE_OPENAI_STUB = not OPENAI_API_KEY or os.getenv("OPENAI_TEST_MODE")
 if OPENAI_API_KEY:
     openai.api_key = OPENAI_API_KEY
+if USE_OPENAI_STUB:
+    openai.OpenAI = lambda *a, **k: SimpleNamespace()
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
