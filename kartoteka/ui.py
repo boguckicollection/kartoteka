@@ -2428,31 +2428,8 @@ class CardEditorApp:
             count = cumulative.get("count", 0)
             total_value = cumulative.get("total_value", 0.0)
             daily = data.get("daily", {})
-            max_order = max((d.get("sold", 0) for d in daily.values()), default=0)
-            max_price = 0.0
-            try:
-                with open(csv_utils.WAREHOUSE_CSV, encoding="utf-8") as f:
-                    reader = csv.DictReader(f, delimiter=";")
-                    for row in reader:
-                        added = str(row.get("added_at") or "")
-                        try:
-                            added_date = datetime.date.fromisoformat(added.split("T", 1)[0])
-                        except ValueError:
-                            continue
-                        if not (start <= added_date <= end):
-                            continue
-                        sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-                        if not sold:
-                            continue
-                        price_raw = str(row.get("price") or "0").replace(",", ".")
-                        try:
-                            price = float(price_raw)
-                        except ValueError:
-                            price = 0.0
-                        if price > max_price:
-                            max_price = price
-            except OSError:
-                pass
+            max_order = data.get("max_order", 0)
+            max_price = data.get("max_price", 0.0)
 
             self.stats_total_label.configure(
                 text=f"Wartość kolekcji: {total_value:.2f} zł"

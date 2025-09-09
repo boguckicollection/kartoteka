@@ -72,6 +72,7 @@ def get_statistics(start: date, end: date, path: str | None = None) -> Dict:
     sets_by_value: Dict[str, float] = defaultdict(float)
     boxes_by_count: Dict[int, int] = defaultdict(int)
     boxes_by_value: Dict[int, float] = defaultdict(float)
+    max_price = 0.0
 
     for row in filtered:
         price_raw = str(row.get("price") or "0").replace(",", ".")
@@ -85,6 +86,8 @@ def get_statistics(start: date, end: date, path: str | None = None) -> Dict:
         sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
         if sold:
             sold_count += 1
+            if price > max_price:
+                max_price = price
         else:
             unsold_count += 1
 
@@ -123,6 +126,7 @@ def get_statistics(start: date, end: date, path: str | None = None) -> Dict:
     avg_price = cumulative_value / cumulative_count if cumulative_count else 0.0
     sold_ratio = sold_count / cumulative_count if cumulative_count else 0.0
     unsold_ratio = unsold_count / cumulative_count if cumulative_count else 0.0
+    max_order = max((stats.get("sold", 0) for stats in daily.values()), default=0)
 
     return {
         "cumulative": {"count": cumulative_count, "total_value": cumulative_value},
@@ -134,6 +138,8 @@ def get_statistics(start: date, end: date, path: str | None = None) -> Dict:
         "average_price": avg_price,
         "sold_ratio": sold_ratio,
         "unsold_ratio": unsold_ratio,
+        "max_price": max_price,
+        "max_order": max_order,
     }
 
 
