@@ -33,6 +33,8 @@ def test_get_statistics_aggregates_correctly(tmp_path):
     assert abs(stats["average_price"] - 7.5) < 1e-6
     assert abs(stats["sold_ratio"] - 0.5) < 1e-6
     assert abs(stats["unsold_ratio"] - 0.5) < 1e-6
+    assert abs(stats["max_price"] - 7) < 1e-6
+    assert stats["max_order"] == 1
 
 
 def test_get_statistics_handles_missing_added_at(tmp_path, caplog):
