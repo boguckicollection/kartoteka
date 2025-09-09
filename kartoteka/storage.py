@@ -22,6 +22,24 @@ BOX_COLUMNS: dict[int, int] = {**{b: 4 for b in range(1, BOX_COUNT + 1)}, 100: 1
 BOX_COLUMN_CAPACITY = 1000
 
 
+class NoFreeLocationError(Exception):
+    """Raised when all storage locations are occupied."""
+
+
+def max_capacity() -> int:
+    """Return total number of available storage slots.
+
+    The calculation sums :data:`BOX_CAPACITY` for all configured boxes.
+    Boxes missing in :data:`BOX_CAPACITY` fall back to the default
+    :data:`BOX_COLUMN_CAPACITY` multiplied by their number of columns.
+    """
+
+    total = 0
+    for box, cols in BOX_COLUMNS.items():
+        total += BOX_CAPACITY.get(box, cols * BOX_COLUMN_CAPACITY)
+    return total
+
+
 def load_last_sets_check() -> datetime | None:
     try:
         with open(LAST_SETS_CHECK_FILE, "r", encoding="utf-8") as f:
@@ -127,6 +145,8 @@ def next_free_location(app):
     last_idx = load_last_location() if not output_data else 0
     base_idx = getattr(app, "starting_idx", 0)
     next_idx = max(used | {last_idx, base_idx - 1}) + 1
+    if next_idx >= max_capacity():
+        raise NoFreeLocationError("no free storage locations available")
     return generate_location(next_idx)
 
 
