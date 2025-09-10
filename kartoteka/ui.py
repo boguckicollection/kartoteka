@@ -1290,6 +1290,9 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
         }
 
         try:
+            logger.debug(
+                "extract_card_info_openai: calling OpenAI with response_format"
+            )
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 response_format={"type": "json_schema", "json_schema": schema},
@@ -1304,28 +1307,13 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 ],
                 max_output_tokens=150,
             )
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
-            if raw.startswith("json"):
-                raw = raw[len("json") :].lstrip()
-            match = re.search(r"{.*}", raw, re.DOTALL)
-            if match:
-                raw = match.group(0)
-            if not raw:
-                logger.error(
-                    "extract_card_info_openai got empty response from OpenAI: %r",
-                    resp,
-                )
-                return "", "", "", "", "", "", ""
-            try:
-                data_dict = json.loads(raw)
-            except json.JSONDecodeError:
-                logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", "", "", ""
-        except TypeError:
+        except TypeError as e:
+            logger.debug(
+                "extract_card_info_openai: response_format unsupported (%s); retrying without",
+                e,
+            )
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                response_format={"type": "json_schema", "json_schema": schema},
                 input=[
                     {
                         "role": "user",
@@ -1337,24 +1325,25 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 ],
                 max_output_tokens=150,
             )
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
-            if raw.startswith("json"):
-                raw = raw[len("json") :].lstrip()
-            match = re.search(r"{.*}", raw, re.DOTALL)
-            if match:
-                raw = match.group(0)
-            if not raw:
-                logger.error(
-                    "extract_card_info_openai got empty response from OpenAI: %r",
-                    resp,
-                )
-                return "", "", "", "", "", "", ""
-            try:
-                data_dict = json.loads(raw)
-            except json.JSONDecodeError:
-                logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", "", "", ""
+
+        raw = getattr(resp, "output_text", "")
+        raw = raw.strip().strip("`")
+        if raw.startswith("json"):
+            raw = raw[len("json") :].lstrip()
+        match = re.search(r"{.*}", raw, re.DOTALL)
+        if match:
+            raw = match.group(0)
+        if not raw:
+            logger.error(
+                "extract_card_info_openai got empty response from OpenAI: %r",
+                resp,
+            )
+            return "", "", "", "", "", "", ""
+        try:
+            data_dict = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.error("OpenAI returned non-JSON: %r", raw)
+            return "", "", "", "", "", "", ""
 
         data = data_dict
 
