@@ -118,6 +118,7 @@ if USE_OPENAI_STUB:
 
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
@@ -496,7 +497,7 @@ def reload_sets():
     SET_TO_ERA = {}
 
     try:
-        with open("tcg_sets.json", encoding="utf-8") as f:
+        with open(DATA_DIR / "tcg_sets.json", encoding="utf-8") as f:
             tcg_sets_eng_by_era = json.load(f)
     except FileNotFoundError:
         tcg_sets_eng_by_era = {}
@@ -538,7 +539,7 @@ def reload_sets():
                 SET_TO_ERA[item["abbr"].lower()] = era
 
     try:
-        with open("tcg_sets_jp.json", encoding="utf-8") as f:
+        with open(DATA_DIR / "tcg_sets_jp.json", encoding="utf-8") as f:
             tcg_sets_jp_by_era = json.load(f)
     except FileNotFoundError:
         tcg_sets_jp_by_era = {}
@@ -579,6 +580,18 @@ def reload_sets():
             if "abbr" in item:
                 SET_TO_ERA[item["abbr"].lower()] = era
 
+    global OPENAI_ERAS, OPENAI_SETS
+    OPENAI_ERAS = sorted(tcg_sets_eng_by_era.keys())
+    OPENAI_SETS = sorted(
+        {
+            value
+            for sets in tcg_sets_eng_by_era.values()
+            for item in sets
+            for value in (item["name"], item["code"], item.get("abbr", ""))
+            if value
+        }
+    )
+
 
 reload_sets()
 
@@ -592,6 +605,8 @@ ALLOWED_ERAS = {
 }
 
 ALLOWED_SET_CODES: set[str] = set()
+OPENAI_ERAS: list[str] = []
+OPENAI_SETS: list[str] = []
 
 
 def refresh_logo_cache() -> bool:
@@ -698,6 +713,24 @@ def get_set_era(code_or_name: str) -> str:
     search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
     search = search.strip().lower()
     return SET_TO_ERA.get(search, "")
+
+
+def resolve_set_and_era(
+    set_name: str = "", set_code: str = "", era_name: str = ""
+) -> tuple[str, str, str]:
+    """Normalize set and era names using known mappings.
+
+    Returns a tuple ``(normalized_set_name, set_code, era_name)``. Unknown eras
+    are returned as ``"unknown"``.
+    """
+
+    code = set_code or get_set_code(set_name)
+    name = get_set_name(code) or set_name
+    era = get_set_era(code) or get_set_era(name) or get_set_era(era_name)
+    if not era:
+        logger.warning("Unknown set or era: %s / %s", name or code, era_name)
+        era = "unknown"
+    return name, code, era
 
 def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     """Return possible set codes and names for the given card info.
@@ -1237,17 +1270,28 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
             return "", "", "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
 
-        PROMPT = (
-            "You must return a JSON object with the Pokémon card's English name, "
-            "card number in the form NNN/NNN, English set name, era name, and whether "
-            "the set is written as text or shown as a symbol. The response must strictly "
-            'match {"name":"", "number":"", "set_name":"", "era_name":"", "set_format":""}.'
-        )
+        PROMPT = "Identify the Pokémon card and respond in JSON format."
+
+        schema = {
+            "name": "card_info",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "number": {"type": "string"},
+                    "set_name": {"type": "string", "enum": OPENAI_SETS},
+                    "era_name": {"type": "string", "enum": OPENAI_ERAS},
+                    "set_format": {"type": "string", "enum": ["text", "symbol"]},
+                },
+                "required": ["name", "number", "set_name", "era_name", "set_format"],
+                "additionalProperties": False,
+            },
+        }
 
         try:
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                response_format={"type": "json_object"},
+                response_format={"type": "json_schema", "json_schema": schema},
                 input=[
                     {
                         "role": "user",
@@ -1280,6 +1324,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
         except TypeError:
             resp = client.responses.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                response_format={"type": "json_schema", "json_schema": schema},
                 input=[
                     {
                         "role": "user",
@@ -1324,13 +1369,10 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
         name = data.get("name") or ""
         set_name = data.get("set_name") or ""
         set_format = data.get("set_format") or ""
-        set_code = ""
-        if set_name:
-            set_code = get_set_code(set_name)
-            mapped = get_set_name(set_code)
-            if mapped:
-                set_name = mapped
         era_name = data.get("era_name") or ""
+        set_name, set_code, era_name = resolve_set_and_era(
+            set_name, "", era_name
+        )
         return name, number, total, era_name, set_name, set_code, set_format
     except Exception as e:
         logger.warning("extract_card_info_openai failed: %s", e)
@@ -1404,11 +1446,12 @@ def analyze_card_image(
                         if diff <= HASH_DIFF_THRESHOLD:
                             rect = candidate
                             set_code = code
-                            set_name = name_match
-                            print(
-                                f"[SUCCESS] Local hash analysis found a match: {name_match}"
+                            set_name, set_code, era_name = resolve_set_and_era(
+                                set_name, set_code
                             )
-                            era_name = get_set_era(set_code) or get_set_era(set_name)
+                            print(
+                                f"[SUCCESS] Local hash analysis found a match: {set_name}"
+                            )
                             result = {
                                 "name": name,
                                 "number": number,
@@ -1435,11 +1478,15 @@ def analyze_card_image(
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
 
+                set_name, set_code, era_name = resolve_set_and_era(
+                    set_name, set_code, era_name
+                )
+
                 if name and number and set_name:
                     print(
                         f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}"
                     )
-                    era = era_name or get_set_era(set_code) or get_set_era(set_name)
+                    era = era_name or "unknown"
                     result = {
                         "name": name,
                         "number": number,
@@ -1475,7 +1522,9 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] TCGGO API found a single match: {api_set_name}"
                     )
-                    era = get_set_era(set_code) or get_set_era(api_set_name)
+                    api_set_name, set_code, era = resolve_set_and_era(
+                        api_set_name, set_code
+                    )
                     result = {
                         "name": name,
                         "number": number,
@@ -1496,7 +1545,9 @@ def analyze_card_image(
                         "[INFO] TCGGO API found multiple matches. "
                         f"Selecting first result: {selected_name}"
                     )
-                    era = get_set_era(set_code) or get_set_era(selected_name)
+                    selected_name, set_code, era = resolve_set_and_era(
+                        selected_name, set_code
+                    )
                     result = {
                         "name": name,
                         "number": number,
@@ -1537,28 +1588,28 @@ def analyze_card_image(
                             set_code = code
                             set_name = name_lookup
                             print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                            era = get_set_era(set_code) or get_set_era(set_name)
-                            result = {
-                                "name": name,
-                                "number": number,
-                                "total": total,
-                                "set": set_name,
-                                "set_code": set_code,
-                                "orientation": orientation,
-                                "set_format": set_format,
-                                "era": era,
-                            }
-                            if debug and rect:
-                                result["rect"] = rect
-                            return result
-                        else:
-                            print(f"[WARN] OCR produced unknown set code: {code}")
+                    set_name, set_code, era = resolve_set_and_era(set_name, set_code)
+                    result = {
+                        "name": name,
+                        "number": number,
+                        "total": total,
+                        "set": set_name,
+                        "set_code": set_code,
+                        "orientation": orientation,
+                        "set_format": set_format,
+                        "era": era,
+                    }
+                    if debug and rect:
+                        result["rect"] = rect
+                    return result
+                else:
+                    print(f"[WARN] OCR produced unknown set code: {code}")
             except Exception:
                 logger.exception("OCR analysis failed")
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
-        era = era_name or get_set_era(set_code) or get_set_era(set_name)
+        set_name, set_code, era = resolve_set_and_era(set_name, set_code, era_name)
         result = {
             "name": name,
             "number": number,
@@ -6015,10 +6066,13 @@ class CardEditorApp:
 
     def update_sets(self):
         """Check remote API for new sets and update local files."""
+        sets_path = Path(self.sets_file)
+        if not sets_path.is_absolute():
+            sets_path = DATA_DIR / sets_path
         try:
             self.loading_label.configure(text="Sprawdzanie nowych setów...")
             self.root.update()
-            with open(self.sets_file, encoding="utf-8") as f:
+            with open(sets_path, encoding="utf-8") as f:
                 current_sets = json.load(f)
         except (OSError, json.JSONDecodeError):
             current_sets = {}
@@ -6069,7 +6123,7 @@ class CardEditorApp:
             new_items.append({"name": name, "code": code})
 
         if added:
-            with open(self.sets_file, "w", encoding="utf-8") as f:
+            with open(sets_path, "w", encoding="utf-8") as f:
                 json.dump(current_sets, f, indent=2, ensure_ascii=False)
             reload_sets()
             refresh_logo_cache()
