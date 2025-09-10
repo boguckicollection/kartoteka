@@ -720,16 +720,17 @@ def resolve_set_and_era(
 ) -> tuple[str, str, str]:
     """Normalize set and era names using known mappings.
 
-    Returns a tuple ``(normalized_set_name, set_code, era_name)``. Unknown eras
-    are returned as ``"unknown"``.
+    Returns a tuple ``(normalized_set_name, set_code, era_name)``.
+    Unknown eras are returned as an empty string.
     """
 
     code = set_code or get_set_code(set_name)
     name = get_set_name(code) or set_name
     era = get_set_era(code) or get_set_era(name) or get_set_era(era_name)
     if not era:
-        logger.warning("Unknown set or era: %s / %s", name or code, era_name)
-        era = "unknown"
+        if name or code or era_name:
+            logger.warning("Unknown set or era: %s / %s", name or code, era_name)
+        return name, code, ""
     return name, code, era
 
 def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
