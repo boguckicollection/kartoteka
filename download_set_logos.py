@@ -4,7 +4,7 @@ import re
 import requests
 from urllib.parse import urlparse
 
-SET_FILES = ["tcg_sets.json", "tcg_sets_jp.json"]
+SET_FILES = ["data/tcg_sets.json", "data/tcg_sets_jp.json"]
 LOGO_DIR = "set_logos"
 
 os.makedirs(LOGO_DIR, exist_ok=True)
