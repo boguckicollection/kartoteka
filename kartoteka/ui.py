@@ -1307,7 +1307,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 ],
                 max_output_tokens=150,
             )
-        except TypeError as e:
+        except (TypeError, openai.OpenAIError) as e:
             logger.debug(
                 "extract_card_info_openai: response_format unsupported (%s); retrying without",
                 e,
