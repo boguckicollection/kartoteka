@@ -16,6 +16,17 @@ With dependencies installed, launch the interface:
 python main.py
 ```
 
+## Set validation
+
+OpenAI responses normally validate set and era names against a built-in list.
+To allow unrecognised values and rely on internal mapping instead, disable
+strict validation:
+
+```bash
+STRICT_SET_VALIDATION=0 python main.py
+```
+
+
 ## Card Identifier Format and CSV Export
 Cards are identified with the pattern `PKM-<SET>-<NR>-<VARIANT>`:
 

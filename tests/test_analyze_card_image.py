@@ -211,6 +211,46 @@ def test_analyze_card_image_propagates_openai_era(monkeypatch):
     mock_hash.assert_called_once()
 
 
+def test_analyze_card_image_relaxed_validation(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("STRICT_SET_VALIDATION", "0")
+    importlib.reload(ui)
+
+    img = tmp_path / "x.jpg"
+    img.write_bytes(b"data")
+
+    payload = {
+        "name": "Pikachu",
+        "number": "037/198",
+        "set_name": f"{SV01_NAME} EN",
+        "era_name": "SV EN",
+        "set_format": "text",
+    }
+    resp = SimpleNamespace(output_text=json.dumps(payload))
+
+    class DummyClient:
+        def __init__(self, *a, **k):
+            self.responses = SimpleNamespace(create=lambda *a, **k: resp)
+
+    monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
+    with patch.object(ui, "identify_set_by_hash", return_value=[]), patch.object(
+        ui, "extract_set_code_ocr", return_value=[]
+    ), patch.object(ui, "lookup_sets_from_api", return_value=[]):
+        result = ui.analyze_card_image(str(img))
+
+    assert result == {
+        "name": "Pikachu",
+        "number": "037",
+        "total": "198",
+        "set": SV01_NAME,
+        "set_code": SV01_CODE,
+        "orientation": 0,
+        "set_format": "text",
+        "era": ui.get_set_era(SV01_CODE),
+    }
+    importlib.reload(ui)
+
+
 def test_analyze_card_image_hash_preempts_openai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     class DummyImage:
