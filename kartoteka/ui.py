@@ -270,6 +270,28 @@ def _load_image(path: str) -> Optional[Image.Image]:
             if img is not None:
                 return img
             return None
+        except requests.exceptions.SSLError as exc:
+            logger.warning("SSL error while downloading image %s: %s", path, exc)
+            retry_path = path
+            if path.startswith("https://"):
+                retry_path = "http://" + path[len("https://"):]
+            try:
+                resp = requests.get(retry_path, timeout=5, verify=False)
+                resp.raise_for_status()
+                data = resp.content
+                _IMAGE_CACHE[path] = (data, time.time())
+                img = load_rgba_image(io.BytesIO(data))
+                if img is not None:
+                    return img
+                return None
+            except requests.RequestException as exc2:
+                logger.warning(
+                    "Failed to download image %s after SSL retry: %s",
+                    retry_path,
+                    exc2,
+                )
+                _IMAGE_CACHE[path] = (None, time.time())
+                return None
         except requests.RequestException as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
             _IMAGE_CACHE[path] = (None, time.time())
