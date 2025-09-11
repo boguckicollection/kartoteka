@@ -86,7 +86,7 @@ def test_parse_code_fallback(monkeypatch, tmp_path):
 
     def create(*a, **k):
         calls.append(k)
-        if len(calls) == 1:
+        if len(calls) < 3:
             raise TypeError("response_format not supported")
         return resp
 
@@ -107,9 +107,10 @@ def test_parse_code_fallback(monkeypatch, tmp_path):
     assert set_code == SV01_CODE
     assert set_name == SV01_NAME
     assert set_format == "text"
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert "response_format" in calls[0]
-    assert "response_format" not in calls[1]
+    assert "response_format" in calls[1]
+    assert "response_format" not in calls[2]
 
 
 def test_parse_code_fallback_openai_error(monkeypatch, tmp_path):
@@ -132,7 +133,7 @@ def test_parse_code_fallback_openai_error(monkeypatch, tmp_path):
 
     def create(*a, **k):
         calls.append(k)
-        if len(calls) == 1:
+        if len(calls) < 3:
             raise ui.openai.OpenAIError("unexpected keyword argument 'response_format'")
         return resp
 
@@ -153,9 +154,59 @@ def test_parse_code_fallback_openai_error(monkeypatch, tmp_path):
     assert set_code == SV01_CODE
     assert set_name == SV01_NAME
     assert set_format == "text"
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert "response_format" in calls[0]
-    assert "response_format" not in calls[1]
+    assert "response_format" in calls[1]
+    assert "response_format" not in calls[2]
+
+
+def test_parse_code_fallback_enums(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    img = tmp_path / "x.jpg"
+    img.write_bytes(b"data")
+
+    payload = {
+        "name": "Pikachu",
+        "number": "037/198",
+        "set_name": SV01_NAME,
+        "era_name": ui.get_set_era(SV01_CODE),
+        "set_format": "text",
+    }
+    resp = SimpleNamespace(output_text=json.dumps(payload))
+
+    calls = []
+
+    def create(*a, **k):
+        calls.append(k)
+        if len(calls) == 1:
+            raise ui.openai.OpenAIError("bad enum")
+        return resp
+
+    class DummyClient:
+        def __init__(self, *a, **k):
+            self.responses = SimpleNamespace(create=create)
+
+    monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
+    name, number, total, era_name, set_name, set_code, set_format = ui.extract_card_info_openai(
+        str(img)
+    )
+    assert (name, number, total, era_name) == (
+        "Pikachu",
+        "037",
+        "198",
+        ui.get_set_era(SV01_CODE),
+    )
+    assert set_code == SV01_CODE
+    assert set_name == SV01_NAME
+    assert set_format == "text"
+    assert len(calls) == 2
+    first_props = calls[0]["response_format"]["json_schema"]["schema"]["properties"]
+    assert "enum" in first_props["set_name"]
+    assert "response_format" in calls[1]
+    second_props = calls[1]["response_format"]["json_schema"]["schema"]["properties"]
+    assert "enum" not in second_props["set_name"]
 
 
 def test_parse_truncated_json_repair(monkeypatch, tmp_path):
