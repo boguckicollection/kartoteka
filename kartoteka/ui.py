@@ -117,6 +117,12 @@ if OPENAI_API_KEY:
 if USE_OPENAI_STUB:
     openai.OpenAI = lambda *a, **k: SimpleNamespace()
 
+STRICT_SET_VALIDATION = os.getenv("STRICT_SET_VALIDATION", "1") not in {
+    "0",
+    "false",
+    "False",
+}
+
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -1296,9 +1302,14 @@ def extract_card_info_openai(
                 "additionalProperties": False,
             },
         }
-        enum_schema = copy.deepcopy(base_schema)
-        enum_schema["schema"]["properties"]["set_name"]["enum"] = enum_values
-        enum_schema["schema"]["properties"]["era_name"]["enum"] = OPENAI_ERAS
+        schemas: list[dict | None]
+        if STRICT_SET_VALIDATION:
+            enum_schema = copy.deepcopy(base_schema)
+            enum_schema["schema"]["properties"]["set_name"]["enum"] = enum_values
+            enum_schema["schema"]["properties"]["era_name"]["enum"] = OPENAI_ERAS
+            schemas = [enum_schema, base_schema, None]
+        else:
+            schemas = [base_schema, None]
 
         openai_error = (
             openai.OpenAIError
@@ -1380,7 +1391,6 @@ def extract_card_info_openai(
                     raise
                 return repaired
 
-        schemas: list[dict | None] = [enum_schema, base_schema, None]
         data_dict: dict | None = None
         for sch in schemas:
             try:

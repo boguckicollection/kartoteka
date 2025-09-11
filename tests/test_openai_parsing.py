@@ -66,6 +66,47 @@ def test_parse_code_fence(monkeypatch, tmp_path):
     assert enums == ui.OPENAI_SETS
 
 
+def test_parse_code_relaxed_validation(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("STRICT_SET_VALIDATION", "0")
+    importlib.reload(ui)
+
+    img = tmp_path / "x.jpg"
+    img.write_bytes(b"data")
+
+    payload = {
+        "name": "Pikachu",
+        "number": "037/198",
+        "set_name": f"{SV01_NAME} EN",
+        "era_name": "SV EN",
+        "set_format": "text",
+    }
+    resp = SimpleNamespace(output_text=json.dumps(payload))
+
+    calls = []
+
+    def create(*a, **k):
+        calls.append(k)
+        return resp
+
+    class DummyClient:
+        def __init__(self, *a, **k):
+            self.responses = SimpleNamespace(create=create)
+
+    monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
+    name, number, total, era_name, set_name, set_code, set_format = ui.extract_card_info_openai(
+        str(img)
+    )
+    assert (name, number, total) == ("Pikachu", "037", "198")
+    assert set_code == SV01_CODE
+    assert set_name == SV01_NAME
+    assert era_name == ui.get_set_era(SV01_CODE)
+    assert set_format == "text"
+    assert calls and "response_format" in calls[0]
+    props = calls[0]["response_format"]["json_schema"]["schema"]["properties"]["set_name"]
+    assert "enum" not in props
+
+
 def test_parse_code_fallback(monkeypatch, tmp_path):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     importlib.reload(ui)
