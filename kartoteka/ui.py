@@ -1397,8 +1397,28 @@ def extract_card_info_openai(
             return client.responses.create(**params)
 
         def parse_resp(resp) -> dict:
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
+            def _nested_get(obj, *path):
+                for key in path:
+                    if obj is None:
+                        return None
+                    try:
+                        if isinstance(key, int):
+                            obj = obj[key]
+                        else:
+                            obj = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+                    except (KeyError, IndexError, TypeError, AttributeError):
+                        return None
+                return obj
+
+            raw = getattr(resp, "output_text", None)
+            if not raw:
+                raw = (
+                    _nested_get(resp, "output", 0, "content", 0, "text", "value")
+                    or _nested_get(resp, "output", 0, "content", 0, "text")
+                    or _nested_get(resp, "output", 0, "content", 0)
+                    or ""
+                )
+            raw = str(raw).strip().strip("`")
             if raw.startswith("json"):
                 raw = raw[len("json") :].lstrip()
             match = re.search(r"{.*}", raw, re.DOTALL)
