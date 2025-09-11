@@ -1289,113 +1289,121 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
             },
         }
 
-        try:
-            logger.debug(
-                "extract_card_info_openai: calling OpenAI with response_format"
-            )
-            resp = client.responses.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                response_format={"type": "json_schema", "json_schema": schema},
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": PROMPT},
-                            {"type": "input_image", "image_url": data_url},
-                        ],
-                    }
-                ],
-                max_output_tokens=150,
-            )
-        except (TypeError, openai.OpenAIError) as e:
-            logger.debug(
-                "extract_card_info_openai: response_format unsupported (%s); retrying without",
-                e,
-            )
-            resp = client.responses.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": PROMPT},
-                            {"type": "input_image", "image_url": data_url},
-                        ],
-                    }
-                ],
-                max_output_tokens=150,
-            )
-
-        raw = getattr(resp, "output_text", "")
-        raw = raw.strip().strip("`")
-        if raw.startswith("json"):
-            raw = raw[len("json") :].lstrip()
-        match = re.search(r"{.*}", raw, re.DOTALL)
-        if match:
-            raw = match.group(0)
-        if not raw:
-            logger.error(
-                "extract_card_info_openai got empty response from OpenAI: %r",
-                resp,
-            )
-            return "", "", "", "", "", "", ""
-
-        def repair_json(text: str) -> dict | None:
-            stack: list[str] = []
-            in_string = False
-            escape = False
-            pairs = {"{": "}", "[": "]"}
-            for ch in text:
-                if escape:
-                    escape = False
-                    continue
-                if ch == "\\":
-                    escape = True
-                    continue
-                if ch == '"':
-                    in_string = not in_string
-                    continue
-                if in_string:
-                    continue
-                if ch in pairs:
-                    stack.append(ch)
-                elif ch in pairs.values():
-                    if not stack or pairs[stack[-1]] != ch:
-                        return None
-                    stack.pop()
-            fixed = text + "".join(pairs[c] for c in reversed(stack))
+        for attempt in range(2):
             try:
-                return json.loads(fixed)
-            except json.JSONDecodeError:
-                return None
+                logger.debug(
+                    "extract_card_info_openai: calling OpenAI with response_format"
+                )
+                resp = client.responses.create(
+                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                    response_format={"type": "json_schema", "json_schema": schema},
+                    input=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": PROMPT},
+                                {"type": "input_image", "image_url": data_url},
+                            ],
+                        }
+                    ],
+                    max_output_tokens=150,
+                )
+            except (TypeError, openai.OpenAIError) as e:
+                logger.debug(
+                    "extract_card_info_openai: response_format unsupported (%s); retrying without",
+                    e,
+                )
+                resp = client.responses.create(
+                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                    input=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": PROMPT},
+                                {"type": "input_image", "image_url": data_url},
+                            ],
+                        }
+                    ],
+                    max_output_tokens=150,
+                )
 
-        try:
-            data_dict = json.loads(raw)
-        except json.JSONDecodeError:
-            data_dict = repair_json(raw)
-            if data_dict is None:
-                logger.error("OpenAI returned non-JSON: %r", raw)
+            raw = getattr(resp, "output_text", "")
+            raw = raw.strip().strip("`")
+            if raw.startswith("json"):
+                raw = raw[len("json") :].lstrip()
+            match = re.search(r"{.*}", raw, re.DOTALL)
+            if match:
+                raw = match.group(0)
+            if not raw:
+                logger.error(
+                    "extract_card_info_openai got empty response from OpenAI: %r",
+                    resp,
+                )
                 return "", "", "", "", "", "", ""
 
-        data = data_dict
+            def repair_json(text: str) -> dict | None:
+                stack: list[str] = []
+                in_string = False
+                escape = False
+                pairs = {"{": "}", "[": "]"}
+                for ch in text:
+                    if escape:
+                        escape = False
+                        continue
+                    if ch == "\\":
+                        escape = True
+                        continue
+                    if ch == '"':
+                        in_string = not in_string
+                        continue
+                    if in_string:
+                        continue
+                    if ch in pairs:
+                        stack.append(ch)
+                    elif ch in pairs.values():
+                        if not stack or pairs[stack[-1]] != ch:
+                            return None
+                        stack.pop()
+                fixed = text + "".join(pairs[c] for c in reversed(stack))
+                try:
+                    return json.loads(fixed)
+                except json.JSONDecodeError:
+                    return None
 
-        raw_number = data.get("number") or ""
-        number, total = "", ""
-        if isinstance(raw_number, str):
-            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
-            if m:
-                number, total = m.group(1), m.group(2) or ""
-            else:
-                number = re.sub(r"\D+", "", raw_number)
+            try:
+                data_dict = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                data_dict = repair_json(raw)
+                if data_dict is None:
+                    logger.warning(
+                        "extract_card_info_openai JSON decode error on attempt %d: %s",
+                        attempt + 1,
+                        exc,
+                    )
+                    if attempt == 0:
+                        continue
+                    return "", "", "", "", "", "", ""
 
-        name = data.get("name") or ""
-        set_name = data.get("set_name") or ""
-        set_format = data.get("set_format") or ""
-        era_name = data.get("era_name") or ""
-        set_name, set_code, era_name = resolve_set_and_era(
-            set_name, "", era_name
-        )
-        return name, number, total, era_name, set_name, set_code, set_format
+            data = data_dict
+
+            raw_number = data.get("number") or ""
+            number, total = "", ""
+            if isinstance(raw_number, str):
+                m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
+                if m:
+                    number, total = m.group(1), m.group(2) or ""
+                else:
+                    number = re.sub(r"\D+", "", raw_number)
+
+            name = data.get("name") or ""
+            set_name = data.get("set_name") or ""
+            set_format = data.get("set_format") or ""
+            era_name = data.get("era_name") or ""
+            set_name, set_code, era_name = resolve_set_and_era(
+                set_name, "", era_name
+            )
+            return name, number, total, era_name, set_name, set_code, set_format
+        return "", "", "", "", "", "", ""
     except Exception as e:
         logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", "", ""
