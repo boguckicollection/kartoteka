@@ -1237,7 +1237,9 @@ class CardInfo(BaseModel):
 
 
 # ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
-def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, str]:
+def extract_card_info_openai(
+    path: str, available_sets: Iterable[str] | None = None
+) -> tuple[str, str, str, str, str, str, str]:
     """Recognize card name, number, set, and its format using OpenAI Vision.
 
     Returns a tuple ``(name, number, total, era_name, set_name, set_code, set_format)``.
@@ -1273,6 +1275,8 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
 
         PROMPT = "Identify the Pokémon card and respond in JSON format."
 
+        enum_values = list(available_sets) if available_sets else OPENAI_SETS
+
         schema = {
             "name": "card_info",
             "schema": {
@@ -1280,7 +1284,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 "properties": {
                     "name": {"type": "string"},
                     "number": {"type": "string"},
-                    "set_name": {"type": "string", "enum": OPENAI_SETS},
+                    "set_name": {"type": "string", "enum": enum_values},
                     "era_name": {"type": "string", "enum": OPENAI_ERAS},
                     "set_format": {"type": "string", "enum": ["text", "symbol"]},
                 },
@@ -1288,6 +1292,12 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 "additionalProperties": False,
             },
         }
+
+        openai_error = (
+            openai.OpenAIError
+            if isinstance(getattr(openai, "OpenAIError", None), type)
+            else Exception
+        )
 
         for attempt in range(2):
             try:
@@ -1308,7 +1318,7 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                     ],
                     max_output_tokens=150,
                 )
-            except (TypeError, openai.OpenAIError) as e:
+            except (TypeError, openai_error) as e:
                 logger.debug(
                     "extract_card_info_openai: response_format unsupported (%s); retrying without",
                     e,
@@ -1461,6 +1471,9 @@ def analyze_card_image(
         print(f"[INFO] Step {step}: {message}")
         step += 1
 
+    hash_candidates: list[str] = []
+    ocr_results: dict[tuple[int, int, int, int], list[str]] = {}
+
     try:
         # --- PRIORITY 1: Local hash lookup for the set symbol ---
         if local_path:
@@ -1479,6 +1492,7 @@ def analyze_card_image(
                             logger.exception("preview callback failed")
                     potential = identify_set_by_hash(local_path, candidate)
                     if potential:
+                        hash_candidates.extend(name for _, name, _ in potential)
                         code, name_match, diff = potential[0]
                         if diff <= HASH_DIFF_THRESHOLD:
                             rect = candidate
@@ -1507,12 +1521,31 @@ def analyze_card_image(
             except (OSError, UnidentifiedImageError, ValueError) as e:
                 logger.warning("Hash lookup failed: %s", e)
 
+        set_candidates: set[str] = set(hash_candidates)
+        if local_path:
+            try:
+                if not rects:
+                    rects = [(0, 0, 0, 0)]
+                for candidate in rects:
+                    codes = extract_set_code_ocr(local_path, candidate, debug)
+                    ocr_results[candidate] = codes
+                    for code in codes:
+                        name_match = get_set_name(code)
+                        if name_match and name_match != code:
+                            set_candidates.add(name_match)
+            except Exception as e:
+                logger.warning("OCR candidate collection failed: %s", e)
+
+        available_sets = sorted(set_candidates) if set_candidates else None
+
         # --- PRIORITY 2: OpenAI Vision ---
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
             log_step("Analyzing with OpenAI Vision...")
             try:
-                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(path)
+                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(
+                    path, available_sets
+                )
 
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
@@ -1628,7 +1661,9 @@ def analyze_card_image(
                             preview_cb(candidate, preview_image)
                         except Exception as exc:
                             logger.exception("preview callback failed")
-                    ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
+                    ocr_codes = ocr_results.get(candidate)
+                    if ocr_codes is None:
+                        ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
                     for code in ocr_codes:
                         name_lookup = get_set_name(code)
                         if name_lookup and name_lookup != code:
