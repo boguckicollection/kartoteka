@@ -1427,6 +1427,8 @@ def extract_card_info_openai(
                     _nested_get(resp, "output", 0, "content", 0, "text", "value")
                     or _nested_get(resp, "output", 0, "content", 0, "text")
                     or _nested_get(resp, "output", 0, "content", 0)
+                    or _nested_get(resp, "choices", 0, "message", "content")
+                    or _nested_get(resp, "choices", 0, "text")
                     or ""
                 )
             raw = str(raw).strip().strip("`")
