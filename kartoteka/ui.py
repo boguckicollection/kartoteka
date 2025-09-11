@@ -751,7 +751,7 @@ def resolve_set_and_era(
     era = get_set_era(code) or get_set_era(name) or get_set_era(era_name)
     if not era:
         logger.warning("Unknown set or era: %s / %s", name or code, era_name)
-        era = "unknown"
+        era = ""
     return name, code, era
 
 def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
@@ -1247,6 +1247,49 @@ def extract_set_code_ocr(
     return list(candidates)
 
 
+def extract_name_number_ocr(path: str) -> tuple[str, str, str]:
+    """Attempt to extract card name and number from ``path`` using OCR.
+
+    Parameters
+    ----------
+    path:
+        Path to the card image.
+
+    Returns
+    -------
+    tuple[str, str, str]
+        Tuple ``(name, number, total)`` where each element defaults to an empty
+        string when recognition fails.
+    """
+
+    try:
+        with Image.open(path) as im:
+            raw = pytesseract.image_to_string(im)
+    except (OSError, UnidentifiedImageError, pytesseract.TesseractError) as exc:
+        logger.warning("Failed to OCR name/number from %s: %s", path, exc)
+        return "", "", ""
+
+    name = ""
+    number = ""
+    total = ""
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if not name:
+            name = line
+        if not number:
+            match = re.search(r"(\d+)(?:\s*/\s*(\d+))?", line)
+            if match:
+                number = match.group(1)
+                if match.group(2):
+                    total = match.group(2)
+        if name and number:
+            break
+
+    return name, number, total
+
+
 # ZMIANA: Model Pydantic prosi teraz również o `set_name`
 class CardInfo(BaseModel):
     """Structured card data returned by the model."""
@@ -1301,6 +1344,11 @@ def extract_card_info_openai(
         PROMPT = "Identify the Pokémon card and respond in JSON format."
 
         enum_values = list(available_sets) if available_sets else OPENAI_SETS
+        strict_sets = os.getenv("STRICT_SET_VALIDATION", "1") not in {
+            "0",
+            "false",
+            "False",
+        }
         base_schema = {
             "name": "card_info",
             "schema": {
@@ -1316,7 +1364,13 @@ def extract_card_info_openai(
                 "additionalProperties": False,
             },
         }
-        schemas: list[dict | None] = [base_schema, None]
+        if strict_sets:
+            base_schema["schema"]["properties"]["set_name"]["enum"] = enum_values
+            schema_no_enum = copy.deepcopy(base_schema)
+            schema_no_enum["schema"]["properties"]["set_name"].pop("enum", None)
+            schemas: list[dict | None] = [base_schema, schema_no_enum, None]
+        else:
+            schemas = [base_schema, None]
 
         openai_error = (
             openai.OpenAIError
@@ -1567,17 +1621,20 @@ def analyze_card_image(
                     name = translate_to_english(name)
 
                 orig_era = era_name
-                set_name, set_code, era_name = resolve_set_and_era(
-                    set_name, set_code, era_name
-                )
-                if not era_name:
+                if set_name or set_code or era_name:
+                    set_name, set_code, era_name = resolve_set_and_era(
+                        set_name, set_code, era_name
+                    )
+                    if era_name in ("", "unknown"):
+                        era_name = orig_era
+                else:
                     era_name = orig_era
 
                 if name and number and set_name:
                     print(
                         f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}"
                     )
-                    era = era_name or "unknown"
+                    era = era_name or ""
                     result = {
                         "name": name,
                         "number": number,
@@ -1603,6 +1660,15 @@ def analyze_card_image(
         else:
             print("[WARN] No OpenAI API key. Skipping to OCR.")
 
+        if local_path and (not name or not number):
+            ocr_name, ocr_number, ocr_total = extract_name_number_ocr(local_path)
+            if not name:
+                name = ocr_name
+            if not number:
+                number = ocr_number
+            if not total:
+                total = ocr_total
+
         # --- PRIORITY 3: TCGGO API Lookup (if name and number are known) ---
         if name and number:
             log_step("Looking up sets via TCGGO API...")
@@ -1619,6 +1685,8 @@ def analyze_card_image(
                     )
                     if api_set_name == set_code:
                         api_set_name = orig_name
+                    if era == "unknown":
+                        era = ""
                     result = {
                         "name": name,
                         "number": number,
@@ -1645,6 +1713,8 @@ def analyze_card_image(
                     )
                     if selected_name == set_code:
                         selected_name = orig_name
+                    if era == "unknown":
+                        era = ""
                     result = {
                         "name": name,
                         "number": number,
@@ -1693,7 +1763,7 @@ def analyze_card_image(
                     set_name, set_code, era = resolve_set_and_era(
                         set_name, set_code, era_name
                     )
-                    if not era:
+                    if not era or era == "unknown":
                         era = era_name
                     if set_name and set_name != set_code:
                         result = {
@@ -1718,8 +1788,11 @@ def analyze_card_image(
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
-        set_name, set_code, era = resolve_set_and_era(set_name, set_code, era_name)
-        if not era:
+        if set_name or set_code or era_name:
+            set_name, set_code, era = resolve_set_and_era(set_name, set_code, era_name)
+            if not era or era == "unknown":
+                era = era_name
+        else:
             era = era_name
         result = {
             "name": name,
@@ -4248,7 +4321,10 @@ class CardEditorApp:
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
-            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
+            if box == SPECIAL_BOX_NUMBER:
+                col_capacity = storage.BOX_COLUMN_CAPACITY
+            else:
+                col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
             value = filled / col_capacity if col_capacity else 0
             bar.set(value)
             lbl = self.mag_percent_labels.get((box, col))
