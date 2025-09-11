@@ -368,3 +368,87 @@ def test_parse_with_available_sets(monkeypatch, tmp_path):
         calls[0]["response_format"]["json_schema"]["schema"]["properties"]["set_name"]["enum"]
     )
     assert enums == [SV01_NAME]
+
+
+def test_parse_alt_output_attr(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    img = tmp_path / "x.jpg"
+    img.write_bytes(b"data")
+
+    payload = {
+        "name": "Pikachu",
+        "number": "037/198",
+        "set_name": SV01_CODE,
+        "era_name": ui.get_set_era(SV01_CODE),
+        "set_format": "text",
+    }
+    resp = SimpleNamespace(
+        output=[SimpleNamespace(content=[SimpleNamespace(text=json.dumps(payload))])]
+    )
+
+    def create(*a, **k):
+        return resp
+
+    class DummyClient:
+        def __init__(self, *a, **k):
+            self.responses = SimpleNamespace(create=create)
+
+    monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
+    name, number, total, era_name, set_name, set_code, set_format = ui.extract_card_info_openai(
+        str(img)
+    )
+    assert (name, number, total, era_name) == (
+        "Pikachu",
+        "037",
+        "198",
+        ui.get_set_era(SV01_CODE),
+    )
+    assert set_code == SV01_CODE
+    assert set_name == SV01_NAME
+    assert set_format == "text"
+
+
+def test_parse_alt_output_dict(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    importlib.reload(ui)
+
+    img = tmp_path / "x.jpg"
+    img.write_bytes(b"data")
+
+    payload = {
+        "name": "Pikachu",
+        "number": "037/198",
+        "set_name": SV01_CODE,
+        "era_name": ui.get_set_era(SV01_CODE),
+        "set_format": "text",
+    }
+    resp = {
+        "output": [
+            {
+                "content": [{"text": {"value": json.dumps(payload)}}]
+            }
+        ]
+    }
+
+    def create(*a, **k):
+        return resp
+
+    class DummyClient:
+        def __init__(self, *a, **k):
+            self.responses = SimpleNamespace(create=create)
+
+    monkeypatch.setattr(ui.openai, "OpenAI", DummyClient)
+    name, number, total, era_name, set_name, set_code, set_format = ui.extract_card_info_openai(
+        str(img)
+    )
+    assert (name, number, total, era_name) == (
+        "Pikachu",
+        "037",
+        "198",
+        ui.get_set_era(SV01_CODE),
+    )
+    assert set_code == SV01_CODE
+    assert set_name == SV01_NAME
+    assert set_format == "text"
