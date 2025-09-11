@@ -1339,11 +1339,43 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                 resp,
             )
             return "", "", "", "", "", "", ""
+
+        def repair_json(text: str) -> dict | None:
+            stack: list[str] = []
+            in_string = False
+            escape = False
+            pairs = {"{": "}", "[": "]"}
+            for ch in text:
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch in pairs:
+                    stack.append(ch)
+                elif ch in pairs.values():
+                    if not stack or pairs[stack[-1]] != ch:
+                        return None
+                    stack.pop()
+            fixed = text + "".join(pairs[c] for c in reversed(stack))
+            try:
+                return json.loads(fixed)
+            except json.JSONDecodeError:
+                return None
+
         try:
             data_dict = json.loads(raw)
         except json.JSONDecodeError:
-            logger.error("OpenAI returned non-JSON: %r", raw)
-            return "", "", "", "", "", "", ""
+            data_dict = repair_json(raw)
+            if data_dict is None:
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                return "", "", "", "", "", "", ""
 
         data = data_dict
 
