@@ -1414,10 +1414,17 @@ def analyze_card_image(
     set_format = ""
     era_name = ""
 
+    step = 1
+
+    def log_step(message: str) -> None:
+        nonlocal step
+        print(f"[INFO] Step {step}: {message}")
+        step += 1
+
     try:
         # --- PRIORITY 1: Local hash lookup for the set symbol ---
         if local_path:
-            print("[INFO] Step 1: Matching set symbol via hash...")
+            log_step("Matching set symbol via hash...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
@@ -1437,8 +1444,10 @@ def analyze_card_image(
                             rect = candidate
                             set_code = code
                             set_name, set_code, era_name = resolve_set_and_era(
-                                set_name, set_code
+                                name_match, set_code
                             )
+                            if set_name == set_code:
+                                set_name = name_match
                             print(
                                 f"[SUCCESS] Local hash analysis found a match: {set_name}"
                             )
@@ -1461,16 +1470,19 @@ def analyze_card_image(
         # --- PRIORITY 2: OpenAI Vision ---
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
-            print("[INFO] Step 2: Analyzing with OpenAI Vision...")
+            log_step("Analyzing with OpenAI Vision...")
             try:
                 name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(path)
 
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
 
+                orig_era = era_name
                 set_name, set_code, era_name = resolve_set_and_era(
                     set_name, set_code, era_name
                 )
+                if not era_name:
+                    era_name = orig_era
 
                 if name and number and set_name:
                     print(
@@ -1504,7 +1516,7 @@ def analyze_card_image(
 
         # --- PRIORITY 3: TCGGO API Lookup (if name and number are known) ---
         if name and number:
-            print("[INFO] Step 3: Looking up sets via TCGGO API...")
+            log_step("Looking up sets via TCGGO API...")
             try:
                 api_sets = lookup_sets_from_api(name, number, total or None)
                 if len(api_sets) == 1:
@@ -1512,9 +1524,12 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] TCGGO API found a single match: {api_set_name}"
                     )
+                    orig_name = api_set_name
                     api_set_name, set_code, era = resolve_set_and_era(
                         api_set_name, set_code
                     )
+                    if api_set_name == set_code:
+                        api_set_name = orig_name
                     result = {
                         "name": name,
                         "number": number,
@@ -1535,9 +1550,12 @@ def analyze_card_image(
                         "[INFO] TCGGO API found multiple matches. "
                         f"Selecting first result: {selected_name}"
                     )
+                    orig_name = selected_name
                     selected_name, set_code, era = resolve_set_and_era(
                         selected_name, set_code
                     )
+                    if selected_name == set_code:
+                        selected_name = orig_name
                     result = {
                         "name": name,
                         "number": number,
@@ -1557,7 +1575,7 @@ def analyze_card_image(
 
         # --- PRIORITY 4: OCR fallback ---
         if local_path:
-            print("[INFO] Step 4: Performing OCR fallback...")
+            log_step("Performing OCR fallback...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
@@ -1578,28 +1596,40 @@ def analyze_card_image(
                             set_code = code
                             set_name = name_lookup
                             print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                    set_name, set_code, era = resolve_set_and_era(set_name, set_code)
-                    result = {
-                        "name": name,
-                        "number": number,
-                        "total": total,
-                        "set": set_name,
-                        "set_code": set_code,
-                        "orientation": orientation,
-                        "set_format": set_format,
-                        "era": era,
-                    }
-                    if debug and rect:
-                        result["rect"] = rect
-                    return result
-                else:
-                    print(f"[WARN] OCR produced unknown set code: {code}")
+                            break
+                        else:
+                            set_code = code
+                    set_name, set_code, era = resolve_set_and_era(
+                        set_name, set_code, era_name
+                    )
+                    if not era:
+                        era = era_name
+                    if set_name and set_name != set_code:
+                        result = {
+                            "name": name,
+                            "number": number,
+                            "total": total,
+                            "set": set_name,
+                            "set_code": set_code,
+                            "orientation": orientation,
+                            "set_format": set_format,
+                            "era": era,
+                        }
+                        if debug and rect:
+                            result["rect"] = rect
+                        return result
+                    if set_code:
+                        print(f"[WARN] OCR produced unknown set code: {set_code}")
+                        set_name = ""
+                        set_code = ""
             except Exception:
                 logger.exception("OCR analysis failed")
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
         set_name, set_code, era = resolve_set_and_era(set_name, set_code, era_name)
+        if not era:
+            era = era_name
         result = {
             "name": name,
             "number": number,

@@ -271,6 +271,19 @@ def test_analyze_card_image_ocr(monkeypatch):
     mock_lookup.assert_not_called()
 
 
+def test_analyze_card_image_step_numbers_after_openai_failure(monkeypatch, capsys):
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    logo_path = Path(__file__).resolve().parents[1] / "set_logos" / f"{SV01_CODE}.png"
+
+    with patch.object(ui, "identify_set_by_hash", return_value=[]), \
+        patch.object(ui, "extract_card_info_openai", side_effect=Exception("boom")), \
+        patch.object(ui, "extract_set_code_ocr", return_value=[]):
+        ui.analyze_card_image(str(logo_path))
+
+    out, _ = capsys.readouterr()
+    assert "Step 3: Performing OCR fallback" in out
+
+
 def test_analyze_card_image_ocr_unknown_code(monkeypatch, capsys):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
