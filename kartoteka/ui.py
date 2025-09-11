@@ -117,15 +117,8 @@ if OPENAI_API_KEY:
 if USE_OPENAI_STUB:
     openai.OpenAI = lambda *a, **k: SimpleNamespace()
 
-STRICT_SET_VALIDATION = os.getenv("STRICT_SET_VALIDATION", "1") not in {
-    "0",
-    "false",
-    "False",
-}
-
 PRICE_DB_PATH = "card_prices.csv"
 PRICE_MULTIPLIER = 1.23
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
@@ -504,7 +497,7 @@ def reload_sets():
     SET_TO_ERA = {}
 
     try:
-        with open(DATA_DIR / "tcg_sets.json", encoding="utf-8") as f:
+        with open("tcg_sets.json", encoding="utf-8") as f:
             tcg_sets_eng_by_era = json.load(f)
     except FileNotFoundError:
         tcg_sets_eng_by_era = {}
@@ -546,7 +539,7 @@ def reload_sets():
                 SET_TO_ERA[item["abbr"].lower()] = era
 
     try:
-        with open(DATA_DIR / "tcg_sets_jp.json", encoding="utf-8") as f:
+        with open("tcg_sets_jp.json", encoding="utf-8") as f:
             tcg_sets_jp_by_era = json.load(f)
     except FileNotFoundError:
         tcg_sets_jp_by_era = {}
@@ -727,17 +720,16 @@ def resolve_set_and_era(
 ) -> tuple[str, str, str]:
     """Normalize set and era names using known mappings.
 
-    Returns a tuple ``(normalized_set_name, set_code, era_name)``.
-    Unknown eras are returned as an empty string.
+    Returns a tuple ``(normalized_set_name, set_code, era_name)``. Unknown eras
+    are returned as ``"unknown"``.
     """
 
     code = set_code or get_set_code(set_name)
     name = get_set_name(code) or set_name
     era = get_set_era(code) or get_set_era(name) or get_set_era(era_name)
     if not era:
-        if name or code or era_name:
-            logger.warning("Unknown set or era: %s / %s", name or code, era_name)
-        return name, code, ""
+        logger.warning("Unknown set or era: %s / %s", name or code, era_name)
+        era = "unknown"
     return name, code, era
 
 def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
@@ -1302,14 +1294,7 @@ def extract_card_info_openai(
                 "additionalProperties": False,
             },
         }
-        schemas: list[dict | None]
-        if STRICT_SET_VALIDATION:
-            enum_schema = copy.deepcopy(base_schema)
-            enum_schema["schema"]["properties"]["set_name"]["enum"] = enum_values
-            enum_schema["schema"]["properties"]["era_name"]["enum"] = OPENAI_ERAS
-            schemas = [enum_schema, base_schema, None]
-        else:
-            schemas = [base_schema, None]
+        schemas: list[dict | None] = [base_schema, None]
 
         openai_error = (
             openai.OpenAIError
@@ -6171,8 +6156,6 @@ class CardEditorApp:
     def update_sets(self):
         """Check remote API for new sets and update local files."""
         sets_path = Path(self.sets_file)
-        if not sets_path.is_absolute():
-            sets_path = DATA_DIR / sets_path
         try:
             self.loading_label.configure(text="Sprawdzanie nowych setów...")
             self.root.update()
