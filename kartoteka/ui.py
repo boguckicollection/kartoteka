@@ -1407,14 +1407,15 @@ def extract_card_info_openai(
 
         data = data_dict
 
-        raw_number = data.get("number") or ""
+        raw_number = data.get("number", "")
+        if not isinstance(raw_number, str):
+            raw_number = str(raw_number)
         number, total = "", ""
-        if isinstance(raw_number, str):
-            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
-            if m:
-                number, total = m.group(1), m.group(2) or ""
-            else:
-                number = re.sub(r"\D+", "", raw_number)
+        m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
+        if m:
+            number, total = m.group(1), m.group(2) or ""
+        else:
+            number = re.sub(r"\D+", "", raw_number)
 
         name = data.get("name") or ""
         set_name = data.get("set_name") or ""
