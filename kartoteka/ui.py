@@ -745,9 +745,20 @@ def resolve_set_and_era(
     Returns a tuple ``(normalized_set_name, set_code, era_name)``. Unknown eras
     are returned as ``"unknown"``.
     """
-
     code = set_code or get_set_code(set_name)
     name = get_set_name(code) or set_name
+
+    # if the provided ``set_name`` could not be resolved, attempt fuzzy match
+    if not set_code and set_name and name == code:
+        # combine English and Japanese set names for matching
+        candidates = list(tcg_sets_eng_map.keys()) + list(tcg_sets_jp_map.keys())
+        match = difflib.get_close_matches(
+            set_name, candidates, n=1, cutoff=SET_CODE_MATCH_CUTOFF
+        )
+        if match:
+            code = get_set_code(match[0])
+            name = get_set_name(code) or match[0]
+
     era = get_set_era(code) or get_set_era(name) or get_set_era(era_name)
     if not era:
         logger.warning("Unknown set or era: %s / %s", name or code, era_name)
