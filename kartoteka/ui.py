@@ -11,6 +11,7 @@ import requests
 import base64
 import mimetypes
 import re
+import copy
 import asyncio
 import datetime
 import time
@@ -1253,7 +1254,11 @@ def extract_card_info_openai(
             try:
                 r = requests.get(path, timeout=10)
                 r.raise_for_status()
-                mime = r.headers.get("Content-Type") or mimetypes.guess_type(path)[0] or "image/jpeg"
+                mime = (
+                    r.headers.get("Content-Type")
+                    or mimetypes.guess_type(path)[0]
+                    or "image/jpeg"
+                )
                 encoded = base64.b64encode(r.content).decode("utf-8")
             except requests.RequestException as e:
                 logger.warning("extract_card_info_openai failed to fetch image: %s", e)
@@ -1276,22 +1281,24 @@ def extract_card_info_openai(
         PROMPT = "Identify the Pokémon card and respond in JSON format."
 
         enum_values = list(available_sets) if available_sets else OPENAI_SETS
-
-        schema = {
+        base_schema = {
             "name": "card_info",
             "schema": {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
                     "number": {"type": "string"},
-                    "set_name": {"type": "string", "enum": enum_values},
-                    "era_name": {"type": "string", "enum": OPENAI_ERAS},
+                    "set_name": {"type": "string"},
+                    "era_name": {"type": "string"},
                     "set_format": {"type": "string", "enum": ["text", "symbol"]},
                 },
                 "required": ["name", "number", "set_name", "era_name", "set_format"],
                 "additionalProperties": False,
             },
         }
+        enum_schema = copy.deepcopy(base_schema)
+        enum_schema["schema"]["properties"]["set_name"]["enum"] = enum_values
+        enum_schema["schema"]["properties"]["era_name"]["enum"] = OPENAI_ERAS
 
         openai_error = (
             openai.OpenAIError
@@ -1299,44 +1306,25 @@ def extract_card_info_openai(
             else Exception
         )
 
-        for attempt in range(2):
-            try:
-                logger.debug(
-                    "extract_card_info_openai: calling OpenAI with response_format"
-                )
-                resp = client.responses.create(
-                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                    response_format={"type": "json_schema", "json_schema": schema},
-                    input=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "input_text", "text": PROMPT},
-                                {"type": "input_image", "image_url": data_url},
-                            ],
-                        }
-                    ],
-                    max_output_tokens=150,
-                )
-            except (TypeError, openai_error) as e:
-                logger.debug(
-                    "extract_card_info_openai: response_format unsupported (%s); retrying without",
-                    e,
-                )
-                resp = client.responses.create(
-                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                    input=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "input_text", "text": PROMPT},
-                                {"type": "input_image", "image_url": data_url},
-                            ],
-                        }
-                    ],
-                    max_output_tokens=150,
-                )
+        def call_openai(schema: dict | None):
+            params = {
+                "model": os.getenv("OPENAI_MODEL", "gpt-4o"),
+                "input": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": PROMPT},
+                            {"type": "input_image", "image_url": data_url},
+                        ],
+                    }
+                ],
+                "max_output_tokens": 150,
+            }
+            if schema is not None:
+                params["response_format"] = {"type": "json_schema", "json_schema": schema}
+            return client.responses.create(**params)
 
+        def parse_resp(resp) -> dict:
             raw = getattr(resp, "output_text", "")
             raw = raw.strip().strip("`")
             if raw.startswith("json"):
@@ -1349,7 +1337,7 @@ def extract_card_info_openai(
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
-                return "", "", "", "", "", "", ""
+                return {}
 
             def repair_json(text: str) -> dict | None:
                 stack: list[str] = []
@@ -1381,43 +1369,54 @@ def extract_card_info_openai(
                     return None
 
             try:
-                data_dict = json.loads(raw)
+                return json.loads(raw)
             except json.JSONDecodeError as exc:
-                data_dict = repair_json(raw)
-                if data_dict is None:
+                repaired = repair_json(raw)
+                if repaired is None:
                     logger.warning(
-                        "extract_card_info_openai JSON decode error on attempt %d: %s",
-                        attempt + 1,
+                        "extract_card_info_openai JSON decode error: %s",
                         exc,
                     )
-                    if attempt == 0:
-                        continue
-                    return "", "", "", "", "", "", ""
+                    raise
+                return repaired
 
-            data = data_dict
+        schemas: list[dict | None] = [enum_schema, base_schema, None]
+        data_dict: dict | None = None
+        for sch in schemas:
+            try:
+                resp = call_openai(sch)
+                data_dict = parse_resp(resp)
+                if data_dict:
+                    break
+            except (TypeError, openai_error):
+                continue
+            except json.JSONDecodeError:
+                continue
+        if not data_dict:
+            return "", "", "", "", "", "", ""
 
-            raw_number = data.get("number") or ""
-            number, total = "", ""
-            if isinstance(raw_number, str):
-                m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
-                if m:
-                    number, total = m.group(1), m.group(2) or ""
-                else:
-                    number = re.sub(r"\D+", "", raw_number)
+        data = data_dict
 
-            name = data.get("name") or ""
-            set_name = data.get("set_name") or ""
-            set_format = data.get("set_format") or ""
-            era_name = data.get("era_name") or ""
-            set_name, set_code, era_name = resolve_set_and_era(
-                set_name, "", era_name
-            )
-            return name, number, total, era_name, set_name, set_code, set_format
-        return "", "", "", "", "", "", ""
+        raw_number = data.get("number") or ""
+        number, total = "", ""
+        if isinstance(raw_number, str):
+            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
+            if m:
+                number, total = m.group(1), m.group(2) or ""
+            else:
+                number = re.sub(r"\D+", "", raw_number)
+
+        name = data.get("name") or ""
+        set_name = data.get("set_name") or ""
+        set_format = data.get("set_format") or ""
+        era_name = data.get("era_name") or ""
+        set_name, set_code, era_name = resolve_set_and_era(
+            set_name, "", era_name
+        )
+        return name, number, total, era_name, set_name, set_code, set_format
     except Exception as e:
         logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", "", ""
-
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
 def analyze_card_image(
     path: str,
