@@ -738,9 +738,19 @@ def get_set_era(code_or_name: str) -> str:
 
 
 def resolve_set_and_era(
-    set_name: str = "", set_code: str = "", era_name: str = ""
+    set_name: str = "",
+    set_code: str = "",
+    era_name: str = "",
+    number: str = "",
+    total: str = "",
 ) -> tuple[str, str, str]:
     """Normalize set and era names using known mappings.
+
+    Besides direct lookups the function uses a heuristic: if ``set_name`` and
+    ``set_code`` are unknown but ``number`` and ``total`` are provided, it scans
+    the loaded set definitions for a matching ``total``. When exactly one set
+    has that card count it is returned with its era. Because totals are not
+    globally unique this may fail when multiple sets share the same total.
 
     Returns a tuple ``(normalized_set_name, set_code, era_name)``. Unknown eras
     are returned as ``"unknown"``.
@@ -748,9 +758,19 @@ def resolve_set_and_era(
     code = set_code or get_set_code(set_name)
     name = get_set_name(code) or set_name
 
+    if not code and not name and number and total:
+        total_norm = sanitize_number(str(total))
+        matches: list[tuple[str, str, str]] = []
+        for sets_by_era in (tcg_sets_eng_by_era, tcg_sets_jp_by_era):
+            for era, sets in sets_by_era.items():
+                for item in sets:
+                    if str(item.get("total")) == total_norm:
+                        matches.append((item["name"], item["code"], era))
+        if len(matches) == 1:
+            name, code, era_name = matches[0]
+
     # if the provided ``set_name`` could not be resolved, attempt fuzzy match
     if not set_code and set_name and name == code:
-        # combine English and Japanese set names for matching
         candidates = list(tcg_sets_eng_map.keys()) + list(tcg_sets_jp_map.keys())
         match = difflib.get_close_matches(
             set_name, candidates, n=1, cutoff=SET_CODE_MATCH_CUTOFF
@@ -1515,7 +1535,7 @@ def extract_card_info_openai(
         set_format = data.get("set_format") or ""
         era_name = data.get("era_name") or ""
         set_name, set_code, era_name = resolve_set_and_era(
-            set_name, "", era_name
+            set_name, "", era_name, number, total
         )
         return name, number, total, era_name, set_name, set_code, set_format
     except Exception as e:
@@ -1654,9 +1674,9 @@ def analyze_card_image(
                     name = translate_to_english(name)
 
                 orig_era = era_name
-                if set_name or set_code or era_name:
+                if set_name or set_code or era_name or total:
                     set_name, set_code, era_name = resolve_set_and_era(
-                        set_name, set_code, era_name
+                        set_name, set_code, era_name, number, total
                     )
                     if era_name in ("", "unknown"):
                         era_name = orig_era
@@ -1714,7 +1734,7 @@ def analyze_card_image(
                     )
                     orig_name = api_set_name
                     api_set_name, set_code, era = resolve_set_and_era(
-                        api_set_name, set_code
+                        api_set_name, set_code, "", number, total
                     )
                     if api_set_name == set_code:
                         api_set_name = orig_name
@@ -1742,7 +1762,7 @@ def analyze_card_image(
                     )
                     orig_name = selected_name
                     selected_name, set_code, era = resolve_set_and_era(
-                        selected_name, set_code
+                        selected_name, set_code, "", number, total
                     )
                     if selected_name == set_code:
                         selected_name = orig_name
@@ -1794,7 +1814,7 @@ def analyze_card_image(
                         else:
                             set_code = code
                     set_name, set_code, era = resolve_set_and_era(
-                        set_name, set_code, era_name
+                        set_name, set_code, era_name, number, total
                     )
                     if not era or era == "unknown":
                         era = era_name
@@ -1821,8 +1841,10 @@ def analyze_card_image(
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
-        if set_name or set_code or era_name:
-            set_name, set_code, era = resolve_set_and_era(set_name, set_code, era_name)
+        if set_name or set_code or era_name or total:
+            set_name, set_code, era = resolve_set_and_era(
+                set_name, set_code, era_name, number, total
+            )
             if not era or era == "unknown":
                 era = era_name
         else:

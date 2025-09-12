@@ -21,3 +21,17 @@ def test_resolve_set_and_era_fuzzy_sword_shield():
     assert name == "Darkness Ablaze"
     assert code == "swsh3"
     assert era == "Sword & Shield"
+
+
+def test_resolve_set_and_era_total_unique():
+    name, code, era = ui.resolve_set_and_era("", "", "", "1", "230")
+    assert name == "Obsidian Flames"
+    assert code == "sv03"
+    assert era == "Scarlet & Violet"
+
+
+def test_resolve_set_and_era_total_ambiguous():
+    name, code, era = ui.resolve_set_and_era("", "", "", "1", "75")
+    assert name == ""
+    assert code == ""
+    assert era == ""
