@@ -396,12 +396,6 @@ MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
 AUCTION_BUTTON_COLOR = "#E74C3C"  # red
 STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
-# vivid colors for key workflow buttons
-SAVE_BUTTON_COLOR = "#27AE60"  # green
-NEXT_BUTTON_COLOR = "#2980B9"  # blue
-API_BUTTON_COLOR = "#F1C40F"  # yellow
-END_BUTTON_COLOR = "#E74C3C"  # red
-
 # color highlighting current price labels
 CURRENT_PRICE_COLOR = "#FFD700"
 
@@ -2511,47 +2505,17 @@ class CardEditorApp:
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
-        ctk.CTkLabel(
-            left_panel,
-            text="Cena:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.current_price_var = tk.StringVar()
-        ctk.CTkLabel(
-            left_panel,
-            textvariable=self.current_price_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
-        ctk.CTkLabel(
-            left_panel,
-            text="Prowadzi:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.leader_var = tk.StringVar()
-        ctk.CTkLabel(
-            left_panel,
-            textvariable=self.leader_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, textvariable=self.leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
-        ctk.CTkLabel(
-            left_panel,
-            text="Pozostały czas:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.remaining_time_var = tk.StringVar()
-        ctk.CTkLabel(
-            left_panel,
-            textvariable=self.remaining_time_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, textvariable=self.remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
         win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
@@ -2562,12 +2526,7 @@ class CardEditorApp:
         labels = ["Nazwa karty", "Numer", "Cena start", "Kwota przebicia", "Czas [s]"]
         vars = []
         for i, lbl in enumerate(labels):
-            ctk.CTkLabel(
-                form,
-                text=lbl,
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
-            ).grid(row=0, column=i, padx=2)
+            tk.Label(form, text=lbl, bg=self.root.cget("background"), fg="white").grid(row=0, column=i, padx=2)
             var = tk.StringVar()
             ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
             vars.append(var)
@@ -2605,53 +2564,53 @@ class CardEditorApp:
         tree.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.info_var = tk.StringVar()
-        ctk.CTkLabel(
+        tk.Label(
             win,
             textvariable=self.info_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).pack(pady=2)
 
         status_frame = tk.Frame(win, bg=self.root.cget("background"))
         status_frame.pack(pady=2)
 
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             text="Aktualna cena:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg=CURRENT_PRICE_COLOR,
         ).grid(row=0, column=0, padx=2, sticky="e")
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             textvariable=self.current_price_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg=CURRENT_PRICE_COLOR,
         ).grid(row=0, column=1, padx=2, sticky="w")
 
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             text="Pozostały czas:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=2, padx=2, sticky="e")
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             textvariable=self.remaining_time_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=3, padx=2, sticky="w")
 
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             text="Prowadzi:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=4, padx=2, sticky="e")
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             textvariable=self.leader_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=5, padx=2, sticky="w")
 
         def refresh_tree():
@@ -4420,33 +4379,24 @@ class CardEditorApp:
         self.input_frame.columnconfigure(1, weight=1)
         self.input_frame.rowconfigure(5, weight=1)
 
-        ctk.CTkLabel(
-            self.input_frame,
-            text="Nazwa",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.input_frame, text="Nazwa", bg=self.root.cget("background")
         ).grid(row=0, column=0, sticky="e")
         self.price_name_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Nazwa karty"
         )
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
-        ctk.CTkLabel(
-            self.input_frame,
-            text="Numer",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.input_frame, text="Numer", bg=self.root.cget("background")
         ).grid(row=1, column=0, sticky="e")
         self.price_number_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Numer"
         )
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
-        ctk.CTkLabel(
-            self.input_frame,
-            text="Set",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.input_frame, text="Set", bg=self.root.cget("background")
         ).grid(row=2, column=0, sticky="e")
         self.price_set_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Set"
@@ -4493,11 +4443,11 @@ class CardEditorApp:
             self.pricing_frame, bg=self.root.cget("background")
         )
         self.pool_frame.grid(row=2, column=0, columnspan=2, pady=5)
-        self.pool_total_label = ctk.CTkLabel(
+        self.pool_total_label = tk.Label(
             self.pool_frame,
             text="Suma puli: 0.00",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg=TEXT_COLOR,
         )
         self.pool_total_label.pack(side="left")
         self.create_button(
@@ -4568,29 +4518,29 @@ class CardEditorApp:
         )
         price_80 = round(price_pln * 0.8, 2)
         if not getattr(self, "price_labels", None):
-            eur = ctk.CTkLabel(
+            eur = tk.Label(
                 self.result_frame,
                 text=f"Cena EUR: {info['price_eur']}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="blue",
+                bg=self.root.cget("background"),
             )
-            rate = ctk.CTkLabel(
+            rate = tk.Label(
                 self.result_frame,
                 text=f"Kurs EUR→PLN: {info['eur_pln_rate']}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="gray",
+                bg=self.root.cget("background"),
             )
-            pln = ctk.CTkLabel(
+            pln = tk.Label(
                 self.result_frame,
                 text=f"Cena PLN: {price_pln}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="green",
+                bg=self.root.cget("background"),
             )
-            pln80 = ctk.CTkLabel(
+            pln80 = tk.Label(
                 self.result_frame,
                 text=f"80% ceny PLN: {price_80}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="red",
+                bg=self.root.cget("background"),
             )
             for lbl in (eur, rate, pln, pln80):
                 lbl.pack()
@@ -4706,11 +4656,17 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
+        self.load_button = self.create_button(
+            self.button_frame,
+            text="Import",
+            command=self.browse_scans,
+        )
+        self.load_button.pack(side="left", padx=5)
+
         self.end_button = self.create_button(
             self.button_frame,
             text="Zakończ i zapisz",
             command=self.export_csv,
-            fg_color=END_BUTTON_COLOR,
         )
         self.end_button.pack(side="left", padx=5)
 
@@ -4733,7 +4689,6 @@ class CardEditorApp:
             self.button_frame,
             text="Nast\u0119pna \u23ed",
             command=self.next_card,
-            fg_color=NEXT_BUTTON_COLOR,
         )
         self.next_button.pack(side="left", padx=5)
 
@@ -4772,11 +4727,8 @@ class CardEditorApp:
 
         grid_opts = {"padx": 5, "pady": 2}
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Język",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Język", bg=self.root.cget("background")
         ).grid(
             row=start_row, column=0, sticky="w", **grid_opts
         )
@@ -4788,11 +4740,8 @@ class CardEditorApp:
         lang_dropdown.grid(row=start_row, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Nazwa",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Nazwa", bg=self.root.cget("background")
         ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
@@ -4801,11 +4750,8 @@ class CardEditorApp:
         )
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Numer",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Numer", bg=self.root.cget("background")
         ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
@@ -4814,11 +4760,8 @@ class CardEditorApp:
         )
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Era",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Era", bg=self.root.cget("background")
         ).grid(row=start_row + 3, column=0, sticky="w", **grid_opts)
         self.era_var = tk.StringVar()
         self.era_dropdown = ctk.CTkComboBox(
@@ -4831,11 +4774,8 @@ class CardEditorApp:
         self.era_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
         self.entries["era"] = self.era_var
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Set",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Set", bg=self.root.cget("background")
         ).grid(
             row=start_row + 4, column=0, sticky="w", **grid_opts
         )
@@ -4848,11 +4788,8 @@ class CardEditorApp:
         self.set_dropdown.bind("<Tab>", self.autocomplete_set)
         self.entries["set"] = self.set_var
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Typ",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Typ", bg=self.root.cget("background")
         ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
@@ -4869,11 +4806,8 @@ class CardEditorApp:
                 variable=var,
             ).pack(side="left", padx=2)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Stan",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Stan", bg=self.root.cget("background")
         ).grid(
             row=start_row + 6, column=0, sticky="w", **grid_opts
         )
@@ -4887,11 +4821,8 @@ class CardEditorApp:
         )
         stan_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Cena",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Cena", bg=self.root.cget("background")
         ).grid(
             row=start_row + 7, column=0, sticky="w", **grid_opts
         )
@@ -4900,11 +4831,8 @@ class CardEditorApp:
         )
         self.entries["cena"].grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="PSA 10",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="PSA 10", bg=self.root.cget("background")
         ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
@@ -4919,9 +4847,18 @@ class CardEditorApp:
             self.info_frame,
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
-            fg_color=API_BUTTON_COLOR,
         )
         self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
+
+        self.variants_button = self.create_button(
+            self.info_frame,
+            text="Inne warianty",
+            command=self.show_variants,
+        )
+        self.variants_button.grid(
+            row=start_row + 8, column=2, columnspan=2, sticky="ew", **grid_opts
+        )
+
         self.cardmarket_button = self.create_button(
             self.info_frame,
             text="Cardmarket",
@@ -4935,7 +4872,6 @@ class CardEditorApp:
             self.info_frame,
             text="Zapisz i dalej",
             command=self.save_and_next,
-            fg_color=SAVE_BUTTON_COLOR,
         )
         self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
@@ -6311,6 +6247,89 @@ class CardEditorApp:
             logger.warning("Invalid JSON from TCGGO: %s", e)
         return ""
 
+    def fetch_card_variants(self, name, number, set_name):
+        """Return all matching cards from the API with prices."""
+        name_api = normalize(name, keep_spaces=True)
+        name_input = normalize(name)
+        number_input = number.strip().lower()
+        set_input = set_name.strip().lower()
+        if set_input == "prismatic evolutions: additionals":
+            set_code = "xpre"
+        else:
+            set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
+        if hasattr(self, "set_var"):
+            try:
+                self.set_var.set(full_name)
+            except tk.TclError:
+                pass
+
+        try:
+            headers = {}
+            if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                url = f"https://{RAPIDAPI_HOST}/cards/search"
+                params = {"search": name_api}
+                headers = {
+                    "X-RapidAPI-Key": RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            else:
+                url = "https://www.tcggo.com/api/cards/"
+                params = {
+                    "name": name_api,
+                    "number": number_input,
+                    "set": set_code,
+                }
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                logger.warning("API error: %s", response.status_code)
+                return []
+
+            cards = response.json()
+            if isinstance(cards, dict):
+                if "cards" in cards:
+                    cards = cards["cards"]
+                elif "data" in cards:
+                    cards = cards["data"]
+                else:
+                    cards = []
+
+            results = []
+            eur_pln = self.get_exchange_rate()
+            for card in cards:
+                card_name = normalize(card.get("name", ""))
+                card_number = str(card.get("card_number", "")).lower()
+                card_set = str(card.get("episode", {}).get("name", "")).lower()
+
+                name_match = name_input in card_name
+                number_match = number_input == card_number
+                set_match = set_input in card_set or card_set.startswith(set_input)
+
+                if name_match and number_match and set_match:
+                    price_eur = extract_cardmarket_price(card)
+                    price_pln = 0
+                    if price_eur is not None:
+                        price_pln = round(
+                            float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2
+                        )
+                    results.append(
+                        {
+                            "name": card.get("name"),
+                            "number": card_number,
+                            "set": card.get("episode", {}).get("name", ""),
+                            "price": price_pln,
+                        }
+                    )
+            return results
+        except requests.Timeout:
+            logger.warning("Request timed out")
+        except requests.RequestException as e:
+            logger.warning("Fetching variants from TCGGO failed: %s", e)
+        except ValueError as e:
+            logger.warning("Invalid JSON from TCGGO: %s", e)
+        return []
+
     def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
         """Return image URL and pricing information for the first matching card."""
         name_api = normalize(name, keep_spaces=True)
@@ -6472,6 +6491,62 @@ class CardEditorApp:
             self.log(f"PSA10 price for {name} {number}: {psa10_price} zł")
         else:
             self.log(f"PSA10 price for {name} {number} not found")
+
+    def show_variants(self):
+        """Display a list of matching cards from the API."""
+        name = self.entries["nazwa"].get()
+        number = sanitize_number(self.entries["numer"].get())
+        set_name = self.entries["set"].get()
+
+        is_reverse = self.type_vars["Reverse"].get()
+        is_holo = self.type_vars["Holo"].get()
+
+        variants = self.fetch_card_variants(name, number, set_name)
+        if not variants:
+            messagebox.showinfo("Brak wyników", "Nie znaleziono dodatkowych wariantów.")
+            self.open_cardmarket_search()
+            return
+
+        top = ctk.CTkToplevel(self.root)
+        top.title("Inne warianty")
+        top.geometry("600x400")
+
+        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
+        if os.path.exists(logo_path):
+            logo_img = load_rgba_image(logo_path)
+            if logo_img:
+                logo_img.thumbnail((140, 140))
+                top.logo_image = _create_image(logo_img)
+                ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
+
+        columns = ("name", "number", "set", "price")
+        tree = ttk.Treeview(top, columns=columns, show="headings")
+        tree.heading("name", text="Nazwa")
+        tree.heading("number", text="Numer")
+        tree.heading("set", text="Set")
+        tree.heading("price", text="Cena (PLN)")
+
+        for card in variants:
+            price = self.apply_variant_multiplier(
+                card["price"], is_reverse=is_reverse, is_holo=is_holo
+            )
+            tree.insert(
+                "", "end", values=(card["name"], card["number"], card["set"], price)
+            )
+
+        tree.pack(expand=True, fill="both", padx=10, pady=10)
+
+        def set_selected_price(event=None):
+            selected = tree.selection()
+            if not selected:
+                return
+            values = tree.item(selected[0], "values")
+            self.entries["cena"].delete(0, tk.END)
+            self.entries["cena"].insert(0, values[3])
+            top.destroy()
+
+        self.create_button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
+        tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card in the default browser."""
@@ -6835,5 +6910,4 @@ class CardEditorApp:
     def send_csv_to_shoper(self, file_path: str):
         """Send a CSV file using the Shoper API or WebDAV fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
-
 
