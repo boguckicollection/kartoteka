@@ -108,19 +108,23 @@
     },
     {
       "name": "ソード",
-      "code": "S1W"
+      "code": "S1W",
+      "total": 60
     },
     {
       "name": "シールド",
-      "code": "S1H"
+      "code": "S1H",
+      "total": 60
     },
     {
       "name": "反逆クラッシュ",
-      "code": "S2"
+      "code": "S2",
+      "total": 96
     },
     {
       "name": "ムゲンゾーン",
-      "code": "S3"
+      "code": "S3",
+      "total": 100
     },
     {
       "name": "伝説の鼓動",
@@ -128,11 +132,13 @@
     },
     {
       "name": "蒼空ストリーム",
-      "code": "S7R"
+      "code": "S7R",
+      "total": 67
     },
     {
       "name": "フュージョンアーツ",
-      "code": "S8"
+      "code": "S8",
+      "total": 100
     },
     {
       "name": "VSTARユニバース",
@@ -140,7 +146,8 @@
     },
     {
       "name": "タイムゲイザー",
-      "code": "S10D"
+      "code": "S10D",
+      "total": 67
     },
     {
       "name": "シャイニースターV",
@@ -152,7 +159,8 @@
     },
     {
       "name": "漆黒のガイスト",
-      "code": "S6K"
+      "code": "S6K",
+      "total": 70
     },
     {
       "name": "爆炎ウォーカー",
@@ -164,11 +172,13 @@
     },
     {
       "name": "一撃マスター",
-      "code": "S5I"
+      "code": "S5I",
+      "total": 70
     },
     {
       "name": "スターバース",
-      "code": "S9"
+      "code": "S9",
+      "total": 100
     },
     {
       "name": "イーブイヒーローズ",
@@ -180,19 +190,23 @@
     },
     {
       "name": "摩天パーフェクト",
-      "code": "S7D"
+      "code": "S7D",
+      "total": 67
     },
     {
       "name": "白銀のランス",
-      "code": "S6H"
+      "code": "S6H",
+      "total": 70
     },
     {
       "name": "スペースジャグラー",
-      "code": "S10P"
+      "code": "S10P",
+      "total": 67
     },
     {
       "name": "仰天のボルテッカー",
-      "code": "S4"
+      "code": "S4",
+      "total": 100
     },
     {
       "name": "バトルリージョン",
@@ -216,69 +230,85 @@
     },
     {
       "name": "連撃マスター",
-      "code": "S5R"
+      "code": "S5R",
+      "total": 70
     }
   ],
   "Sun & Moon": [
     {
       "name": "ピカチュウと新しい仲間たち",
-      "code": "SM0"
+      "code": "SM0",
+      "total": 4
     },
     {
       "name": "コレクションムーン",
-      "code": "SM1M"
+      "code": "SM1M",
+      "total": 60
     },
     {
       "name": "コレクションサン",
-      "code": "SM1S"
+      "code": "SM1S",
+      "total": 60
     },
     {
       "name": "サン＆ムーン",
-      "code": "SM1+"
+      "code": "SM1+",
+      "total": 51
     },
     {
       "name": "キミを待つ島々",
-      "code": "SM2L"
+      "code": "SM2L",
+      "total": 50
     },
     {
       "name": "光を喰らう闇",
-      "code": "SM3N"
+      "code": "SM3N",
+      "total": 51
     },
     {
       "name": "闘う虹を見たか",
-      "code": "SM3H"
+      "code": "SM3H",
+      "total": 51
     },
     {
       "name": "ひかる伝説",
-      "code": "SM3+"
+      "code": "SM3+",
+      "total": 72
     },
     {
       "name": "覚醒の勇者",
-      "code": "SM4S"
+      "code": "SM4S",
+      "total": 50
     },
     {
       "name": "超次元の暴獣",
-      "code": "SM4A"
+      "code": "SM4A",
+      "total": 50
     },
     {
       "name": "GXバトルブースト",
-      "code": "SM4+"
+      "code": "SM4+",
+      "total": 125
     },
     {
       "name": "ウルトラサン",
-      "code": "SM5S"
+      "code": "SM5S",
+      "total": 66
     },
     {
       "name": "ウルトラムーン",
-      "code": "SM5M"
+      "code": "SM5M",
+      "total": 66
     },
     {
       "name": "ウルトラフォース",
-      "code": "SM5+"
+      "code": "SM5+",
+      "total": 50
     },
     {
       "name": "禁断の光",
-      "code": "SM6"
+      "code": "SM6",
+      "total": 110
     },
     {
       "name": "ドラゴンストーム",
@@ -290,7 +320,8 @@
     },
     {
       "name": "裂空のカリスマ",
-      "code": "SM7"
+      "code": "SM7",
+      "total": 112
     },
     {
       "name": "迅雷スパーク",
@@ -302,7 +333,8 @@
     },
     {
       "name": "超爆インパクト",
-      "code": "SM8"
+      "code": "SM8",
+      "total": 111
     },
     {
       "name": "GXウルトラシャイニ",
@@ -314,7 +346,8 @@
     },
     {
       "name": "タッグボルト",
-      "code": "SM9"
+      "code": "SM9",
+      "total": 95
     },
     {
       "name": "ナイトユニゾン",
@@ -326,7 +359,8 @@
     },
     {
       "name": "ダブルブレイズ",
-      "code": "SM10"
+      "code": "SM10",
+      "total": 116
     },
     {
       "name": "ジージーエンド",
@@ -338,7 +372,8 @@
     },
     {
       "name": "名探偵ピカチュウ",
-      "code": "SMP2"
+      "code": "SMP2",
+      "total": 24
     },
     {
       "name": "ミラクルツイン",
@@ -354,7 +389,8 @@
     },
     {
       "name": "オルタージェネシス",
-      "code": "SM12"
+      "code": "SM12",
+      "total": 95
     },
     {
       "name": "TAG TEAM GX タッグオールスターズ",
@@ -372,15 +408,18 @@
     },
     {
       "name": "ワイルドブレイズ",
-      "code": "XY2"
+      "code": "XY2",
+      "total": 80
     },
     {
       "name": "ファントムゲート",
-      "code": "XY4"
+      "code": "XY4",
+      "total": 88
     },
     {
       "name": "ライジングフィスト",
-      "code": "XY3"
+      "code": "XY3",
+      "total": 96
     },
     {
       "name": "ガイアボルケーノ",
@@ -388,19 +427,23 @@
     },
     {
       "name": "マグマ団VSアクア団 ダブルクライシス",
-      "code": "CP1"
+      "code": "CP1",
+      "total": 34
     },
     {
       "name": "エメラルドブレイク",
-      "code": "XY6"
+      "code": "XY6",
+      "total": 78
     },
     {
       "name": "バンデットリング",
-      "code": "XY7"
+      "code": "XY7",
+      "total": 81
     },
     {
       "name": "伝説キラコレクション",
-      "code": "CP2"
+      "code": "CP2",
+      "total": 27
     },
     {
       "name": "青い衝撃",
@@ -412,27 +455,33 @@
     },
     {
       "name": "破天の怒り",
-      "code": "XY9"
+      "code": "XY9",
+      "total": 80
     },
     {
       "name": "ポケキュンコレクション",
-      "code": "CP3"
+      "code": "CP3",
+      "total": 32
     },
     {
       "name": "めざめる超王",
-      "code": "XY10"
+      "code": "XY10",
+      "total": 78
     },
     {
       "name": "プレミアムチャンピオンパック EX×M×BREAK",
-      "code": "CP4"
+      "code": "CP4",
+      "total": 131
     },
     {
       "name": "冷酷の反逆者",
-      "code": "CP5"
+      "code": "CP5",
+      "total": 36
     },
     {
       "name": "ポケットモンスターカードゲーム 拡張パック 20th Anniversary",
-      "code": "CP6"
+      "code": "CP6",
+      "total": 87
     }
   ],
   "HeartGold SoulSilver": [
@@ -446,15 +495,18 @@
     },
     {
       "name": "よみがえる伝説",
-      "code": "L2"
+      "code": "L2",
+      "total": 80
     },
     {
       "name": "強化パック ロストリンク",
-      "code": "LL"
+      "code": "LL",
+      "total": 40
     },
     {
       "name": "頂上大激突",
-      "code": "L3"
+      "code": "L3",
+      "total": 80
     }
   ],
   "EX Series": [
