@@ -419,12 +419,6 @@ MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
 AUCTION_BUTTON_COLOR = "#E74C3C"  # red
 STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
-# vivid colors for key workflow buttons
-SAVE_BUTTON_COLOR = "#27AE60"  # green
-NEXT_BUTTON_COLOR = "#2980B9"  # blue
-API_BUTTON_COLOR = "#F1C40F"  # yellow
-END_BUTTON_COLOR = "#E74C3C"  # red
-
 # color highlighting current price labels
 CURRENT_PRICE_COLOR = "#FFD700"
 
@@ -485,7 +479,6 @@ def norm_header(name: str) -> str:
 
 def sanitize_number(value: str) -> str:
     """Remove leading zeros from a number string.
-
     Returns
     -------
     str
@@ -541,17 +534,6 @@ refresh_logo_cache()
 
 
 def get_set_code(name: str) -> str:
-    """Return a sanitized set code derived from ``name``."""
-    if not name:
-        return ""
-    search = name.strip()
-    search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
-    return search.strip()
-
-
-def get_set_name(code: str) -> str:
-    """Return the set name as provided."""
-    return (code or "").strip()
 
 
 def get_set_abbr(name: str) -> str:
@@ -979,7 +961,6 @@ def identify_set_by_hash(
     symbol_hash = str(crop_hashes[0])
     for best_code, diff in results[:4]:
         logger.debug("Hash %s -> %s (%s)", symbol_hash, best_code, diff)
-    return [(code, code, diff) for code, diff in results[:4]]
 
 
 def extract_set_code_ocr(
@@ -1058,49 +1039,6 @@ def extract_set_code_ocr(
     return list(candidates)
 
 
-def extract_name_number_ocr(path: str) -> tuple[str, str, str]:
-    """Attempt to extract card name and number from ``path`` using OCR.
-
-    Parameters
-    ----------
-    path:
-        Path to the card image.
-
-    Returns
-    -------
-    tuple[str, str, str]
-        Tuple ``(name, number, total)`` where each element defaults to an empty
-        string when recognition fails.
-    """
-
-    try:
-        with Image.open(path) as im:
-            raw = pytesseract.image_to_string(im)
-    except (OSError, UnidentifiedImageError, pytesseract.TesseractError) as exc:
-        logger.warning("Failed to OCR name/number from %s: %s", path, exc)
-        return "", "", ""
-
-    name = ""
-    number = ""
-    total = ""
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if not name:
-            name = line
-        if not number:
-            match = re.search(r"(\d+)(?:\s*/\s*(\d+))?", line)
-            if match:
-                number = match.group(1)
-                if match.group(2):
-                    total = match.group(2)
-        if name and number:
-            break
-
-    return name, number, total
-
-
 # ZMIANA: Model Pydantic prosi teraz również o `set_name`
 class CardInfo(BaseModel):
     """Structured card data returned by the model."""
@@ -1128,11 +1066,6 @@ def extract_card_info_openai(
             try:
                 r = requests.get(path, timeout=10)
                 r.raise_for_status()
-                mime = (
-                    r.headers.get("Content-Type")
-                    or mimetypes.guess_type(path)[0]
-                    or "image/jpeg"
-                )
                 encoded = base64.b64encode(r.content).decode("utf-8")
             except requests.RequestException as e:
                 logger.warning("extract_card_info_openai failed to fetch image: %s", e)
@@ -1152,47 +1085,6 @@ def extract_card_info_openai(
             return "", "", "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
 
-        PROMPT = "Identify the Pokémon card and respond in JSON format."
-
-        enum_values = list(available_sets) if available_sets else OPENAI_SETS
-        strict_sets = os.getenv("STRICT_SET_VALIDATION", "1") not in {
-            "0",
-            "false",
-            "False",
-        }
-        base_schema = {
-            "name": "card_info",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "number": {"type": "string"},
-                    "set_name": {"type": "string"},
-                    "era_name": {"type": "string"},
-                    "set_format": {"type": "string", "enum": ["text", "symbol"]},
-                },
-                "required": ["name", "number", "set_name", "era_name", "set_format"],
-                "additionalProperties": False,
-            },
-        }
-        if strict_sets:
-            base_schema["schema"]["properties"]["set_name"]["enum"] = enum_values
-            schema_no_enum = copy.deepcopy(base_schema)
-            schema_no_enum["schema"]["properties"]["set_name"].pop("enum", None)
-            schemas: list[dict | None] = [base_schema, schema_no_enum, None]
-        else:
-            schemas = [base_schema, None]
-
-        openai_error = (
-            openai.OpenAIError
-            if isinstance(getattr(openai, "OpenAIError", None), type)
-            else Exception
-        )
-
-        def call_openai(schema: dict | None):
-            params = {
-                "model": os.getenv("OPENAI_MODEL", "gpt-4o"),
-                "input": [
                     {
                         "role": "user",
                         "content": [
@@ -1201,37 +1093,7 @@ def extract_card_info_openai(
                         ],
                     }
                 ],
-                "max_output_tokens": 150,
-            }
-            if schema is not None:
-                params["response_format"] = {"type": "json_schema", "json_schema": schema}
-            return client.responses.create(**params)
 
-        def parse_resp(resp) -> dict:
-            def _nested_get(obj, *path):
-                for key in path:
-                    if obj is None:
-                        return None
-                    try:
-                        if isinstance(key, int):
-                            obj = obj[key]
-                        else:
-                            obj = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
-                    except (KeyError, IndexError, TypeError, AttributeError):
-                        return None
-                return obj
-
-            raw = getattr(resp, "output_text", None)
-            if not raw:
-                raw = (
-                    _nested_get(resp, "output", 0, "content", 0, "text", "value")
-                    or _nested_get(resp, "output", 0, "content", 0, "text")
-                    or _nested_get(resp, "output", 0, "content", 0)
-                    or _nested_get(resp, "choices", 0, "message", "content")
-                    or _nested_get(resp, "choices", 0, "text")
-                    or ""
-                )
-            raw = str(raw).strip().strip("`")
             if raw.startswith("json"):
                 raw = raw[len("json") :].lstrip()
             match = re.search(r"{.*}", raw, re.DOTALL)
@@ -1242,62 +1104,6 @@ def extract_card_info_openai(
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
-                return {}
-
-            def repair_json(text: str) -> dict | None:
-                stack: list[str] = []
-                in_string = False
-                escape = False
-                pairs = {"{": "}", "[": "]"}
-                for ch in text:
-                    if escape:
-                        escape = False
-                        continue
-                    if ch == "\\":
-                        escape = True
-                        continue
-                    if ch == '"':
-                        in_string = not in_string
-                        continue
-                    if in_string:
-                        continue
-                    if ch in pairs:
-                        stack.append(ch)
-                    elif ch in pairs.values():
-                        if not stack or pairs[stack[-1]] != ch:
-                            return None
-                        stack.pop()
-                fixed = text + "".join(pairs[c] for c in reversed(stack))
-                try:
-                    return json.loads(fixed)
-                except json.JSONDecodeError:
-                    return None
-
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError as exc:
-                repaired = repair_json(raw)
-                if repaired is None:
-                    logger.warning(
-                        "extract_card_info_openai JSON decode error: %s",
-                        exc,
-                    )
-                    raise
-                return repaired
-
-        data_dict: dict | None = None
-        for sch in schemas:
-            try:
-                resp = call_openai(sch)
-                data_dict = parse_resp(resp)
-                if data_dict:
-                    break
-            except (TypeError, openai_error):
-                continue
-            except json.JSONDecodeError:
-                continue
-        if not data_dict:
-            return "", "", "", "", "", "", ""
 
         data = data_dict
 
@@ -1653,7 +1459,7 @@ class CardEditorApp:
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
-        self.sets_file = ""
+
         self.progress_var = tk.StringVar(value="0/0 (0%)")
         self.start_box_var = tk.StringVar(value="1")
         self.start_col_var = tk.StringVar(value="1")
@@ -2548,47 +2354,16 @@ class CardEditorApp:
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
-        ctk.CTkLabel(
-            left_panel,
-            text="Cena:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+
         self.current_price_var = tk.StringVar()
-        ctk.CTkLabel(
-            left_panel,
-            textvariable=self.current_price_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
-        ctk.CTkLabel(
-            left_panel,
-            text="Prowadzi:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.leader_var = tk.StringVar()
-        ctk.CTkLabel(
-            left_panel,
-            textvariable=self.leader_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, textvariable=self.leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
-        ctk.CTkLabel(
-            left_panel,
-            text="Pozostały czas:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
+        tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.remaining_time_var = tk.StringVar()
-        ctk.CTkLabel(
-            left_panel,
-            textvariable=self.remaining_time_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
-        ).pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
         win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
@@ -2599,12 +2374,7 @@ class CardEditorApp:
         labels = ["Nazwa karty", "Numer", "Cena start", "Kwota przebicia", "Czas [s]"]
         vars = []
         for i, lbl in enumerate(labels):
-            ctk.CTkLabel(
-                form,
-                text=lbl,
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
-            ).grid(row=0, column=i, padx=2)
+
             var = tk.StringVar()
             ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
             vars.append(var)
@@ -2642,53 +2412,56 @@ class CardEditorApp:
         tree.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.info_var = tk.StringVar()
-        ctk.CTkLabel(
+
+        tk.Label(
+
             win,
             textvariable=self.info_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).pack(pady=2)
 
         status_frame = tk.Frame(win, bg=self.root.cget("background"))
         status_frame.pack(pady=2)
 
-        ctk.CTkLabel(
+        tk.Label(
+
             status_frame,
             text="Aktualna cena:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg=CURRENT_PRICE_COLOR,
         ).grid(row=0, column=0, padx=2, sticky="e")
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             textvariable=self.current_price_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg=CURRENT_PRICE_COLOR,
         ).grid(row=0, column=1, padx=2, sticky="w")
 
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             text="Pozostały czas:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=2, padx=2, sticky="e")
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             textvariable=self.remaining_time_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=3, padx=2, sticky="w")
 
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             text="Prowadzi:",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=4, padx=2, sticky="e")
-        ctk.CTkLabel(
+        tk.Label(
             status_frame,
             textvariable=self.leader_var,
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg="white",
         ).grid(row=0, column=5, padx=2, sticky="w")
 
         def refresh_tree():
@@ -4460,33 +4233,21 @@ class CardEditorApp:
         self.input_frame.columnconfigure(1, weight=1)
         self.input_frame.rowconfigure(5, weight=1)
 
-        ctk.CTkLabel(
-            self.input_frame,
-            text="Nazwa",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(row=0, column=0, sticky="e")
         self.price_name_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Nazwa karty"
         )
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
-        ctk.CTkLabel(
-            self.input_frame,
-            text="Numer",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(row=1, column=0, sticky="e")
         self.price_number_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Numer"
         )
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
-        ctk.CTkLabel(
-            self.input_frame,
-            text="Set",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(row=2, column=0, sticky="e")
         self.price_set_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Set"
@@ -4533,11 +4294,11 @@ class CardEditorApp:
             self.pricing_frame, bg=self.root.cget("background")
         )
         self.pool_frame.grid(row=2, column=0, columnspan=2, pady=5)
-        self.pool_total_label = ctk.CTkLabel(
+
             self.pool_frame,
             text="Suma puli: 0.00",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+            bg=self.root.cget("background"),
+            fg=TEXT_COLOR,
         )
         self.pool_total_label.pack(side="left")
         self.create_button(
@@ -4608,29 +4369,29 @@ class CardEditorApp:
         )
         price_80 = round(price_pln * 0.8, 2)
         if not getattr(self, "price_labels", None):
-            eur = ctk.CTkLabel(
+
                 self.result_frame,
                 text=f"Cena EUR: {info['price_eur']}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="blue",
+                bg=self.root.cget("background"),
             )
-            rate = ctk.CTkLabel(
+            rate = tk.Label(
                 self.result_frame,
                 text=f"Kurs EUR→PLN: {info['eur_pln_rate']}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="gray",
+                bg=self.root.cget("background"),
             )
-            pln = ctk.CTkLabel(
+            pln = tk.Label(
                 self.result_frame,
                 text=f"Cena PLN: {price_pln}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="green",
+                bg=self.root.cget("background"),
             )
-            pln80 = ctk.CTkLabel(
+            pln80 = tk.Label(
                 self.result_frame,
                 text=f"80% ceny PLN: {price_80}",
-                fg_color="transparent",
-                text_color=TEXT_COLOR,
+                fg="red",
+                bg=self.root.cget("background"),
             )
             for lbl in (eur, rate, pln, pln80):
                 lbl.pack()
@@ -4669,6 +4430,7 @@ class CardEditorApp:
             self.pool_total_label.config(
                 text=f"Suma puli: {self.price_pool_total:.2f}"
             )
+
 
     def clear_price_pool(self):
         self.price_pool_total = 0.0
@@ -4746,11 +4508,11 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
+
         self.end_button = self.create_button(
             self.button_frame,
             text="Zakończ i zapisz",
             command=self.export_csv,
-            fg_color=END_BUTTON_COLOR,
         )
         self.end_button.pack(side="left", padx=5)
 
@@ -4773,7 +4535,6 @@ class CardEditorApp:
             self.button_frame,
             text="Nast\u0119pna \u23ed",
             command=self.next_card,
-            fg_color=NEXT_BUTTON_COLOR,
         )
         self.next_button.pack(side="left", padx=5)
 
@@ -4812,11 +4573,7 @@ class CardEditorApp:
 
         grid_opts = {"padx": 5, "pady": 2}
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Język",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(
             row=start_row, column=0, sticky="w", **grid_opts
         )
@@ -4828,11 +4585,7 @@ class CardEditorApp:
         lang_dropdown.grid(row=start_row, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Nazwa",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
@@ -4841,11 +4594,6 @@ class CardEditorApp:
         )
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Numer",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
         ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
@@ -4854,11 +4602,7 @@ class CardEditorApp:
         )
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Era",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(row=start_row + 3, column=0, sticky="w", **grid_opts)
         self.era_var = tk.StringVar()
         self.era_dropdown = ctk.CTkComboBox(
@@ -4871,11 +4615,8 @@ class CardEditorApp:
         self.era_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
         self.entries["era"] = self.era_var
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Set",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+        tk.Label(
+            self.info_frame, text="Set", bg=self.root.cget("background")
         ).grid(
             row=start_row + 4, column=0, sticky="w", **grid_opts
         )
@@ -4888,11 +4629,7 @@ class CardEditorApp:
         self.set_dropdown.bind("<Tab>", self.autocomplete_set)
         self.entries["set"] = self.set_var
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Typ",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
@@ -4909,11 +4646,6 @@ class CardEditorApp:
                 variable=var,
             ).pack(side="left", padx=2)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Stan",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
         ).grid(
             row=start_row + 6, column=0, sticky="w", **grid_opts
         )
@@ -4927,11 +4659,7 @@ class CardEditorApp:
         )
         stan_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="Cena",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(
             row=start_row + 7, column=0, sticky="w", **grid_opts
         )
@@ -4940,11 +4668,7 @@ class CardEditorApp:
         )
         self.entries["cena"].grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
-        ctk.CTkLabel(
-            self.info_frame,
-            text="PSA 10",
-            fg_color="transparent",
-            text_color=TEXT_COLOR,
+
         ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
@@ -4959,9 +4683,18 @@ class CardEditorApp:
             self.info_frame,
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
-            fg_color=API_BUTTON_COLOR,
         )
         self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
+
+        self.variants_button = self.create_button(
+            self.info_frame,
+            text="Inne warianty",
+            command=self.show_variants,
+        )
+        self.variants_button.grid(
+            row=start_row + 8, column=2, columnspan=2, sticky="ew", **grid_opts
+        )
+
         self.cardmarket_button = self.create_button(
             self.info_frame,
             text="Cardmarket",
@@ -4975,7 +4708,6 @@ class CardEditorApp:
             self.info_frame,
             text="Zapisz i dalej",
             command=self.save_and_next,
-            fg_color=SAVE_BUTTON_COLOR,
         )
         self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
@@ -6051,9 +5783,7 @@ class CardEditorApp:
 
     def update_sets(self):
         """Check remote API for new sets and update local files."""
-        if not self.sets_file:
-            return
-        sets_path = Path(self.sets_file)
+
         try:
             self.loading_label.configure(text="Sprawdzanie nowych setów...")
             self.root.update()
@@ -6108,8 +5838,7 @@ class CardEditorApp:
             new_items.append({"name": name, "code": code})
 
         if added:
-            with open(sets_path, "w", encoding="utf-8") as f:
-                json.dump(current_sets, f, indent=2, ensure_ascii=False)
+
             refresh_logo_cache()
             names = ", ".join(item["name"] for item in new_items)
             self.loading_label.configure(
@@ -6153,7 +5882,7 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
-        full_name = set_code
+
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6257,8 +5986,7 @@ class CardEditorApp:
         if set_input == "prismatic evolutions: additionals":
             set_code = "xpre"
         else:
-            set_code = get_set_code(set_name)
-        full_name = set_code
+
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6349,6 +6077,7 @@ class CardEditorApp:
             logger.warning("Invalid JSON from TCGGO: %s", e)
         return ""
 
+
     def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
         """Return image URL and pricing information for the first matching card."""
         name_api = normalize(name, keep_spaces=True)
@@ -6359,7 +6088,7 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
-        full_name = set_code
+
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6510,6 +6239,7 @@ class CardEditorApp:
             self.log(f"PSA10 price for {name} {number}: {psa10_price} zł")
         else:
             self.log(f"PSA10 price for {name} {number} not found")
+
 
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card in the default browser."""
@@ -6873,5 +6603,4 @@ class CardEditorApp:
     def send_csv_to_shoper(self, file_path: str):
         """Send a CSV file using the Shoper API or WebDAV fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
-
 
