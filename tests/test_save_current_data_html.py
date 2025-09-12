@@ -78,5 +78,5 @@ def test_html_generated():
     assert "<li>Profesjonalna obsługa klienta</li>" in data["description"]
     assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
-    assert data["product_code"] == "PKM-BASESET-4"
+    assert data["product_code"] == "PKM-BAS-4"
     assert data["warehouse_code"] == "K1R1P1"

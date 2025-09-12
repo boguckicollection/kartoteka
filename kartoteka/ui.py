@@ -11,6 +11,7 @@ import requests
 import base64
 import mimetypes
 import re
+import copy
 import asyncio
 import datetime
 import time
@@ -269,6 +270,28 @@ def _load_image(path: str) -> Optional[Image.Image]:
             if img is not None:
                 return img
             return None
+        except requests.exceptions.SSLError as exc:
+            logger.warning("SSL error while downloading image %s: %s", path, exc)
+            retry_path = path
+            if path.startswith("https://"):
+                retry_path = "http://" + path[len("https://"):]
+            try:
+                resp = requests.get(retry_path, timeout=5, verify=False)
+                resp.raise_for_status()
+                data = resp.content
+                _IMAGE_CACHE[path] = (data, time.time())
+                img = load_rgba_image(io.BytesIO(data))
+                if img is not None:
+                    return img
+                return None
+            except requests.RequestException as exc2:
+                logger.warning(
+                    "Failed to download image %s after SSL retry: %s",
+                    retry_path,
+                    exc2,
+                )
+                _IMAGE_CACHE[path] = (None, time.time())
+                return None
         except requests.RequestException as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
             _IMAGE_CACHE[path] = (None, time.time())
@@ -456,7 +479,6 @@ def norm_header(name: str) -> str:
 
 def sanitize_number(value: str) -> str:
     """Remove leading zeros from a number string.
-
     Returns
     -------
     str
@@ -469,141 +491,36 @@ def sanitize_number(value: str) -> str:
 
 
 
-# Wczytanie danych setów
-def reload_sets():
-    """Load set definitions from the JSON files."""
-    global tcg_sets_eng_by_era, tcg_sets_eng_map, tcg_sets_eng, tcg_sets_eng_code_map
-    global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp, tcg_sets_jp_code_map
-    global tcg_sets_eng_abbr_map, tcg_sets_eng_abbr_name_map
-    global tcg_sets_jp_abbr_map, tcg_sets_jp_abbr_name_map
-    global tcg_sets_name_to_abbr, tcg_sets_jp_name_to_abbr
-    global SET_TO_ERA
+"""Placeholder data structures for set information.
 
-    tcg_sets_eng_code_map = globals().get("tcg_sets_eng_code_map", {})
-    tcg_sets_jp_code_map = globals().get("tcg_sets_jp_code_map", {})
-    tcg_sets_eng_abbr_map = globals().get("tcg_sets_eng_abbr_map", {})
-    tcg_sets_eng_abbr_name_map = globals().get("tcg_sets_eng_abbr_name_map", {})
-    tcg_sets_jp_abbr_map = globals().get("tcg_sets_jp_abbr_map", {})
-    tcg_sets_jp_abbr_name_map = globals().get("tcg_sets_jp_abbr_name_map", {})
-    tcg_sets_name_to_abbr = globals().get("tcg_sets_name_to_abbr", {})
-    tcg_sets_jp_name_to_abbr = globals().get("tcg_sets_jp_name_to_abbr", {})
-    SET_TO_ERA = {}
+The application previously loaded extensive set metadata from JSON files. This
+data is no longer bundled with the project, so the following mappings remain
+empty and act only as compatibility placeholders.
+"""
 
-    try:
-        with open("tcg_sets.json", encoding="utf-8") as f:
-            tcg_sets_eng_by_era = json.load(f)
-    except FileNotFoundError:
-        tcg_sets_eng_by_era = {}
-    tcg_sets_eng_map = {
-        item["name"]: item["code"]
-        for sets in tcg_sets_eng_by_era.values()
-        for item in sets
-    }
-    tcg_sets_eng_code_map = {
-        item["code"]: item["name"]
-        for sets in tcg_sets_eng_by_era.values()
-        for item in sets
-    }
-    tcg_sets_eng_abbr_map = {
-        item["abbr"]: item["code"]
-        for sets in tcg_sets_eng_by_era.values()
-        for item in sets
-        if "abbr" in item
-    }
-    tcg_sets_eng_abbr_name_map = {
-        item["abbr"]: item["name"]
-        for sets in tcg_sets_eng_by_era.values()
-        for item in sets
-        if "abbr" in item
-    }
-    tcg_sets_name_to_abbr = {
-        item["name"]: item.get("abbr", "")
-        for sets in tcg_sets_eng_by_era.values()
-        for item in sets
-    }
-    tcg_sets_eng = [
-        item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
-    ]
-    for era, sets in tcg_sets_eng_by_era.items():
-        for item in sets:
-            SET_TO_ERA[item["code"].lower()] = era
-            SET_TO_ERA[item["name"].lower()] = era
-            if "abbr" in item:
-                SET_TO_ERA[item["abbr"].lower()] = era
+tcg_sets_eng_by_era: dict = {}
+tcg_sets_eng_map: dict = {}
+tcg_sets_eng: list = []
+tcg_sets_eng_code_map: dict = {}
+tcg_sets_jp_by_era: dict = {}
+tcg_sets_jp_map: dict = {}
+tcg_sets_jp: list = []
+tcg_sets_jp_code_map: dict = {}
+tcg_sets_eng_abbr_map: dict = {}
+tcg_sets_eng_abbr_name_map: dict = {}
+tcg_sets_jp_abbr_map: dict = {}
+tcg_sets_jp_abbr_name_map: dict = {}
+tcg_sets_name_to_abbr: dict = {}
+tcg_sets_jp_name_to_abbr: dict = {}
+SET_TO_ERA: dict = {}
 
-    try:
-        with open("tcg_sets_jp.json", encoding="utf-8") as f:
-            tcg_sets_jp_by_era = json.load(f)
-    except FileNotFoundError:
-        tcg_sets_jp_by_era = {}
-    tcg_sets_jp_map = {
-        item["name"]: item["code"]
-        for sets in tcg_sets_jp_by_era.values()
-        for item in sets
-    }
-    tcg_sets_jp_code_map = {
-        item["code"]: item["name"]
-        for sets in tcg_sets_jp_by_era.values()
-        for item in sets
-    }
-    tcg_sets_jp_abbr_map = {
-        item["abbr"]: item["code"]
-        for sets in tcg_sets_jp_by_era.values()
-        for item in sets
-        if "abbr" in item
-    }
-    tcg_sets_jp_abbr_name_map = {
-        item["abbr"]: item["name"]
-        for sets in tcg_sets_jp_by_era.values()
-        for item in sets
-        if "abbr" in item
-    }
-    tcg_sets_jp_name_to_abbr = {
-        item["name"]: item.get("abbr", "")
-        for sets in tcg_sets_jp_by_era.values()
-        for item in sets
-    }
-    tcg_sets_jp = [
-        item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
-    ]
-    for era, sets in tcg_sets_jp_by_era.items():
-        for item in sets:
-            SET_TO_ERA[item["code"].lower()] = era
-            SET_TO_ERA[item["name"].lower()] = era
-            if "abbr" in item:
-                SET_TO_ERA[item["abbr"].lower()] = era
-
-
-reload_sets()
-
-# Allowed eras and set codes used for logo operations
-ALLOWED_ERAS = {
-    "Scarlet & Violet",
-    "Sword & Shield",
-    "Sun & Moon",
-    "XY",
-    "Black & White",
-}
-
+OPENAI_ERAS: list[str] = []
+OPENAI_SETS: list[str] = []
 ALLOWED_SET_CODES: set[str] = set()
 
 
 def refresh_logo_cache() -> bool:
-    """Regenerate ``ALLOWED_SET_CODES`` and reload logo hashes.
-
-    Returns
-    -------
-    bool
-        ``True`` when logo hashes were loaded successfully.
-    """
-
-    global ALLOWED_SET_CODES
-    ALLOWED_SET_CODES = {
-        item["code"]
-        for era, sets in tcg_sets_eng_by_era.items()
-        if era in ALLOWED_ERAS
-        for item in sets
-    }
+    """Reload logo hashes from :data:`SET_LOGO_DIR`."""
     success = load_logo_hashes()
     if not success:
         messagebox.showwarning(
@@ -617,81 +534,18 @@ refresh_logo_cache()
 
 
 def get_set_code(name: str) -> str:
-    """Return the API code for a set name or abbreviation if available."""
-    if not name:
-        return ""
-    search = name.strip()
-    # remove trailing language or other short alphabetic suffixes like "EN", "JP"
-    search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
-    search = search.strip().lower()
-    for mapping in (
-        tcg_sets_eng_map,
-        tcg_sets_jp_map,
-        tcg_sets_eng_abbr_map,
-        tcg_sets_jp_abbr_map,
-    ):
-        for key, code in mapping.items():
-            if key.lower() == search:
-                return code
-    return name
-
-
-def get_set_name(code: str) -> str:
-    """Return the display name for a set code or abbreviation if available."""
-    if not code:
-        return ""
-    search = code.strip().lower()
-    for mapping in (
-        tcg_sets_eng_code_map,
-        tcg_sets_jp_code_map,
-        tcg_sets_eng_abbr_name_map,
-        tcg_sets_jp_abbr_name_map,
-    ):
-        for key, name in mapping.items():
-            if key.lower() == search:
-                return name
-    logger.warning(
-        "Nie znaleziono nazwy dla setu '%s'. Weryfikacja ręczna wymagana.",
-        code,
-    )
-    return code
 
 
 def get_set_abbr(name: str) -> str:
-    """Return the abbreviation for a set name if available.
-
-    Parameters
-    ----------
-    name:
-        Display name or abbreviation of the set.
-
-    Returns
-    -------
-    str
-        Matching abbreviation or an empty string when not found.
-    """
-
-    if not name:
-        return ""
-    search = name.strip()
-    # remove trailing language or other short alphabetic suffixes like "EN", "JP"
-    search = re.sub(r"[-_\s]+[a-z]{1,2}$", "", search, flags=re.IGNORECASE)
-    lowered = search.lower()
-    for mapping in (tcg_sets_name_to_abbr, tcg_sets_jp_name_to_abbr):
-        for key, abbr in mapping.items():
-            if key.lower() == lowered or (abbr and abbr.lower() == lowered):
-                return abbr or ""
+    """Return the set abbreviation if available."""
     return ""
 
 
 def get_set_era(code_or_name: str) -> str:
-    """Return the era name for a given set code or display name."""
-    if not code_or_name:
-        return ""
-    search = code_or_name.strip()
-    search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
-    search = search.strip().lower()
-    return SET_TO_ERA.get(search, "")
+    """Return the era as provided."""
+    return (code_or_name or "").strip()
+
+
 
 def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     """Return possible set codes and names for the given card info.
@@ -1107,7 +961,6 @@ def identify_set_by_hash(
     symbol_hash = str(crop_hashes[0])
     for best_code, diff in results[:4]:
         logger.debug("Hash %s -> %s (%s)", symbol_hash, best_code, diff)
-    return [(code, get_set_name(code), diff) for code, diff in results[:4]]
 
 
 def extract_set_code_ocr(
@@ -1197,7 +1050,9 @@ class CardInfo(BaseModel):
 
 
 # ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
-def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, str]:
+def extract_card_info_openai(
+    path: str, available_sets: Iterable[str] | None = None
+) -> tuple[str, str, str, str, str, str, str]:
     """Recognize card name, number, set, and its format using OpenAI Vision.
 
     Returns a tuple ``(name, number, total, era_name, set_name, set_code, set_format)``.
@@ -1211,7 +1066,6 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
             try:
                 r = requests.get(path, timeout=10)
                 r.raise_for_status()
-                mime = r.headers.get("Content-Type") or mimetypes.guess_type(path)[0] or "image/jpeg"
                 encoded = base64.b64encode(r.content).decode("utf-8")
             except requests.RequestException as e:
                 logger.warning("extract_card_info_openai failed to fetch image: %s", e)
@@ -1231,30 +1085,15 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
             return "", "", "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
 
-        PROMPT = (
-            "You must return a JSON object with the Pokémon card's English name, "
-            "card number in the form NNN/NNN, English set name, era name, and whether "
-            "the set is written as text or shown as a symbol. The response must strictly "
-            'match {"name":"", "number":"", "set_name":"", "era_name":"", "set_format":""}.'
-        )
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": PROMPT},
+                            {"type": "input_image", "image_url": data_url},
+                        ],
+                    }
+                ],
 
-        try:
-            resp = client.responses.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                response_format={"type": "json_object"},
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": PROMPT},
-                            {"type": "input_image", "image_url": data_url},
-                        ],
-                    }
-                ],
-                max_output_tokens=150,
-            )
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
             if raw.startswith("json"):
                 raw = raw[len("json") :].lstrip()
             match = re.search(r"{.*}", raw, re.DOTALL)
@@ -1265,44 +1104,6 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
-                return "", "", "", "", "", "", ""
-            try:
-                data_dict = json.loads(raw)
-            except json.JSONDecodeError:
-                logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", "", "", ""
-        except TypeError:
-            resp = client.responses.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": PROMPT},
-                            {"type": "input_image", "image_url": data_url},
-                        ],
-                    }
-                ],
-                max_output_tokens=150,
-            )
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
-            if raw.startswith("json"):
-                raw = raw[len("json") :].lstrip()
-            match = re.search(r"{.*}", raw, re.DOTALL)
-            if match:
-                raw = match.group(0)
-            if not raw:
-                logger.error(
-                    "extract_card_info_openai got empty response from OpenAI: %r",
-                    resp,
-                )
-                return "", "", "", "", "", "", ""
-            try:
-                data_dict = json.loads(raw)
-            except json.JSONDecodeError:
-                logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", "", "", ""
 
         data = data_dict
 
@@ -1317,19 +1118,17 @@ def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, s
 
         name = data.get("name") or ""
         set_name = data.get("set_name") or ""
+        set_code = data.get("set_code") or ""
         set_format = data.get("set_format") or ""
-        set_code = ""
-        if set_name:
-            set_code = get_set_code(set_name)
-            mapped = get_set_name(set_code)
-            if mapped:
-                set_name = mapped
         era_name = data.get("era_name") or ""
+        if not set_name and not set_code:
+            logger.warning("OpenAI Vision did not return set information")
+        if not era_name:
+            logger.warning("OpenAI Vision did not return era information")
         return name, number, total, era_name, set_name, set_code, set_format
     except Exception as e:
         logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", "", ""
-
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
 def analyze_card_image(
     path: str,
@@ -1376,10 +1175,20 @@ def analyze_card_image(
     set_format = ""
     era_name = ""
 
+    step = 1
+
+    def log_step(message: str) -> None:
+        nonlocal step
+        print(f"[INFO] Step {step}: {message}")
+        step += 1
+
+    hash_candidates: list[str] = []
+    ocr_results: dict[tuple[int, int, int, int], list[str]] = {}
+
     try:
         # --- PRIORITY 1: Local hash lookup for the set symbol ---
         if local_path:
-            print("[INFO] Step 1: Matching set symbol via hash...")
+            log_step("Matching set symbol via hash...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
@@ -1394,15 +1203,17 @@ def analyze_card_image(
                             logger.exception("preview callback failed")
                     potential = identify_set_by_hash(local_path, candidate)
                     if potential:
+                        hash_candidates.extend(name for _, name, _ in potential)
                         code, name_match, diff = potential[0]
                         if diff <= HASH_DIFF_THRESHOLD:
                             rect = candidate
                             set_code = code
                             set_name = name_match
+                            if not era_name:
+                                logger.warning("Hash lookup did not provide era information")
                             print(
-                                f"[SUCCESS] Local hash analysis found a match: {name_match}"
+                                f"[SUCCESS] Local hash analysis found a match: {set_name}"
                             )
-                            era_name = get_set_era(set_code) or get_set_era(set_name)
                             result = {
                                 "name": name,
                                 "number": number,
@@ -1419,12 +1230,29 @@ def analyze_card_image(
             except (OSError, UnidentifiedImageError, ValueError) as e:
                 logger.warning("Hash lookup failed: %s", e)
 
+        set_candidates: set[str] = set(hash_candidates)
+        if local_path:
+            try:
+                if not rects:
+                    rects = [(0, 0, 0, 0)]
+                for candidate in rects:
+                    codes = extract_set_code_ocr(local_path, candidate, debug)
+                    ocr_results[candidate] = codes
+                    for code in codes:
+                        set_candidates.add(code)
+            except Exception as e:
+                logger.warning("OCR candidate collection failed: %s", e)
+
+        available_sets = sorted(set_candidates) if set_candidates else None
+
         # --- PRIORITY 2: OpenAI Vision ---
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
-            print("[INFO] Step 2: Analyzing with OpenAI Vision...")
+            log_step("Analyzing with OpenAI Vision...")
             try:
-                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(path)
+                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(
+                    path, available_sets
+                )
 
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
@@ -1433,7 +1261,7 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}"
                     )
-                    era = era_name or get_set_era(set_code) or get_set_era(set_name)
+                    era = era_name or ""
                     result = {
                         "name": name,
                         "number": number,
@@ -1459,9 +1287,18 @@ def analyze_card_image(
         else:
             print("[WARN] No OpenAI API key. Skipping to OCR.")
 
+        if local_path and (not name or not number):
+            ocr_name, ocr_number, ocr_total = extract_name_number_ocr(local_path)
+            if not name:
+                name = ocr_name
+            if not number:
+                number = ocr_number
+            if not total:
+                total = ocr_total
+
         # --- PRIORITY 3: TCGGO API Lookup (if name and number are known) ---
         if name and number:
-            print("[INFO] Step 3: Looking up sets via TCGGO API...")
+            log_step("Looking up sets via TCGGO API...")
             try:
                 api_sets = lookup_sets_from_api(name, number, total or None)
                 if len(api_sets) == 1:
@@ -1469,7 +1306,8 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] TCGGO API found a single match: {api_set_name}"
                     )
-                    era = get_set_era(set_code) or get_set_era(api_set_name)
+                    era = ""
+                    logger.warning("TCGGO API did not return era information")
                     result = {
                         "name": name,
                         "number": number,
@@ -1490,7 +1328,8 @@ def analyze_card_image(
                         "[INFO] TCGGO API found multiple matches. "
                         f"Selecting first result: {selected_name}"
                     )
-                    era = get_set_era(set_code) or get_set_era(selected_name)
+                    era = ""
+                    logger.warning("TCGGO API did not return era information")
                     result = {
                         "name": name,
                         "number": number,
@@ -1510,7 +1349,7 @@ def analyze_card_image(
 
         # --- PRIORITY 4: OCR fallback ---
         if local_path:
-            print("[INFO] Step 4: Performing OCR fallback...")
+            log_step("Performing OCR fallback...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
@@ -1523,36 +1362,46 @@ def analyze_card_image(
                             preview_cb(candidate, preview_image)
                         except Exception as exc:
                             logger.exception("preview callback failed")
-                    ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
+                    ocr_codes = ocr_results.get(candidate)
+                    if ocr_codes is None:
+                        ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
                     for code in ocr_codes:
-                        name_lookup = get_set_name(code)
-                        if name_lookup and name_lookup != code:
-                            rect = candidate
-                            set_code = code
-                            set_name = name_lookup
-                            print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                            era = get_set_era(set_code) or get_set_era(set_name)
-                            result = {
-                                "name": name,
-                                "number": number,
-                                "total": total,
-                                "set": set_name,
-                                "set_code": set_code,
-                                "orientation": orientation,
-                                "set_format": set_format,
-                                "era": era,
-                            }
-                            if debug and rect:
-                                result["rect"] = rect
-                            return result
-                        else:
-                            print(f"[WARN] OCR produced unknown set code: {code}")
+                        rect = candidate
+                        set_code = code
+                        set_name = code
+                        print(f"[SUCCESS] OCR recognized set code: {set_name}")
+                        break
+                    era = era_name
+                    if not era:
+                        logger.warning("OCR did not provide era information")
+                    if set_name:
+                        result = {
+                            "name": name,
+                            "number": number,
+                            "total": total,
+                            "set": set_name,
+                            "set_code": set_code,
+                            "orientation": orientation,
+                            "set_format": set_format,
+                            "era": era,
+                        }
+                        if debug and rect:
+                            result["rect"] = rect
+                        return result
+                    if set_code:
+                        print(f"[WARN] OCR produced set code without name: {set_code}")
+                        set_name = ""
+                        set_code = ""
             except Exception:
                 logger.exception("OCR analysis failed")
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
-        era = era_name or get_set_era(set_code) or get_set_era(set_name)
+        if not set_name and not set_code:
+            logger.warning("No source provided set information")
+        if not era_name:
+            logger.warning("No source provided era information")
+        era = era_name
         result = {
             "name": name,
             "number": number,
@@ -1610,7 +1459,7 @@ class CardEditorApp:
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
-        self.sets_file = "tcg_sets.json"
+
         self.progress_var = tk.StringVar(value="0/0 (0%)")
         self.start_box_var = tk.StringVar(value="1")
         self.start_col_var = tk.StringVar(value="1")
@@ -2505,7 +2354,7 @@ class CardEditorApp:
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
-        tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
+
         self.current_price_var = tk.StringVar()
         tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
@@ -2515,7 +2364,6 @@ class CardEditorApp:
 
         tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.remaining_time_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=self.remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
         win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
@@ -2526,7 +2374,7 @@ class CardEditorApp:
         labels = ["Nazwa karty", "Numer", "Cena start", "Kwota przebicia", "Czas [s]"]
         vars = []
         for i, lbl in enumerate(labels):
-            tk.Label(form, text=lbl, bg=self.root.cget("background"), fg="white").grid(row=0, column=i, padx=2)
+
             var = tk.StringVar()
             ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
             vars.append(var)
@@ -2564,7 +2412,9 @@ class CardEditorApp:
         tree.pack(expand=True, fill="both", padx=10, pady=10)
 
         self.info_var = tk.StringVar()
+
         tk.Label(
+
             win,
             textvariable=self.info_var,
             bg=self.root.cget("background"),
@@ -2575,6 +2425,7 @@ class CardEditorApp:
         status_frame.pack(pady=2)
 
         tk.Label(
+
             status_frame,
             text="Aktualna cena:",
             bg=self.root.cget("background"),
@@ -4045,7 +3896,10 @@ class CardEditorApp:
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
-            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
+            if box == SPECIAL_BOX_NUMBER:
+                col_capacity = storage.BOX_COLUMN_CAPACITY
+            else:
+                col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
             value = filled / col_capacity if col_capacity else 0
             bar.set(value)
             lbl = self.mag_percent_labels.get((box, col))
@@ -4379,24 +4233,21 @@ class CardEditorApp:
         self.input_frame.columnconfigure(1, weight=1)
         self.input_frame.rowconfigure(5, weight=1)
 
-        tk.Label(
-            self.input_frame, text="Nazwa", bg=self.root.cget("background")
+
         ).grid(row=0, column=0, sticky="e")
         self.price_name_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Nazwa karty"
         )
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
-        tk.Label(
-            self.input_frame, text="Numer", bg=self.root.cget("background")
+
         ).grid(row=1, column=0, sticky="e")
         self.price_number_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Numer"
         )
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
-        tk.Label(
-            self.input_frame, text="Set", bg=self.root.cget("background")
+
         ).grid(row=2, column=0, sticky="e")
         self.price_set_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Set"
@@ -4443,7 +4294,7 @@ class CardEditorApp:
             self.pricing_frame, bg=self.root.cget("background")
         )
         self.pool_frame.grid(row=2, column=0, columnspan=2, pady=5)
-        self.pool_total_label = tk.Label(
+
             self.pool_frame,
             text="Suma puli: 0.00",
             bg=self.root.cget("background"),
@@ -4518,7 +4369,7 @@ class CardEditorApp:
         )
         price_80 = round(price_pln * 0.8, 2)
         if not getattr(self, "price_labels", None):
-            eur = tk.Label(
+
                 self.result_frame,
                 text=f"Cena EUR: {info['price_eur']}",
                 fg="blue",
@@ -4579,6 +4430,7 @@ class CardEditorApp:
             self.pool_total_label.config(
                 text=f"Suma puli: {self.price_pool_total:.2f}"
             )
+
 
     def clear_price_pool(self):
         self.price_pool_total = 0.0
@@ -4656,12 +4508,6 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
-        self.load_button = self.create_button(
-            self.button_frame,
-            text="Import",
-            command=self.browse_scans,
-        )
-        self.load_button.pack(side="left", padx=5)
 
         self.end_button = self.create_button(
             self.button_frame,
@@ -4727,8 +4573,7 @@ class CardEditorApp:
 
         grid_opts = {"padx": 5, "pady": 2}
 
-        tk.Label(
-            self.info_frame, text="Język", bg=self.root.cget("background")
+
         ).grid(
             row=start_row, column=0, sticky="w", **grid_opts
         )
@@ -4740,8 +4585,7 @@ class CardEditorApp:
         lang_dropdown.grid(row=start_row, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
-        tk.Label(
-            self.info_frame, text="Nazwa", bg=self.root.cget("background")
+
         ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
@@ -4750,8 +4594,6 @@ class CardEditorApp:
         )
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(
-            self.info_frame, text="Numer", bg=self.root.cget("background")
         ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
@@ -4760,8 +4602,7 @@ class CardEditorApp:
         )
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(
-            self.info_frame, text="Era", bg=self.root.cget("background")
+
         ).grid(row=start_row + 3, column=0, sticky="w", **grid_opts)
         self.era_var = tk.StringVar()
         self.era_dropdown = ctk.CTkComboBox(
@@ -4788,8 +4629,7 @@ class CardEditorApp:
         self.set_dropdown.bind("<Tab>", self.autocomplete_set)
         self.entries["set"] = self.set_var
 
-        tk.Label(
-            self.info_frame, text="Typ", bg=self.root.cget("background")
+
         ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
@@ -4806,8 +4646,6 @@ class CardEditorApp:
                 variable=var,
             ).pack(side="left", padx=2)
 
-        tk.Label(
-            self.info_frame, text="Stan", bg=self.root.cget("background")
         ).grid(
             row=start_row + 6, column=0, sticky="w", **grid_opts
         )
@@ -4821,8 +4659,7 @@ class CardEditorApp:
         )
         stan_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(
-            self.info_frame, text="Cena", bg=self.root.cget("background")
+
         ).grid(
             row=start_row + 7, column=0, sticky="w", **grid_opts
         )
@@ -4831,8 +4668,7 @@ class CardEditorApp:
         )
         self.entries["cena"].grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
-        tk.Label(
-            self.info_frame, text="PSA 10", bg=self.root.cget("background")
+
         ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
@@ -4917,12 +4753,8 @@ class CardEditorApp:
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         era = self.era_var.get().strip()
-        if lang == "JP":
-            self.sets_file = "tcg_sets_jp.json"
-            sets_by_era = tcg_sets_jp_by_era
-        else:
-            self.sets_file = "tcg_sets.json"
-            sets_by_era = tcg_sets_eng_by_era
+        self.sets_file = ""
+        sets_by_era = tcg_sets_jp_by_era if lang == "JP" else tcg_sets_eng_by_era
 
         if era and era in sets_by_era:
             values = [item["name"] for item in sets_by_era[era]]
@@ -5385,7 +5217,7 @@ class CardEditorApp:
                     self.entries["numer"].insert(0, number)
                     self.entries["set"].set("")
                     self.entries["set"].set(set_name)
-                    era_name = get_set_era(set_name)
+                    era_name = ""
                     self.entries["era"].set(era_name)
                     cena = getattr(
                         self, "get_price_from_db", lambda *a, **k: None
@@ -5639,7 +5471,7 @@ class CardEditorApp:
                     "set_format": meta.get("set_format", ""),
                     "variant": csv_row.get("variant"),
                     "price": csv_row.get("price"),
-                    "era": get_set_era(csv_row.get("set", "")),
+                    "era": csv_row.get("era", ""),
                     "warehouse_code": code,
                 }
             else:
@@ -5695,7 +5527,7 @@ class CardEditorApp:
                 if m:
                     number, total = m.group(1), m.group(2)
             set_name = result.get("set", "")
-            era_name = result.get("era", "") or get_set_era(set_name)
+            era_name = result.get("era", "")
             price = result.get("price")
             number = sanitize_number(str(number))
             self.entries["nazwa"].delete(0, tk.END)
@@ -5951,10 +5783,11 @@ class CardEditorApp:
 
     def update_sets(self):
         """Check remote API for new sets and update local files."""
+
         try:
             self.loading_label.configure(text="Sprawdzanie nowych setów...")
             self.root.update()
-            with open(self.sets_file, encoding="utf-8") as f:
+            with open(sets_path, encoding="utf-8") as f:
                 current_sets = json.load(f)
         except (OSError, json.JSONDecodeError):
             current_sets = {}
@@ -6005,9 +5838,7 @@ class CardEditorApp:
             new_items.append({"name": name, "code": code})
 
         if added:
-            with open(self.sets_file, "w", encoding="utf-8") as f:
-                json.dump(current_sets, f, indent=2, ensure_ascii=False)
-            reload_sets()
+
             refresh_logo_cache()
             names = ", ".join(item["name"] for item in new_items)
             self.loading_label.configure(
@@ -6051,7 +5882,7 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
-        full_name = get_set_name(set_code)
+
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6155,8 +5986,7 @@ class CardEditorApp:
         if set_input == "prismatic evolutions: additionals":
             set_code = "xpre"
         else:
-            set_code = get_set_code(set_name)
-        full_name = get_set_name(set_code)
+
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6247,88 +6077,6 @@ class CardEditorApp:
             logger.warning("Invalid JSON from TCGGO: %s", e)
         return ""
 
-    def fetch_card_variants(self, name, number, set_name):
-        """Return all matching cards from the API with prices."""
-        name_api = normalize(name, keep_spaces=True)
-        name_input = normalize(name)
-        number_input = number.strip().lower()
-        set_input = set_name.strip().lower()
-        if set_input == "prismatic evolutions: additionals":
-            set_code = "xpre"
-        else:
-            set_code = get_set_code(set_name)
-        full_name = get_set_name(set_code)
-        if hasattr(self, "set_var"):
-            try:
-                self.set_var.set(full_name)
-            except tk.TclError:
-                pass
-
-        try:
-            headers = {}
-            if RAPIDAPI_KEY and RAPIDAPI_HOST:
-                url = f"https://{RAPIDAPI_HOST}/cards/search"
-                params = {"search": name_api}
-                headers = {
-                    "X-RapidAPI-Key": RAPIDAPI_KEY,
-                    "X-RapidAPI-Host": RAPIDAPI_HOST,
-                }
-            else:
-                url = "https://www.tcggo.com/api/cards/"
-                params = {
-                    "name": name_api,
-                    "number": number_input,
-                    "set": set_code,
-                }
-
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            if response.status_code != 200:
-                logger.warning("API error: %s", response.status_code)
-                return []
-
-            cards = response.json()
-            if isinstance(cards, dict):
-                if "cards" in cards:
-                    cards = cards["cards"]
-                elif "data" in cards:
-                    cards = cards["data"]
-                else:
-                    cards = []
-
-            results = []
-            eur_pln = self.get_exchange_rate()
-            for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
-
-                name_match = name_input in card_name
-                number_match = number_input == card_number
-                set_match = set_input in card_set or card_set.startswith(set_input)
-
-                if name_match and number_match and set_match:
-                    price_eur = extract_cardmarket_price(card)
-                    price_pln = 0
-                    if price_eur is not None:
-                        price_pln = round(
-                            float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2
-                        )
-                    results.append(
-                        {
-                            "name": card.get("name"),
-                            "number": card_number,
-                            "set": card.get("episode", {}).get("name", ""),
-                            "price": price_pln,
-                        }
-                    )
-            return results
-        except requests.Timeout:
-            logger.warning("Request timed out")
-        except requests.RequestException as e:
-            logger.warning("Fetching variants from TCGGO failed: %s", e)
-        except ValueError as e:
-            logger.warning("Invalid JSON from TCGGO: %s", e)
-        return []
 
     def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
         """Return image URL and pricing information for the first matching card."""
@@ -6340,7 +6088,7 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
-        full_name = get_set_name(set_code)
+
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6492,61 +6240,6 @@ class CardEditorApp:
         else:
             self.log(f"PSA10 price for {name} {number} not found")
 
-    def show_variants(self):
-        """Display a list of matching cards from the API."""
-        name = self.entries["nazwa"].get()
-        number = sanitize_number(self.entries["numer"].get())
-        set_name = self.entries["set"].get()
-
-        is_reverse = self.type_vars["Reverse"].get()
-        is_holo = self.type_vars["Holo"].get()
-
-        variants = self.fetch_card_variants(name, number, set_name)
-        if not variants:
-            messagebox.showinfo("Brak wyników", "Nie znaleziono dodatkowych wariantów.")
-            self.open_cardmarket_search()
-            return
-
-        top = ctk.CTkToplevel(self.root)
-        top.title("Inne warianty")
-        top.geometry("600x400")
-
-        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
-        if os.path.exists(logo_path):
-            logo_img = load_rgba_image(logo_path)
-            if logo_img:
-                logo_img.thumbnail((140, 140))
-                top.logo_image = _create_image(logo_img)
-                ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
-
-        columns = ("name", "number", "set", "price")
-        tree = ttk.Treeview(top, columns=columns, show="headings")
-        tree.heading("name", text="Nazwa")
-        tree.heading("number", text="Numer")
-        tree.heading("set", text="Set")
-        tree.heading("price", text="Cena (PLN)")
-
-        for card in variants:
-            price = self.apply_variant_multiplier(
-                card["price"], is_reverse=is_reverse, is_holo=is_holo
-            )
-            tree.insert(
-                "", "end", values=(card["name"], card["number"], card["set"], price)
-            )
-
-        tree.pack(expand=True, fill="both", padx=10, pady=10)
-
-        def set_selected_price(event=None):
-            selected = tree.selection()
-            if not selected:
-                return
-            values = tree.item(selected[0], "values")
-            self.entries["cena"].delete(0, tk.END)
-            self.entries["cena"].insert(0, values[3])
-            top.destroy()
-
-        self.create_button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
-        tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card in the default browser."""

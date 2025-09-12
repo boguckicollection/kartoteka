@@ -4,12 +4,28 @@
 ## Overview
 Kartoteka is a lightweight Tkinter app for organizing Pokémon card scans and exporting pricing data to CSV.
 
+## Python Compatibility
+Kartoteka supports Python 3.9 through 3.13. The default requirements use `Pillow>=10.4`, which ships pre-built wheels for Python 3.13.
+
+If you must stay on an older Python release that cannot install Pillow 10.4 or later, pin `Pillow<10.4` in `requirements.txt` and use a compatible Python version (for example, Python 3.12).
+
 ## Running the App
 With dependencies installed, launch the interface:
 
 ```bash
 python main.py
 ```
+
+## Set validation
+
+OpenAI responses normally validate set and era names against a built-in list.
+To allow unrecognised values and rely on internal mapping instead, disable
+strict validation:
+
+```bash
+STRICT_SET_VALIDATION=0 python main.py
+```
+
 
 ## Card Identifier Format and CSV Export
 Cards are identified with the pattern `PKM-<SET>-<NR>-<VARIANT>`:
