@@ -4932,10 +4932,10 @@ class CardEditorApp:
         self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
         self.eur_entry = ctk.CTkEntry(
-            self.info_frame, width=200, placeholder_text="Kwota w EUR"
+            self.info_frame, width=120, placeholder_text="Kwota w EUR"
         )
         self.eur_entry.grid(
-            row=start_row + 10, column=0, columnspan=4, sticky="ew", **grid_opts
+            row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.convert_button = self.create_button(
@@ -4945,12 +4945,12 @@ class CardEditorApp:
             fg_color=FETCH_BUTTON_COLOR,
         )
         self.convert_button.grid(
-            row=start_row + 10, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 10, column=2, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.pln_result_label = ctk.CTkLabel(self.info_frame, text="PLN: -")
         self.pln_result_label.grid(
-            row=start_row + 11, column=0, columnspan=6, sticky="ew", **grid_opts
+            row=start_row + 11, column=0, columnspan=4, sticky="ew", **grid_opts
         )
 
         self.eur_entry.bind("<Return>", self.convert_eur_to_pln)
