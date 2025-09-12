@@ -127,8 +127,14 @@
       "abbr": "VIV"
     },
     {
-      "name": "Macdonald's Collection 2021",
-      "code": "2021swsh"
+      "name": "McDonald's Collection 2021",
+      "code": "mcd21",
+      "abbr": "MCD21"
+    },
+    {
+      "name": "McDonald's Collection 2022",
+      "code": "mcd22",
+      "abbr": "MCD22"
     },
     {
       "name": "Shining Fates",
@@ -216,8 +222,9 @@
       "abbr": "GRI"
     },
     {
-      "name": "Macdonald's Collection 2017",
-      "code": "2017sm"
+      "name": "McDonald's Collection 2017",
+      "code": "mcd17",
+      "abbr": "MCD17"
     },
     {
       "name": "Burning Shadows",
@@ -255,8 +262,9 @@
       "abbr": "DRM"
     },
     {
-      "name": "Macdonald's Collection 2018",
-      "code": "2018sm"
+      "name": "McDonald's Collection 2018",
+      "code": "mcd18",
+      "abbr": "MCD18"
     },
     {
       "name": "Lost Thunder",
@@ -294,8 +302,9 @@
       "abbr": "HIF"
     },
     {
-      "name": "Macdonald's Collection 2019",
-      "code": "2019sm"
+      "name": "McDonald's Collection 2019",
+      "code": "mcd19",
+      "abbr": "MCD19"
     },
     {
       "name": "Cosmic Eclipse",
@@ -336,8 +345,9 @@
       "abbr": "FLF"
     },
     {
-      "name": "Macdonald's Collection 2014",
-      "code": "2014xy"
+      "name": "McDonald's Collection 2014",
+      "code": "mcd14",
+      "abbr": "MCD14"
     },
     {
       "name": "Furious Fists",
@@ -391,8 +401,9 @@
       "abbr": "BKT"
     },
     {
-      "name": "Macdonald's Collection 2015",
-      "code": "2015xy"
+      "name": "McDonald's Collection 2015",
+      "code": "mcd15",
+      "abbr": "MCD15"
     },
     {
       "name": "BREAKpoint",
@@ -423,8 +434,9 @@
       "abbr": "STS"
     },
     {
-      "name": "Macdonald's Collection 2016",
-      "code": "2016xy"
+      "name": "McDonald's Collection 2016",
+      "code": "mcd16",
+      "abbr": "MCD16"
     },
     {
       "name": "Evolutions",
@@ -444,8 +456,9 @@
       "abbr": "PR-BLW"
     },
     {
-      "name": "Macdonald's Collection 2011",
-      "code": "2011bw"
+      "name": "McDonald's Collection 2011",
+      "code": "mcd11",
+      "abbr": "MCD11"
     },
     {
       "name": "Emerging Powers",
@@ -476,8 +489,9 @@
       "abbr": "DEX"
     },
     {
-      "name": "Macdonald's Collection 2012",
-      "code": "2012bw"
+      "name": "McDonald's Collection 2012",
+      "code": "mcd12",
+      "abbr": "MCD12"
     },
     {
       "name": "Dragons Exalted",
