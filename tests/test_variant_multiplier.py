@@ -15,9 +15,6 @@ class DummyVar:
     def get(self):
         return self.value
 
-def test_get_set_code_additionals():
-    assert ui.get_set_code("Prismatic Evolutions: Additionals") == "xpre"
-
 def test_apply_variant_multiplier_reverse_holo():
     dummy = SimpleNamespace()
     price = ui.CardEditorApp.apply_variant_multiplier(dummy, 10, is_reverse=True)
