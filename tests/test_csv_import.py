@@ -38,7 +38,7 @@ def test_old_csv_location_pattern(tmp_path):
     assert len(rows) == 1
     row = rows[0]
     assert row["warehouse_code"] == "K1R1P1"
-    assert row["product_code"] == "PKM-BASE-1"
+    assert row["product_code"] == "PKM-BAS-1"
     assert dummy.product_code_map == {}
 
 
