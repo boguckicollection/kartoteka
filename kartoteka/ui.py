@@ -396,6 +396,11 @@ MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
 AUCTION_BUTTON_COLOR = "#E74C3C"  # red
 STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
+# shared colors for common actions
+SAVE_BUTTON_COLOR = SCAN_BUTTON_COLOR
+FETCH_BUTTON_COLOR = PRICE_BUTTON_COLOR
+NAV_BUTTON_COLOR = ACCENT_COLOR
+
 # color highlighting current price labels
 CURRENT_PRICE_COLOR = "#FFD700"
 
@@ -2097,15 +2102,26 @@ class CardEditorApp:
         ctk.CTkEntry(folder_frame, textvariable=self.scan_folder_var, width=300).grid(
             row=0, column=1, padx=5
         )
-        self.create_button(folder_frame, text="Wybierz", command=self.select_scan_folder).grid(row=0, column=2, padx=5)
+        self.create_button(
+            folder_frame,
+            text="Wybierz",
+            command=self.select_scan_folder,
+            fg_color=FETCH_BUTTON_COLOR,
+        ).grid(row=0, column=2, padx=5)
 
         button_frame = ctk.CTkFrame(frame)
         button_frame.pack(pady=5)
         self.create_button(
-            button_frame, text="Dalej", command=self.start_browse_scans
+            button_frame,
+            text="Dalej",
+            command=self.start_browse_scans,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=0, column=0, padx=5, pady=5)
         self.create_button(
-            button_frame, text="Powrót", command=self.back_to_welcome
+            button_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=0, column=1, padx=5, pady=5)
 
     def select_scan_folder(self):
@@ -2209,18 +2225,21 @@ class CardEditorApp:
             orders_tab,
             text="Zamówienia",
             command=self.show_orders,
+            fg_color=FETCH_BUTTON_COLOR,
         ).grid(row=1, column=0, pady=5)
 
         self.create_button(
             orders_tab,
             text="Potwierdź zamówienie",
             command=self.confirm_order,
+            fg_color=SAVE_BUTTON_COLOR,
         ).grid(row=2, column=0, pady=5)
 
         self.create_button(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=2, column=0, pady=5)
 
     def push_product(self, widget):
@@ -2488,11 +2507,17 @@ class CardEditorApp:
                 self.statistics_chart.get_tk_widget().destroy()
                 self.statistics_chart = None
 
-        ctk.CTkButton(filter_frame, text="Odśwież", command=_update).pack(
-            side="left", padx=5
-        )
+        ctk.CTkButton(
+            filter_frame,
+            text="Odśwież",
+            command=_update,
+            fg_color=FETCH_BUTTON_COLOR,
+        ).pack(side="left", padx=5)
         self.create_button(
-            self.statistics_frame, text="Powrót", command=self.back_to_welcome
+            self.statistics_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(pady=5)
         _update()
 
@@ -2782,18 +2807,30 @@ class CardEditorApp:
 
         btn_frame = tk.Frame(win, bg=self.root.cget("background"))
         btn_frame.pack(pady=5)
-        self.create_button(btn_frame, text="Dodaj", command=add_row).pack(
-            side="left", padx=5
-        )
         self.create_button(
-            btn_frame, text="Wczytaj zaznaczone", command=import_selected
+            btn_frame,
+            text="Dodaj",
+            command=add_row,
+            fg_color=SAVE_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            btn_frame, text="Usuń zaznaczone", command=remove_selected
+            btn_frame,
+            text="Wczytaj zaznaczone",
+            command=import_selected,
+            fg_color=FETCH_BUTTON_COLOR,
         ).pack(side="left", padx=5)
-        self.create_button(btn_frame, text="Zapisz", command=save_queue).pack(
-            side="left", padx=5
-        )
+        self.create_button(
+            btn_frame,
+            text="Usuń zaznaczone",
+            command=remove_selected,
+            fg_color=NAV_BUTTON_COLOR,
+        ).pack(side="left", padx=5)
+        self.create_button(
+            btn_frame,
+            text="Zapisz",
+            command=save_queue,
+            fg_color=SAVE_BUTTON_COLOR,
+        ).pack(side="left", padx=5)
 
 
         control_frame = tk.Frame(win, bg=self.root.cget("background"))
@@ -2812,7 +2849,9 @@ class CardEditorApp:
         def next_card():
             start_auction()
 
-        pause_btn = self.create_button(control_frame, text="⏸ Pauza")
+        pause_btn = self.create_button(
+            control_frame, text="⏸ Pauza", fg_color=NAV_BUTTON_COLOR
+        )
         pause_btn.pack(side="left", padx=5)
 
         def reload_queue():
@@ -2833,17 +2872,29 @@ class CardEditorApp:
                 messagebox.showerror("Błąd", str(e))
 
         self.create_button(
-            control_frame, text="Start aukcji", command=start_auction
+            control_frame,
+            text="Start aukcji",
+            command=start_auction,
+            fg_color=SAVE_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            control_frame, text="Następna karta", command=next_card
+            control_frame,
+            text="Następna karta",
+            command=next_card,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         pause_btn.configure(command=toggle_pause)
         self.create_button(
-            control_frame, text="Wczytaj ponownie", command=reload_queue
+            control_frame,
+            text="Wczytaj ponownie",
+            command=reload_queue,
+            fg_color=FETCH_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            control_frame, text="Powrót do menu", command=self.back_to_welcome
+            control_frame,
+            text="Powrót do menu",
+            command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         tree.bind("<<TreeviewSelect>>", show_selected)
@@ -3525,7 +3576,9 @@ class CardEditorApp:
         )
         search_entry.pack(side="left", padx=5, pady=5)
 
-        search_button = ctk.CTkButton(control_frame, text="Szukaj")
+        search_button = ctk.CTkButton(
+            control_frame, text="Szukaj", fg_color=FETCH_BUTTON_COLOR
+        )
         search_button.pack(side="left", padx=5, pady=5)
 
         self.mag_sort_var = _safe_var("added")
@@ -3907,11 +3960,17 @@ class CardEditorApp:
                 self.back_to_welcome()
 
         self.create_button(
-            btn_frame, text="Odśwież", command=self.refresh_magazyn
+            btn_frame,
+            text="Odśwież",
+            command=self.refresh_magazyn,
+            fg_color=FETCH_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         self.create_button(
-            btn_frame, text="Powrót", command=_close_mag_window
+            btn_frame,
+            text="Powrót",
+            command=_close_mag_window,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         stats_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -4225,12 +4284,14 @@ class CardEditorApp:
                 top,
                 selected_var.get() if selected_var is not None else selected_default,
             ),
+            fg_color=SAVE_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         ctk.CTkButton(
             buttons_frame,
             text="Zamknij",
             command=close_details,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
     def mark_as_sold(
@@ -4424,7 +4485,7 @@ class CardEditorApp:
             text="Wyszukaj",
             command=self.run_pricing_search,
             width=120,
-            fg_color="#00a000",
+            fg_color=FETCH_BUTTON_COLOR,
         ).grid(row=0, column=0, padx=5)
 
         self.create_button(
@@ -4432,6 +4493,7 @@ class CardEditorApp:
             text="Wyczyść",
             command=self.clear_price_pool,
             width=120,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=0, column=1, padx=5)
 
         self.result_frame = tk.Frame(
@@ -4455,6 +4517,7 @@ class CardEditorApp:
             text="Powrót",
             command=self.back_to_welcome,
             width=120,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
     def run_pricing_search(self):
@@ -4548,6 +4611,7 @@ class CardEditorApp:
                 self.result_frame,
                 text="Dodaj do puli",
                 command=self.add_to_price_pool,
+                fg_color=SAVE_BUTTON_COLOR,
             )
             self.add_pool_button.pack(pady=5)
             self.price_labels = [eur, rate, pln, pln80]
@@ -4660,6 +4724,7 @@ class CardEditorApp:
             self.button_frame,
             text="Zakończ i zapisz",
             command=self.export_csv,
+            fg_color=SAVE_BUTTON_COLOR,
         )
         self.end_button.pack(side="left", padx=5)
 
@@ -4667,6 +4732,7 @@ class CardEditorApp:
             self.button_frame,
             text="Powrót",
             command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.back_button.pack(side="left", padx=5)
 
@@ -4675,6 +4741,7 @@ class CardEditorApp:
             self.button_frame,
             text="\u23ee Poprzednia",
             command=self.previous_card,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.prev_button.pack(side="left", padx=5)
 
@@ -4682,6 +4749,7 @@ class CardEditorApp:
             self.button_frame,
             text="Nast\u0119pna \u23ed",
             command=self.next_card,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.next_button.pack(side="left", padx=5)
 
@@ -4689,6 +4757,7 @@ class CardEditorApp:
             self.button_frame,
             text="\U0001F9FE \u015aci\u0105ga",
             command=self.toggle_cheatsheet,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.cheat_button.pack(side="left", padx=5)
 
@@ -4840,6 +4909,7 @@ class CardEditorApp:
             self.info_frame,
             text="Pobierz cenę z bazy",
             command=self.fetch_card_data,
+            fg_color=FETCH_BUTTON_COLOR,
         )
         self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
 
@@ -4847,6 +4917,7 @@ class CardEditorApp:
             self.info_frame,
             text="Cardmarket",
             command=self.open_cardmarket_search,
+            fg_color=FETCH_BUTTON_COLOR,
         )
         self.cardmarket_button.grid(
             row=start_row + 8, column=4, columnspan=2, sticky="ew", **grid_opts
@@ -4856,6 +4927,7 @@ class CardEditorApp:
             self.info_frame,
             text="Zapisz i dalej",
             command=self.save_and_next,
+            fg_color=SAVE_BUTTON_COLOR,
         )
         self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
 
@@ -4870,6 +4942,7 @@ class CardEditorApp:
             self.info_frame,
             text="Przelicz",
             command=self.convert_eur_to_pln,
+            fg_color=FETCH_BUTTON_COLOR,
         )
         self.convert_button.grid(
             row=start_row + 10, column=4, columnspan=2, sticky="ew", **grid_opts
@@ -5497,8 +5570,12 @@ class CardEditorApp:
 
             btn_frame = ctk.CTkFrame(dialog)
             btn_frame.pack(fill="x", padx=10, pady=5)
-            ctk.CTkButton(btn_frame, text=_("Select"), command=_select).pack(side="left", expand=True)
-            ctk.CTkButton(btn_frame, text=_("Skip"), command=_cancel).pack(side="right", expand=True)
+            ctk.CTkButton(
+                btn_frame, text=_("Select"), command=_select, fg_color=SAVE_BUTTON_COLOR
+            ).pack(side="left", expand=True)
+            ctk.CTkButton(
+                btn_frame, text=_("Skip"), command=_cancel, fg_color=NAV_BUTTON_COLOR
+            ).pack(side="right", expand=True)
 
             dialog.transient(self.root)
             dialog.grab_set()
@@ -6830,7 +6907,9 @@ class CardEditorApp:
                     "Błąd", f"Nie można połączyć się z API Shoper: {exc}"
                 )
 
-        save_btn = ctk.CTkButton(top, text="Zapisz", command=save)
+        save_btn = ctk.CTkButton(
+            top, text="Zapisz", command=save, fg_color=SAVE_BUTTON_COLOR
+        )
         save_btn.grid(row=2, column=0, columnspan=2, pady=10)
         top.grid_columnconfigure(1, weight=1)
         self.root.wait_window(top)
