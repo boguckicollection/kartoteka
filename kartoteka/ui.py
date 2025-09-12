@@ -4656,13 +4656,6 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
-        self.load_button = self.create_button(
-            self.button_frame,
-            text="Import",
-            command=self.browse_scans,
-        )
-        self.load_button.pack(side="left", padx=5)
-
         self.end_button = self.create_button(
             self.button_frame,
             text="Zakończ i zapisz",
@@ -4849,15 +4842,6 @@ class CardEditorApp:
             command=self.fetch_card_data,
         )
         self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
-
-        self.variants_button = self.create_button(
-            self.info_frame,
-            text="Inne warianty",
-            command=self.show_variants,
-        )
-        self.variants_button.grid(
-            row=start_row + 8, column=2, columnspan=2, sticky="ew", **grid_opts
-        )
 
         self.cardmarket_button = self.create_button(
             self.info_frame,
@@ -6491,62 +6475,6 @@ class CardEditorApp:
             self.log(f"PSA10 price for {name} {number}: {psa10_price} zł")
         else:
             self.log(f"PSA10 price for {name} {number} not found")
-
-    def show_variants(self):
-        """Display a list of matching cards from the API."""
-        name = self.entries["nazwa"].get()
-        number = sanitize_number(self.entries["numer"].get())
-        set_name = self.entries["set"].get()
-
-        is_reverse = self.type_vars["Reverse"].get()
-        is_holo = self.type_vars["Holo"].get()
-
-        variants = self.fetch_card_variants(name, number, set_name)
-        if not variants:
-            messagebox.showinfo("Brak wyników", "Nie znaleziono dodatkowych wariantów.")
-            self.open_cardmarket_search()
-            return
-
-        top = ctk.CTkToplevel(self.root)
-        top.title("Inne warianty")
-        top.geometry("600x400")
-
-        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
-        if os.path.exists(logo_path):
-            logo_img = load_rgba_image(logo_path)
-            if logo_img:
-                logo_img.thumbnail((140, 140))
-                top.logo_image = _create_image(logo_img)
-                ctk.CTkLabel(top, image=top.logo_image, text="").pack(pady=(10, 10))
-
-        columns = ("name", "number", "set", "price")
-        tree = ttk.Treeview(top, columns=columns, show="headings")
-        tree.heading("name", text="Nazwa")
-        tree.heading("number", text="Numer")
-        tree.heading("set", text="Set")
-        tree.heading("price", text="Cena (PLN)")
-
-        for card in variants:
-            price = self.apply_variant_multiplier(
-                card["price"], is_reverse=is_reverse, is_holo=is_holo
-            )
-            tree.insert(
-                "", "end", values=(card["name"], card["number"], card["set"], price)
-            )
-
-        tree.pack(expand=True, fill="both", padx=10, pady=10)
-
-        def set_selected_price(event=None):
-            selected = tree.selection()
-            if not selected:
-                return
-            values = tree.item(selected[0], "values")
-            self.entries["cena"].delete(0, tk.END)
-            self.entries["cena"].insert(0, values[3])
-            top.destroy()
-
-        self.create_button(top, text="Ustaw cenę", command=set_selected_price).pack(pady=5)
-        tree.bind("<Double-1>", set_selected_price)
 
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card in the default browser."""
