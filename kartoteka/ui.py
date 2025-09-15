@@ -2554,6 +2554,17 @@ class CardEditorApp:
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
+        form = tk.Frame(left_panel, bg=self.root.cget("background"))
+        form.pack(pady=5, anchor="w")
+
+        labels = ["Cena start", "Kwota przebicia", "Czas [s]"]
+        vars = []
+        for lbl in labels:
+            tk.Label(form, text=lbl, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+            var = tk.StringVar()
+            ctk.CTkEntry(form, textvariable=var, width=100).pack(anchor="w", pady=2)
+            vars.append(var)
+
         tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.current_price_var = tk.StringVar()
         tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
@@ -2567,18 +2578,7 @@ class CardEditorApp:
         tk.Label(left_panel, textvariable=self.remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
-        win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-
-        form = tk.Frame(win, bg=self.root.cget("background"))
-        form.pack(pady=5)
-
-        labels = ["Nazwa karty", "Numer", "Cena start", "Kwota przebicia", "Czas [s]"]
-        vars = []
-        for i, lbl in enumerate(labels):
-            tk.Label(form, text=lbl, bg=self.root.cget("background"), fg="white").grid(row=0, column=i, padx=2)
-            var = tk.StringVar()
-            ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
-            vars.append(var)
+        win.pack(side="left", fill="y", padx=10, pady=10)
         style = ttk.Style(win)
         style.configure(
             "Auction.Treeview",
@@ -2601,16 +2601,17 @@ class CardEditorApp:
             win,
             columns=("name", "price", "warehouse_code"),
             show="headings",
-            height=8,
+            height=5,
             style="Auction.Treeview",
         )
-        for col, txt in [
-            ("name", "Karta"),
-            ("price", "Cena"),
-            ("warehouse_code", "Kod magazynu"),
+        for col, txt, width in [
+            ("name", "Karta", 200),
+            ("price", "Cena", 80),
+            ("warehouse_code", "Kod magazynu", 120),
         ]:
             tree.heading(col, text=txt)
-        tree.pack(expand=True, fill="both", padx=10, pady=10)
+            tree.column(col, width=width, stretch=False)
+        tree.pack(padx=5, pady=5, fill="y")
 
         self.info_var = tk.StringVar()
         tk.Label(
@@ -2726,7 +2727,7 @@ class CardEditorApp:
                         return
                 if img is None:
                     return
-                img.thumbnail((200, 280))
+                img.thumbnail((400, 560))
                 photo = _create_image(img)
                 self.auction_photo = photo
                 self.auction_image_label.configure(image=photo)
@@ -2746,13 +2747,10 @@ class CardEditorApp:
                 load_image(path)
 
         def add_row():
-            name, num, start, step, czas = [v.get().strip() for v in vars]
-            if not name or not num:
-                messagebox.showerror("Błąd", "Podaj nazwę i numer karty")
-                return
+            start, step, czas = [v.get().strip() for v in vars]
             row = {
-                "nazwa_karty": name,
-                "numer_karty": num,
+                "nazwa_karty": "",
+                "numer_karty": "",
                 "opis": "",
                 "cena_początkowa": start or "0",
                 "kwota_przebicia": step or "1",
@@ -3061,7 +3059,7 @@ class CardEditorApp:
                             else:
                                 img = None
                         if img is not None:
-                            img.thumbnail((200, 280))
+                            img.thumbnail((400, 560))
                             photo = _create_image(img)
                             self.auction_photo = photo
                             self.auction_image_label.configure(image=photo)
