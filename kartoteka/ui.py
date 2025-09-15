@@ -8,6 +8,7 @@ import os
 import csv
 import json
 import requests
+import urllib3
 import base64
 import mimetypes
 import re
@@ -97,6 +98,7 @@ ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(ENV_FILE)
 
 logger = logging.getLogger(__name__)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/upload/images")
 SCANS_DIR = os.getenv("SCANS_DIR", "scans")
@@ -264,11 +266,32 @@ def _load_image(path: str) -> Optional[Image.Image]:
             resp = requests.get(path, timeout=5)
             resp.raise_for_status()
             data = resp.content
-            _IMAGE_CACHE[path] = (data, time.time())
             img = load_rgba_image(io.BytesIO(data))
             if img is not None:
+                _IMAGE_CACHE[path] = (data, time.time())
                 return img
+            _IMAGE_CACHE[path] = (None, time.time())
             return None
+        except requests.exceptions.SSLError:
+            try:
+                resp = requests.get(
+                    path,
+                    timeout=5,
+                    verify=False,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                resp.raise_for_status()
+                data = resp.content
+                img = load_rgba_image(io.BytesIO(data))
+                if img is not None:
+                    _IMAGE_CACHE[path] = (data, time.time())
+                    return img
+                _IMAGE_CACHE[path] = (None, time.time())
+                return None
+            except requests.RequestException as exc:
+                logger.warning("Failed to download image %s: %s", path, exc)
+                _IMAGE_CACHE[path] = (None, time.time())
+                return None
         except requests.RequestException as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
             _IMAGE_CACHE[path] = (None, time.time())
