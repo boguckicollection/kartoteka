@@ -4907,11 +4907,12 @@ class CardEditorApp:
 
         self.api_button = self.create_button(
             self.info_frame,
-            text="Pobierz cenę z bazy",
+            text="Pobierz cenę",
             command=self.fetch_card_data,
             fg_color=FETCH_BUTTON_COLOR,
+            width=120,
         )
-        self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.api_button.grid(row=start_row + 8, column=0, columnspan=1, sticky="ew", **grid_opts)
 
         self.cardmarket_button = self.create_button(
             self.info_frame,
@@ -4928,8 +4929,9 @@ class CardEditorApp:
             text="Zapisz i dalej",
             command=self.save_and_next,
             fg_color=SAVE_BUTTON_COLOR,
+            width=120,
         )
-        self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.save_button.grid(row=start_row + 9, column=0, columnspan=1, sticky="ew", **grid_opts)
 
         self.eur_entry = ctk.CTkEntry(
             self.info_frame, width=120, placeholder_text="Kwota w EUR"
