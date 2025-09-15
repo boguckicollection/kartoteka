@@ -383,6 +383,7 @@ except ValueError:
 BG_COLOR = "#3A3A3A"
 # lighter variant for subtle section backgrounds
 LIGHT_BG_COLOR = "#4A4A4A"
+FIELD_BG_COLOR = "#5A5A5A"  # even lighter for input fields
 ACCENT_COLOR = "#666666"
 HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
@@ -4790,7 +4791,7 @@ class CardEditorApp:
         grid_opts = {"padx": 5, "pady": 2}
 
         tk.Label(
-            self.info_frame, text="Język", bg=self.root.cget("background")
+            self.info_frame, text="Język", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row, column=0, sticky="w", **grid_opts
         )
@@ -4803,7 +4804,7 @@ class CardEditorApp:
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
         tk.Label(
-            self.info_frame, text="Nazwa", bg=self.root.cget("background")
+            self.info_frame, text="Nazwa", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
@@ -4813,7 +4814,7 @@ class CardEditorApp:
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
-            self.info_frame, text="Numer", bg=self.root.cget("background")
+            self.info_frame, text="Numer", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
@@ -4823,7 +4824,7 @@ class CardEditorApp:
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
-            self.info_frame, text="Era", bg=self.root.cget("background")
+            self.info_frame, text="Era", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(row=start_row + 3, column=0, sticky="w", **grid_opts)
         self.era_var = tk.StringVar()
         self.era_dropdown = ctk.CTkComboBox(
@@ -4837,7 +4838,7 @@ class CardEditorApp:
         self.entries["era"] = self.era_var
 
         tk.Label(
-            self.info_frame, text="Set", bg=self.root.cget("background")
+            self.info_frame, text="Set", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 4, column=0, sticky="w", **grid_opts
         )
@@ -4851,7 +4852,7 @@ class CardEditorApp:
         self.entries["set"] = self.set_var
 
         tk.Label(
-            self.info_frame, text="Typ", bg=self.root.cget("background")
+            self.info_frame, text="Typ", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
@@ -4869,7 +4870,7 @@ class CardEditorApp:
             ).pack(side="left", padx=2)
 
         tk.Label(
-            self.info_frame, text="Stan", bg=self.root.cget("background")
+            self.info_frame, text="Stan", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 6, column=0, sticky="w", **grid_opts
         )
@@ -4884,7 +4885,7 @@ class CardEditorApp:
         stan_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
-            self.info_frame, text="Cena", bg=self.root.cget("background")
+            self.info_frame, text="Cena", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 7, column=0, sticky="w", **grid_opts
         )
@@ -4894,7 +4895,7 @@ class CardEditorApp:
         self.entries["cena"].grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
         tk.Label(
-            self.info_frame, text="PSA 10", bg=self.root.cget("background")
+            self.info_frame, text="PSA 10", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
