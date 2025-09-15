@@ -6,6 +6,7 @@ from pathlib import Path
 import csv
 import io
 from PIL import Image
+import requests
 
 
 # Dummy widgets to simulate customtkinter components
@@ -295,4 +296,32 @@ def test_show_card_details_remote_uses_cache(tmp_path):
 
     # only one HTTP request despite two image loads
     assert mock_get.call_count == 1
+
+
+def test_load_image_ssl_error_retry(tmp_path):
+    ui = _setup_module(tmp_path)
+
+    url = "https://example.com/card.png"
+    img_bytes = io.BytesIO()
+    Image.new("RGB", (10, 10), "white").save(img_bytes, format="PNG")
+    img_bytes = img_bytes.getvalue()
+    resp = SimpleNamespace(content=img_bytes, raise_for_status=lambda: None)
+
+    DummySSLError = type("DummySSLError", (Exception,), {})
+    side_effects = [DummySSLError("bad ssl"), resp]
+
+    def _side_effect(*args, **kwargs):
+        result = side_effects.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    with patch.object(ui.requests, "get", side_effect=_side_effect) as mock_get, \
+         patch.object(ui.requests.exceptions, "SSLError", DummySSLError):
+        img = ui._load_image(url)
+
+    assert img is not None
+    assert mock_get.call_count == 2
+    assert mock_get.call_args_list[1][1]["verify"] is False
+    assert mock_get.call_args_list[1][1]["headers"]["User-Agent"] == "Mozilla/5.0"
 
