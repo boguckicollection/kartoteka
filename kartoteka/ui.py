@@ -1655,6 +1655,19 @@ class CardEditorApp:
         self.auction_preview_window = None
         self.auction_preview_tree = None
         self.auction_preview_next_var = None
+        self.auction_preview_image_label = None
+        self.auction_preview_photo = None
+        self.auction_preview_name_var = tk.StringVar(value="")
+        self.auction_preview_price_var = tk.StringVar(value="Cena: -")
+        self.auction_preview_start_var = tk.StringVar(value="")
+        self.auction_preview_time_var = tk.StringVar(value="30")
+        self.auction_preview_step_var = tk.StringVar(value="")
+        self.auction_preview_timer_var = tk.StringVar(value="0 s")
+        self.auction_preview_leader_var = tk.StringVar(value="-")
+        self.auction_preview_amount_var = tk.StringVar(value="-")
+        self._auction_preview_selected_index: Optional[int] = None
+        self._auction_preview_updating = False
+        self._auction_preview_trace_ids: list[tuple[tk.Variable, str]] = []
         self.auction_run_window = None
         self.bot = None
         self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
@@ -2731,26 +2744,6 @@ class CardEditorApp:
             show_selected()
             self.refresh_auction_preview()
 
-        def find_scan(name: str, num: str) -> Optional[str]:
-            name = name.strip().lower().replace(" ", "_")
-            num = num.strip().lower().replace("/", "-")
-            candidates = [
-                f"{name}_{num}",
-                f"{name}-{num}",
-                f"{name} {num}",
-                num,
-            ]
-            exts = [".jpg", ".png", ".jpeg"]
-            base_dir = SCANS_DIR
-            for root_dir, _d, files in os.walk(base_dir):
-                lower = {f.lower(): f for f in files}
-                for cand in candidates:
-                    for ext in exts:
-                        fname = cand + ext
-                        if fname in lower:
-                            return os.path.join(root_dir, lower[fname])
-            return None
-
         def load_image(path: Optional[str]):
             if not path:
                 return
@@ -2809,7 +2802,7 @@ class CardEditorApp:
                         price_var.set(f"Aktualna cena: {price_value}")
                     else:
                         price_var.set("Aktualna cena: -")
-                path = row.get("images 1") or find_scan(
+                path = row.get("images 1") or self._guess_scan_path(
                     row.get("nazwa_karty", ""), row.get("numer_karty", "")
                 )
                 load_image(path)
@@ -2822,7 +2815,7 @@ class CardEditorApp:
                 "opis": "",
                 "cena_początkowa": start or "0",
                 "kwota_przebicia": step or "1",
-                "czas_trwania": czas or "60",
+                "czas_trwania": czas or "30",
             }
             self.auction_queue.append(row)
             for v in vars:
@@ -2830,7 +2823,9 @@ class CardEditorApp:
             refresh_tree()
 
         def import_selected():
-            if not self.load_auction_list():
+            previous_count = len(self.auction_queue)
+            rows = self.load_auction_list()
+            if not rows:
                 return
             refresh_tree()
             if getattr(self, "auction_frame", None):
@@ -2839,7 +2834,11 @@ class CardEditorApp:
                 except tk.TclError:
                     pass
                 self.auction_frame = None
-            self.open_auction_preview_window()
+            if self.auction_queue:
+                initial_index = min(previous_count, len(self.auction_queue) - 1)
+            else:
+                initial_index = None
+            self.open_auction_preview_window(self.auction_queue, initial_index)
             self.open_auction_run_window()
 
         button_bar = tk.Frame(win, bg=self.root.cget("background"))
@@ -2867,7 +2866,7 @@ class CardEditorApp:
 
         return refresh_tree
 
-    def load_auction_list(self) -> bool:
+    def load_auction_list(self) -> Optional[list[dict]]:
         """Prompt for auction rows and append them to ``self.auction_queue``."""
 
         rows: list[dict] = []
@@ -2892,25 +2891,29 @@ class CardEditorApp:
                         except (OSError, csv.Error, UnicodeDecodeError) as exc:
                             logger.exception("Failed to read inventory rows")
                             messagebox.showerror("Błąd", str(exc))
-                            return False
+                            return None
         if not rows:
             path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
             if not path:
-                return False
+                return None
             try:
                 rows = self.read_inventory_rows([], path)
             except (OSError, csv.Error, UnicodeDecodeError) as exc:
                 logger.exception("Failed to read inventory rows")
                 messagebox.showerror("Błąd", str(exc))
-                return False
+                return None
         if not rows:
-            return False
+            return None
         self.auction_queue.extend(rows)
         self.refresh_auction_preview()
-        return True
+        return rows
 
-    def open_auction_preview_window(self):
-        """Display a simple window with the current auction queue."""
+    def open_auction_preview_window(
+        self,
+        cards: Optional[Iterable[dict]] = None,
+        initial_index: Optional[int] = None,
+    ):
+        """Open the auction preview window with queue details and controls."""
 
         existing = getattr(self, "auction_preview_window", None)
         if existing:
@@ -2919,9 +2922,13 @@ class CardEditorApp:
                     existing.destroy()
             except tk.TclError:
                 pass
+        self._clear_auction_preview_traces()
         self.auction_preview_window = None
         self.auction_preview_tree = None
         self.auction_preview_next_var = None
+        self.auction_preview_image_label = None
+        self.auction_preview_photo = None
+        self._auction_preview_selected_index = None
 
         top = ctk.CTkToplevel(self.root)
         top.title("Podgląd licytacji")
@@ -2930,7 +2937,7 @@ class CardEditorApp:
         except tk.TclError:
             pass
         try:
-            top.minsize(720, 420)
+            top.minsize(520, 360)
         except tk.TclError:
             pass
         if hasattr(top, "transient"):
@@ -2941,14 +2948,16 @@ class CardEditorApp:
 
         container = ctk.CTkFrame(top, fg_color=BG_COLOR)
         container.pack(expand=True, fill="both", padx=10, pady=10)
+        container.grid_columnconfigure(0, weight=1)
+        container.grid_columnconfigure(1, weight=1)
+        container.grid_rowconfigure(2, weight=1)
 
-        title_lbl = ctk.CTkLabel(
+        ctk.CTkLabel(
             container,
             text="Podgląd kolejki licytacji",
             font=("Segoe UI", 28, "bold"),
             text_color=TEXT_COLOR,
-        )
-        title_lbl.pack(pady=(0, 10))
+        ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
 
         next_var = tk.StringVar()
         self.auction_preview_next_var = next_var
@@ -2957,7 +2966,13 @@ class CardEditorApp:
             textvariable=next_var,
             text_color=TEXT_COLOR,
             font=("Segoe UI", 20),
-        ).pack(pady=(0, 10))
+        ).grid(row=1, column=0, columnspan=2, pady=(0, 10))
+
+        main_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        main_frame.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        main_frame.grid_columnconfigure(0, weight=3)
+        main_frame.grid_columnconfigure(1, weight=2)
+        main_frame.grid_rowconfigure(0, weight=1)
 
         style = ttk.Style(top)
         style.configure(
@@ -2980,30 +2995,129 @@ class CardEditorApp:
             foreground=[("active", TEXT_COLOR), ("pressed", TEXT_COLOR)],
         )
 
+        list_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        list_frame.grid_rowconfigure(0, weight=1)
+        list_frame.grid_columnconfigure(0, weight=1)
+
         tree = ttk.Treeview(
-            container,
+            list_frame,
             columns=("name", "number", "start", "step", "time"),
             show="headings",
-            height=12,
             style="AuctionPreview.Treeview",
         )
         headings = [
-            ("name", "Karta", "w", 320),
-            ("number", "Numer", "center", 140),
-            ("start", "Cena start", "center", 130),
-            ("step", "Przebicie", "center", 130),
-            ("time", "Czas [s]", "center", 110),
+            ("name", "Karta", "w", 280),
+            ("number", "Numer", "center", 120),
+            ("start", "Cena startowa", "center", 120),
+            ("step", "Minimalne przebicie", "center", 150),
+            ("time", "Czas [s]", "center", 90),
         ]
         for column, text, anchor, width in headings:
             tree.heading(column, text=text)
             tree.column(column, anchor=anchor, width=width, stretch=False)
-        tree.pack(expand=True, fill="both", padx=5, pady=5)
+        tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=tree.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.bind("<<TreeviewSelect>>", self._handle_auction_preview_select)
         self.auction_preview_tree = tree
 
+        preview_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        preview_frame.grid(row=0, column=1, sticky="nsew")
+        preview_frame.grid_columnconfigure(0, weight=1)
+
+        self.auction_preview_image_label = ctk.CTkLabel(
+            preview_frame,
+            text="Brak podglądu",
+            text_color=TEXT_COLOR,
+        )
+        self.auction_preview_image_label.grid(row=0, column=0, pady=(0, 8))
+
+        ctk.CTkLabel(
+            preview_frame,
+            textvariable=self.auction_preview_name_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        ).grid(row=1, column=0, sticky="w", pady=(0, 4))
+
+        ctk.CTkLabel(
+            preview_frame,
+            textvariable=self.auction_preview_price_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 18),
+        ).grid(row=2, column=0, sticky="w")
+
+        form_frame = ctk.CTkFrame(preview_frame, fg_color=BG_COLOR)
+        form_frame.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        form_frame.grid_columnconfigure(1, weight=1)
+
+        self._clear_auction_preview_traces()
+        fields = [
+            ("Cena startowa", self.auction_preview_start_var, "start"),
+            ("Czas licytacji [s]", self.auction_preview_time_var, "time"),
+            ("Minimalna kwota przebicia", self.auction_preview_step_var, "step"),
+        ]
+        for row_idx, (label, var, field_key) in enumerate(fields):
+            ctk.CTkLabel(
+                form_frame,
+                text=label,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16),
+            ).grid(row=row_idx, column=0, sticky="w", padx=(0, 8), pady=4)
+            entry = ctk.CTkEntry(form_frame, textvariable=var, width=140)
+            entry.grid(row=row_idx, column=1, sticky="ew", pady=4)
+            trace_id = var.trace_add(
+                "write",
+                lambda *_args, key=field_key: self._on_preview_field_change(key),
+            )
+            self._auction_preview_trace_ids.append((var, trace_id))
+
+        info_frame = ctk.CTkFrame(preview_frame, fg_color=BG_COLOR)
+        info_frame.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        info_frame.grid_columnconfigure(1, weight=1)
+        info_labels = [
+            ("Pozostały czas", self.auction_preview_timer_var),
+            ("Prowadzi", self.auction_preview_leader_var),
+            ("Aktualna kwota", self.auction_preview_amount_var),
+        ]
+        for row_idx, (label, var) in enumerate(info_labels):
+            ctk.CTkLabel(
+                info_frame,
+                text=f"{label}:",
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16),
+            ).grid(row=row_idx, column=0, sticky="w", pady=2)
+            ctk.CTkLabel(
+                info_frame,
+                textvariable=var,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16, "bold"),
+            ).grid(row=row_idx, column=1, sticky="w", pady=2)
+
+        buttons_frame = ctk.CTkFrame(preview_frame, fg_color=BG_COLOR)
+        buttons_frame.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+        button_specs = [
+            ("Start licytacji", "start_auction", SAVE_BUTTON_COLOR),
+            ("Następna karta", "next_card", FETCH_BUTTON_COLOR),
+            ("Zakończ", "finish", NAV_BUTTON_COLOR),
+        ]
+        for text, action, color in button_specs:
+            ctk.CTkButton(
+                buttons_frame,
+                text=text,
+                fg_color=color,
+                command=lambda act=action: self._call_auction_action(act),
+            ).pack(side="left", expand=True, fill="x", padx=4)
+
         def on_close():
+            self._clear_auction_preview_traces()
             self.auction_preview_window = None
             self.auction_preview_tree = None
             self.auction_preview_next_var = None
+            self.auction_preview_image_label = None
+            self.auction_preview_photo = None
+            self._auction_preview_selected_index = None
             try:
                 if str(top.winfo_exists()) == "1":
                     top.destroy()
@@ -3013,7 +3127,19 @@ class CardEditorApp:
         if hasattr(top, "protocol"):
             top.protocol("WM_DELETE_WINDOW", on_close)
 
-        self.refresh_auction_preview()
+        focus_index = initial_index
+        if cards is not None:
+            cards_list = list(cards)
+            if focus_index is None and cards_list:
+                first_card = cards_list[0]
+                try:
+                    focus_index = self.auction_queue.index(first_card)
+                except ValueError:
+                    focus_index = 0
+        if focus_index is None and self.auction_queue:
+            focus_index = 0
+
+        self.refresh_auction_preview(select_index=focus_index)
 
     def open_auction_run_window(self):
         """Open or refresh the auction control window."""
@@ -3043,7 +3169,7 @@ class CardEditorApp:
                 "Błąd",
                 "Nie udało się otworzyć okna sterowania aukcją.",
             )
-    def refresh_auction_preview(self):
+    def refresh_auction_preview(self, select_index: Optional[int] = None) -> None:
         """Refresh data shown in the auction preview window if it exists."""
 
         tree = getattr(self, "auction_preview_tree", None)
@@ -3058,7 +3184,21 @@ class CardEditorApp:
             self.auction_preview_tree = None
             self.auction_preview_window = None
             self.auction_preview_next_var = None
+            self.auction_preview_image_label = None
+            self.auction_preview_photo = None
+            self._auction_preview_selected_index = None
             return
+
+        if select_index is None:
+            try:
+                current_selection = tree.selection()
+            except tk.TclError:
+                current_selection = ()
+            if current_selection:
+                try:
+                    select_index = tree.index(current_selection[0])
+                except tk.TclError:
+                    select_index = None
 
         for item_id in tree.get_children():
             tree.delete(item_id)
@@ -3094,6 +3234,247 @@ class CardEditorApp:
             else:
                 text = "Brak kart w kolejce"
             next_var.set(text)
+
+        items = tree.get_children()
+        if not items:
+            try:
+                tree.selection_remove(tree.selection())
+            except tk.TclError:
+                pass
+            self._update_auction_preview_selection(None)
+            return
+
+        if select_index is None:
+            select_index = 0
+        select_index = max(0, min(select_index, len(items) - 1))
+        item_id = items[select_index]
+        try:
+            tree.selection_set(item_id)
+            tree.focus(item_id)
+            tree.see(item_id)
+        except tk.TclError:
+            pass
+        self._update_auction_preview_selection(select_index)
+
+    def _clear_auction_preview_traces(self) -> None:
+        for var, trace_id in list(getattr(self, "_auction_preview_trace_ids", [])):
+            try:
+                var.trace_remove("write", trace_id)
+            except tk.TclError:
+                pass
+        self._auction_preview_trace_ids = []
+
+    def _handle_auction_preview_select(self, event=None) -> None:
+        del event
+        tree = getattr(self, "auction_preview_tree", None)
+        if not tree:
+            return
+        try:
+            selection = tree.selection()
+        except tk.TclError:
+            selection = ()
+        if not selection:
+            self._update_auction_preview_selection(None)
+            return
+        try:
+            index = tree.index(selection[0])
+        except tk.TclError:
+            index = None
+        self._update_auction_preview_selection(index)
+
+    def _update_auction_preview_selection(self, index: Optional[int]) -> None:
+        if index is None or not (0 <= index < len(self.auction_queue)):
+            self._auction_preview_selected_index = None
+            self._clear_auction_preview_details()
+            return
+        row = self.auction_queue[index]
+        self._auction_preview_selected_index = index
+        self._auction_preview_updating = True
+        try:
+            name = (row.get("nazwa_karty") or row.get("name") or row.get("nazwa") or "").strip()
+            number = (
+                row.get("numer_karty")
+                or row.get("number")
+                or row.get("numer")
+                or ""
+            ).strip()
+            display = name
+            if number:
+                display = f"{display} ({number})" if display else number
+            self.auction_preview_name_var.set(display)
+
+            start_value = row.get("cena_początkowa") or row.get("price") or row.get("cena") or "0"
+            step_value = row.get("kwota_przebicia") or row.get("przebicie") or "1"
+            time_value = row.get("czas_trwania") or row.get("czas") or "30"
+
+            self.auction_preview_price_var.set(
+                f"Cena: {self._format_preview_price(start_value)}"
+            )
+            self.auction_preview_start_var.set(str(start_value) if start_value is not None else "")
+            self.auction_preview_step_var.set(str(step_value) if step_value is not None else "")
+            self.auction_preview_time_var.set(str(time_value) if time_value is not None else "30")
+        finally:
+            self._auction_preview_updating = False
+
+        self._update_preview_image(row)
+        self.auction_preview_amount_var.set(self._format_preview_price(start_value))
+        time_text = str(row.get("czas_trwania") or row.get("czas") or "30").strip()
+        if time_text:
+            self.auction_preview_timer_var.set(f"{time_text} s")
+        else:
+            self.auction_preview_timer_var.set("0 s")
+        leader = row.get("zwyciezca") or row.get("leader") or "-"
+        leader_text = str(leader).strip() or "-"
+        self.auction_preview_leader_var.set(leader_text)
+
+    def _clear_auction_preview_details(self) -> None:
+        self._auction_preview_updating = True
+        try:
+            self.auction_preview_name_var.set("")
+            self.auction_preview_price_var.set("Cena: -")
+            self.auction_preview_start_var.set("")
+            self.auction_preview_time_var.set("30")
+            self.auction_preview_step_var.set("")
+            self.auction_preview_timer_var.set("0 s")
+            self.auction_preview_leader_var.set("-")
+            self.auction_preview_amount_var.set("-")
+        finally:
+            self._auction_preview_updating = False
+        label = getattr(self, "auction_preview_image_label", None)
+        if label is not None:
+            try:
+                label.configure(image=None, text="Brak podglądu")
+            except tk.TclError:
+                pass
+        self.auction_preview_photo = None
+
+    def _format_preview_price(self, value: object) -> str:
+        if value in (None, "", "-"):
+            return "-"
+        text = str(value).strip()
+        if not text:
+            return "-"
+        try:
+            number = float(text.replace(",", "."))
+        except ValueError:
+            return text
+        else:
+            return f"{number:.2f} PLN"
+
+    def _compute_preview_remaining_seconds(self, data: dict) -> Optional[int]:
+        start_str = data.get("start_time")
+        duration = data.get("czas")
+        if not start_str or duration in (None, ""):
+            return None
+        try:
+            start = datetime.datetime.fromisoformat(str(start_str).rstrip("Z"))
+            duration_int = int(duration)
+        except (ValueError, TypeError):
+            return None
+        end = start + datetime.timedelta(seconds=duration_int)
+        remaining = int((end - datetime.datetime.utcnow()).total_seconds())
+        return max(remaining, 0)
+
+    def _resolve_preview_image_source(self, row: Optional[dict]) -> Optional[str]:
+        if not row:
+            return None
+        for key in ("images 1", "image", "obraz_url", "local_image"):
+            value = row.get(key)
+            if value:
+                return str(value)
+        name = row.get("nazwa_karty") or row.get("name") or row.get("nazwa") or ""
+        number = row.get("numer_karty") or row.get("number") or row.get("numer") or ""
+        return self._guess_scan_path(str(name), str(number))
+
+    def _update_preview_image(self, row: Optional[dict]) -> None:
+        label = getattr(self, "auction_preview_image_label", None)
+        if label is None:
+            return
+        source = self._resolve_preview_image_source(row)
+        if not source:
+            try:
+                label.configure(image=None, text="Brak podglądu")
+            except tk.TclError:
+                pass
+            self.auction_preview_photo = None
+            return
+        img = _get_thumbnail(source, (260, 360))
+        if img is None:
+            try:
+                label.configure(image=None, text="Brak podglądu")
+            except tk.TclError:
+                pass
+            self.auction_preview_photo = None
+            return
+        self.auction_preview_photo = _create_image(img)
+        try:
+            label.configure(image=self.auction_preview_photo, text="")
+        except tk.TclError:
+            pass
+
+    def _on_preview_field_change(self, field: str) -> None:
+        if self._auction_preview_updating:
+            return
+        index = self._auction_preview_selected_index
+        if index is None or not (0 <= index < len(self.auction_queue)):
+            return
+        row = self.auction_queue[index]
+        if field == "start":
+            value = self.auction_preview_start_var.get().strip()
+            if not value:
+                value = "0"
+            row["cena_początkowa"] = value
+            row["price"] = value
+            row["cena"] = value
+        elif field == "time":
+            value = self.auction_preview_time_var.get().strip() or "30"
+            self.auction_preview_time_var.set(value)
+            row["czas_trwania"] = value
+            row["czas"] = value
+        elif field == "step":
+            value = self.auction_preview_step_var.get().strip() or "1"
+            self.auction_preview_step_var.set(value)
+            row["kwota_przebicia"] = value
+            row["przebicie"] = value
+        self.refresh_auction_preview(select_index=index)
+
+    def _call_auction_action(self, action: str) -> None:
+        run_window = getattr(self, "auction_run_window", None)
+        if run_window is None:
+            self.open_auction_run_window()
+            run_window = getattr(self, "auction_run_window", None)
+        if run_window is None:
+            return
+        method = getattr(run_window, action, None)
+        if callable(method):
+            try:
+                method()
+            except Exception as exc:
+                logger.exception("Failed to execute auction action %s", action)
+                messagebox.showerror("Błąd", str(exc))
+
+    def _guess_scan_path(self, name: str, number: str) -> Optional[str]:
+        name_norm = str(name).strip().lower().replace(" ", "_")
+        number_norm = str(number).strip().lower().replace("/", "-")
+        if not name_norm and not number_norm:
+            return None
+        candidates = [
+            f"{name_norm}_{number_norm}",
+            f"{name_norm}-{number_norm}",
+            f"{name_norm} {number_norm}",
+            number_norm,
+        ]
+        exts = [".jpg", ".png", ".jpeg"]
+        for root_dir, _dirs, files in os.walk(SCANS_DIR):
+            lower = {f.lower(): f for f in files}
+            for candidate in candidates:
+                if not candidate:
+                    continue
+                for ext in exts:
+                    fname = candidate + ext
+                    if fname in lower:
+                        return os.path.join(root_dir, lower[fname])
+        return None
 
     def _load_auction_queue(self):
         """Load auction queue from inventory CSV into ``self.auction_queue``."""
@@ -3139,7 +3520,7 @@ class CardEditorApp:
                             row["numer_karty"] = ""
                     row["cena_początkowa"] = row.get("price", row.get("cena_początkowa", "0"))
                     row.setdefault("kwota_przebicia", "1")
-                    row.setdefault("czas_trwania", "60")
+                    row.setdefault("czas_trwania", "30")
             else:
                 raise ValueError("Nie rozpoznano formatu pliku CSV")
         for row in rows:
@@ -3207,6 +3588,9 @@ class CardEditorApp:
                     if number:
                         display = f"{display} ({number})" if display else number
                     name_var.set(display)
+                    preview_name_var = getattr(self, "auction_preview_name_var", None)
+                    if preview_name_var is not None:
+                        preview_name_var.set(display)
                 price_var = getattr(self, "selected_card_price_var", None)
                 if price_var is not None:
                     price_value = data.get("ostateczna_cena")
@@ -3214,6 +3598,23 @@ class CardEditorApp:
                         price_var.set(f"Aktualna cena: {price_value}")
                     else:
                         price_var.set("Aktualna cena: -")
+                preview_price_var = getattr(self, "auction_preview_price_var", None)
+                if preview_price_var is not None:
+                    preview_price_var.set(
+                        f"Cena: {self._format_preview_price(data.get('ostateczna_cena'))}"
+                    )
+                amount_var = getattr(self, "auction_preview_amount_var", None)
+                if amount_var is not None:
+                    amount_var.set(self._format_preview_price(data.get("ostateczna_cena")))
+                leader_var = getattr(self, "auction_preview_leader_var", None)
+                if leader_var is not None:
+                    leader = (data.get("zwyciezca") or "").strip() or "-"
+                    leader_var.set(leader)
+                timer_var = getattr(self, "auction_preview_timer_var", None)
+                if timer_var is not None:
+                    remaining = self._compute_preview_remaining_seconds(data)
+                    if remaining is not None:
+                        timer_var.set(f"{remaining} s")
                 img_path = data.get("obraz")
                 if img_path:
                     try:
@@ -3241,6 +3642,16 @@ class CardEditorApp:
                 run_window.update_from_status(data)
             except Exception:
                 logger.exception("Failed to update auction run window")
+        if not data:
+            amount_var = getattr(self, "auction_preview_amount_var", None)
+            if amount_var is not None:
+                amount_var.set("-")
+            leader_var = getattr(self, "auction_preview_leader_var", None)
+            if leader_var is not None:
+                leader_var.set("-")
+            timer_var = getattr(self, "auction_preview_timer_var", None)
+            if timer_var is not None:
+                timer_var.set("0 s")
         if self.auction_frame and self.auction_frame.winfo_exists():
             self.auction_frame.after(1000, self._update_auction_status)
         return data
@@ -7288,7 +7699,7 @@ class AuctionRunWindow:
         opis = str(row.get("opis") or row.get("description") or "").strip()
         start = row.get("cena_początkowa") or row.get("price") or 0
         przebicie = row.get("kwota_przebicia") or row.get("przebicie") or 1
-        czas = row.get("czas_trwania") or row.get("czas") or 60
+        czas = row.get("czas_trwania") or row.get("czas") or 30
         try:
             auction = self.bot.Aukcja(nazwa, numer, opis, start, przebicie, czas)
         except Exception:

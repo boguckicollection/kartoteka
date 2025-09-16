@@ -32,7 +32,7 @@ def test_read_inventory_rows_alt_headers(tmp_path):
     assert rows[0]["numer_karty"] == "1"
     assert rows[0]["cena_początkowa"] == "9"
     assert rows[0]["kwota_przebicia"] == "1"
-    assert rows[0]["czas_trwania"] == "60"
+    assert rows[0]["czas_trwania"] == "30"
 
 
 def test_read_inventory_rows_name_without_number(tmp_path):
