@@ -2567,6 +2567,24 @@ class CardEditorApp:
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
+        self.selected_card_name_var = tk.StringVar(value="")
+        tk.Label(
+            left_panel,
+            textvariable=self.selected_card_name_var,
+            bg=self.root.cget("background"),
+            fg="white",
+            font=("Segoe UI", 16, "bold"),
+        ).pack(anchor="w", pady=(0, 2))
+
+        self.selected_card_price_var = tk.StringVar(value="Aktualna cena: -")
+        tk.Label(
+            left_panel,
+            textvariable=self.selected_card_price_var,
+            bg=self.root.cget("background"),
+            fg="white",
+            font=("Segoe UI", 16, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
+
         form = tk.Frame(left_panel, bg=self.root.cget("background"))
         form.pack(pady=5, anchor="w")
 
@@ -2578,23 +2596,7 @@ class CardEditorApp:
             ctk.CTkEntry(form, textvariable=var, width=100).pack(anchor="w", pady=2)
             vars.append(var)
 
-        tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.current_price_var = tk.StringVar()
-        tk.Label(
-            left_panel,
-            textvariable=self.current_price_var,
-            bg=self.root.cget("background"),
-            fg="white",
-            font=("Segoe UI", 16, "bold"),
-        ).pack(anchor="w")
-
-        tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        self.leader_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=self.leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
-
-        tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        self.remaining_time_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=self.remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
         win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
@@ -2693,32 +2695,6 @@ class CardEditorApp:
             font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=1, padx=2, sticky="w")
 
-        tk.Label(
-            status_frame,
-            text="Pozostały czas:",
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=2, padx=2, sticky="e")
-        tk.Label(
-            status_frame,
-            textvariable=self.remaining_time_var,
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=3, padx=2, sticky="w")
-
-        tk.Label(
-            status_frame,
-            text="Prowadzi:",
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=4, padx=2, sticky="e")
-        tk.Label(
-            status_frame,
-            textvariable=self.leader_var,
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=5, padx=2, sticky="w")
-
         def refresh_tree():
             for r in tree.get_children():
                 tree.delete(r)
@@ -2742,6 +2718,12 @@ class CardEditorApp:
                     self.info_var.set(f"Następna karta: {nazwa}")
             else:
                 self.info_var.set("Brak kart w kolejce")
+                name_var = getattr(self, "selected_card_name_var", None)
+                if name_var is not None:
+                    name_var.set("")
+                price_var = getattr(self, "selected_card_price_var", None)
+                if price_var is not None:
+                    price_var.set("Aktualna cena: -")
             if not tree.selection():
                 items = tree.get_children()
                 if items:
@@ -2792,12 +2774,41 @@ class CardEditorApp:
                 logger.warning("Failed to load auction image %s: %s", path, exc)
 
         def show_selected(event=None):
+            name_var = getattr(self, "selected_card_name_var", None)
+            if name_var is not None:
+                name_var.set("")
+            price_var = getattr(self, "selected_card_price_var", None)
+            if price_var is not None:
+                price_var.set("Aktualna cena: -")
             sel = tree.selection()
             if not sel:
                 return
             idx = tree.index(sel[0])
             if 0 <= idx < len(self.auction_queue):
                 row = self.auction_queue[idx]
+                if name_var is not None:
+                    name = (row.get("name") or row.get("nazwa_karty") or row.get("nazwa") or "").strip()
+                    number = (
+                        row.get("numer_karty")
+                        or row.get("number")
+                        or row.get("numer")
+                        or ""
+                    ).strip()
+                    display = name
+                    if number:
+                        display = f"{display} ({number})" if display else number
+                    name_var.set(display)
+                if price_var is not None:
+                    price_value = (
+                        row.get("price")
+                        or row.get("cena_początkowa")
+                        or row.get("cena")
+                        or row.get("start_price")
+                    )
+                    if price_value not in (None, ""):
+                        price_var.set(f"Aktualna cena: {price_value}")
+                    else:
+                        price_var.set("Aktualna cena: -")
                 path = row.get("images 1") or find_scan(
                     row.get("nazwa_karty", ""), row.get("numer_karty", "")
                 )
@@ -3187,27 +3198,22 @@ class CardEditorApp:
                     f"Aktualna: {data.get('nazwa')} ({data.get('numer')})"
                 )
 
-                remaining = ""
-                if data.get("start_time"):
-                    try:
-                        start = datetime.datetime.fromisoformat(
-                            data["start_time"].rstrip("Z")
-                        )
-                        end = start + datetime.timedelta(
-                            seconds=int(data.get("czas", 0))
-                        )
-                        rem = int(
-                            (end - datetime.datetime.utcnow()).total_seconds()
-                        )
-                        remaining = f"{max(rem, 0)}s"
-                    except (ValueError, TypeError) as exc:
-                        logger.warning("Failed to parse auction time: %s", exc)
-                        remaining = ""
-
-                winner = data.get("zwyciezca") or "Brak"
                 self.current_price_var.set(str(data.get("ostateczna_cena", "")))
-                self.remaining_time_var.set(remaining)
-                self.leader_var.set(winner)
+                name_var = getattr(self, "selected_card_name_var", None)
+                if name_var is not None:
+                    name = (data.get("nazwa") or "").strip()
+                    number = (data.get("numer") or "").strip()
+                    display = name
+                    if number:
+                        display = f"{display} ({number})" if display else number
+                    name_var.set(display)
+                price_var = getattr(self, "selected_card_price_var", None)
+                if price_var is not None:
+                    price_value = data.get("ostateczna_cena")
+                    if price_value not in (None, ""):
+                        price_var.set(f"Aktualna cena: {price_value}")
+                    else:
+                        price_var.set("Aktualna cena: -")
                 img_path = data.get("obraz")
                 if img_path:
                     try:
