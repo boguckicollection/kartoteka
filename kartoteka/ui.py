@@ -435,7 +435,7 @@ SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
 
 # Layout constants to simplify future adjustments
 BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
-BOX100_X_INSET = int(BOX_THUMB_SIZE * 235 / 600)
+BOX100_X_INSET = int(BOX_THUMB_SIZE * 175 / 600)
 BOX100_Y_INSET = int(BOX_THUMB_SIZE * 50 / 600)
 CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
@@ -5883,13 +5883,22 @@ class CardEditorApp:
             return
 
         if box == SPECIAL_BOX_NUMBER:
-            if column != 1 or not (1 <= pos <= SPECIAL_BOX_CAPACITY):
+            special_columns = storage.BOX_COLUMNS.get(SPECIAL_BOX_NUMBER, 1)
+            if not (
+                1 <= column <= special_columns
+                and 1 <= pos <= BOX_COLUMN_CAPACITY
+            ):
                 messagebox.showerror(
                     "Błąd",
-                    f"Dla boxu {SPECIAL_BOX_NUMBER} kolumna musi być 1, pozycja 1-{SPECIAL_BOX_CAPACITY}",
+                    f"Dla boxu {SPECIAL_BOX_NUMBER} kolumna musi być 1-{special_columns}, "
+                    f"pozycja 1-{BOX_COLUMN_CAPACITY}",
                 )
                 return
-            self.starting_idx = BOX_COUNT * BOX_CAPACITY + (pos - 1)
+            self.starting_idx = (
+                BOX_COUNT * BOX_CAPACITY
+                + (column - 1) * BOX_COLUMN_CAPACITY
+                + (pos - 1)
+            )
         else:
             if not (1 <= column <= GRID_COLUMNS and 1 <= pos <= BOX_COLUMN_CAPACITY):
                 messagebox.showerror(
