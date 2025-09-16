@@ -2609,13 +2609,14 @@ class CardEditorApp:
         style.map("Auction.Treeview", background=[("selected", HOVER_COLOR)])
         style.configure(
             "Auction.Treeview.Heading",
-            background=ACCENT_COLOR,
+            background=NAV_BUTTON_COLOR,
             foreground=TEXT_COLOR,
             font=("Segoe UI", 14, "bold"),
         )
         style.map(
             "Auction.Treeview.Heading",
-            background=[("active", HOVER_COLOR)]
+            background=[("active", HOVER_COLOR), ("pressed", HOVER_COLOR)],
+            foreground=[("active", TEXT_COLOR), ("pressed", TEXT_COLOR)],
         )
 
         tree = ttk.Treeview(
@@ -2926,13 +2927,14 @@ class CardEditorApp:
         style.map("AuctionPreview.Treeview", background=[("selected", HOVER_COLOR)])
         style.configure(
             "AuctionPreview.Treeview.Heading",
-            background=ACCENT_COLOR,
+            background=NAV_BUTTON_COLOR,
             foreground=TEXT_COLOR,
             font=("Segoe UI", 14, "bold"),
         )
         style.map(
             "AuctionPreview.Treeview.Heading",
-            background=[("active", HOVER_COLOR)],
+            background=[("active", HOVER_COLOR), ("pressed", HOVER_COLOR)],
+            foreground=[("active", TEXT_COLOR), ("pressed", TEXT_COLOR)],
         )
 
         tree = ttk.Treeview(
