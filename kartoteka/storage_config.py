@@ -26,7 +26,7 @@ STANDARD_BOX_CAPACITY = STANDARD_BOX_COLUMNS * BOX_COLUMN_CAPACITY
 # and typically has reduced capacity.
 SPECIAL_BOX_NUMBER = 100
 SPECIAL_BOX_COLUMNS = 2
-SPECIAL_BOX_CAPACITY = 2000
+SPECIAL_BOX_CAPACITY = 1000
 
 # Derived mappings -----------------------------------------------------------
 
