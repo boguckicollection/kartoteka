@@ -7663,6 +7663,7 @@ class AuctionRunWindow:
         self.start_price_var = tk.StringVar(value="-")
         self.current_price_var = tk.StringVar(value="-")
         self.timer_var = tk.StringVar(value="0 s")
+        self.step_var = tk.StringVar(value="1")
 
         container = ctk.CTkFrame(self.window, fg_color=BG_COLOR)
         container.pack(expand=True, fill="both", padx=12, pady=12)
@@ -7702,6 +7703,18 @@ class AuctionRunWindow:
                 text_color=TEXT_COLOR,
                 font=("Segoe UI", 18, "bold"),
             ).grid(row=row, column=1, sticky="w", padx=4, pady=2)
+
+        ctk.CTkLabel(
+            info_frame,
+            text="Kwota przebicia:",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 18),
+        ).grid(row=3, column=0, sticky="w", padx=4, pady=2)
+        self.step_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.step_var,
+        )
+        self.step_entry.grid(row=3, column=1, sticky="we", padx=4, pady=2)
 
         participants_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
         participants_frame.pack(expand=True, fill="both", pady=(0, 12))
@@ -7791,6 +7804,11 @@ class AuctionRunWindow:
             start_value = float(str(start).replace(",", "."))
         except (TypeError, ValueError):
             start_value = getattr(auction, "cena", 0.0)
+        try:
+            step_value = float(str(przebicie).replace(",", "."))
+        except (TypeError, ValueError):
+            step_value = getattr(auction, "przebicie", 1.0)
+        setattr(auction, "kwota_przebicia", step_value)
         setattr(auction, "start_price", start_value)
         setattr(auction, "source_row", row)
         image_path = row.get("images 1") or row.get("image")
@@ -7804,9 +7822,15 @@ class AuctionRunWindow:
         if not self._ensure_bot_ready():
             return
         queue = getattr(self.bot, "aukcje_kolejka", [])
-        if not queue and getattr(self.bot, "aktualna_aukcja", None) is None:
+        current = getattr(self.bot, "aktualna_aukcja", None)
+        if not queue and current is None:
             messagebox.showinfo("Aukcja", "Brak kart w kolejce.")
             return
+        if queue:
+            step_value = self._parse_step_input()
+            if step_value is None:
+                return
+            self._apply_step_to_auction(queue[0], step_value)
         coro = self.bot.start_next_auction(None)
         self._submit_bot_coro(coro, self.start_button)
 
@@ -7815,6 +7839,12 @@ class AuctionRunWindow:
 
         if not self._ensure_bot_ready():
             return
+        queue = getattr(self.bot, "aukcje_kolejka", [])
+        if queue:
+            step_value = self._parse_step_input()
+            if step_value is None:
+                return
+            self._apply_step_to_auction(queue[0], step_value)
         coro = self.bot.start_next_auction(None)
         self._submit_bot_coro(coro, self.next_button)
 
@@ -7878,6 +7908,9 @@ class AuctionRunWindow:
         start_price = getattr(auction, "start_price", getattr(auction, "cena", 0))
         self._set_price(self.start_price_var, start_price)
         self._set_price(self.current_price_var, getattr(auction, "cena", 0))
+        self._set_step_display(
+            getattr(auction, "kwota_przebicia", getattr(auction, "przebicie", None))
+        )
         image_source = getattr(auction, "obraz_url", None) or getattr(auction, "local_image", None)
         if image_source:
             self._update_image(image_source)
@@ -7908,6 +7941,9 @@ class AuctionRunWindow:
             start_price = getattr(upcoming, "start_price", getattr(upcoming, "cena", 0))
             self._set_price(self.start_price_var, start_price)
             self._set_price(self.current_price_var, getattr(upcoming, "cena", start_price))
+            self._set_step_display(
+                getattr(upcoming, "kwota_przebicia", getattr(upcoming, "przebicie", None))
+            )
             czas = getattr(upcoming, "czas", None)
             if czas is not None:
                 try:
@@ -7932,6 +7968,56 @@ class AuctionRunWindow:
             except (TypeError, ValueError):
                 text = str(value)
         var.set(text)
+
+    def _set_step_display(self, value: object) -> None:
+        if value is None:
+            return
+        text = self._format_step_value(value)
+        if self.step_var.get() != text:
+            self.step_var.set(text)
+
+    def _format_step_value(self, value: object) -> str:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        if int(number) == number:
+            return str(int(number))
+        text = f"{number:.2f}"
+        text = text.rstrip("0").rstrip(".")
+        return text or "0"
+
+    def _parse_step_input(self) -> Optional[float]:
+        value = (self.step_var.get() or "").strip()
+        if not value:
+            value = "1"
+        normalized = value.replace(",", ".")
+        try:
+            step = float(normalized)
+        except ValueError:
+            messagebox.showerror("Błąd", "Nieprawidłowa kwota przebicia.")
+            return None
+        if step <= 0:
+            messagebox.showerror("Błąd", "Kwota przebicia musi być dodatnia.")
+            return None
+        self._set_step_display(step)
+        return step
+
+    def _apply_step_to_auction(self, auction: Optional[object], step_value: float) -> None:
+        if auction is None:
+            return
+        try:
+            step_float = float(step_value)
+        except (TypeError, ValueError):
+            return
+        try:
+            auction.przebicie = step_float
+        except Exception:
+            pass
+        setattr(auction, "kwota_przebicia", step_float)
+        source_row = getattr(auction, "source_row", None)
+        if isinstance(source_row, dict):
+            source_row["kwota_przebicia"] = self.step_var.get()
 
     def _update_image(self, source: Optional[str]) -> None:
         if source == self._current_image_source:
@@ -8026,7 +8112,7 @@ class AuctionRunWindow:
         return True
 
     def _submit_bot_coro(
-        self, coro: Awaitable[object], button: Optional[ctk.CTkButton] = None
+        self, coro: Awaitable[object], button: Optional["ctk.CTkButton"] = None
     ) -> None:
         if self.window is None:
             return
