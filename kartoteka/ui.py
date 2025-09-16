@@ -14,6 +14,7 @@ import mimetypes
 import re
 import datetime
 import time
+import asyncio
 from collections import defaultdict
 from dotenv import load_dotenv, set_key
 import unicodedata
@@ -21,7 +22,7 @@ from itertools import combinations
 import html
 import difflib
 import sys
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Awaitable
 from types import SimpleNamespace
 from pydantic import BaseModel
 import pytesseract
@@ -1654,6 +1655,8 @@ class CardEditorApp:
         self.auction_preview_window = None
         self.auction_preview_tree = None
         self.auction_preview_next_var = None
+        self.auction_run_window = None
+        self.bot = None
         self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
         self.mag_percent_labels: dict[tuple[int, int], ctk.CTkLabel] = {}
         self.mag_labels: list[ctk.CTkLabel] = []
@@ -2349,11 +2352,19 @@ class CardEditorApp:
             self.location_frame = None
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
+        if getattr(self, "auction_run_window", None):
+            try:
+                self.auction_run_window.close()
+            except Exception:
+                pass
+            finally:
+                self.auction_run_window = None
         if getattr(self, "statistics_frame", None):
             self.statistics_frame.destroy()
             self.statistics_frame = None
         try:
             import bot
+            self.bot = bot
             if not getattr(bot, "_thread_started", False):
                 threading.Thread(target=bot.run_bot, daemon=True).start()
                 bot._thread_started = True
@@ -2775,6 +2786,7 @@ class CardEditorApp:
                     pass
                 self.auction_frame = None
             self.open_auction_preview_window()
+            self.open_auction_run_window()
 
         button_bar = tk.Frame(win, bg=self.root.cget("background"))
         button_bar.pack(pady=10)
@@ -2946,6 +2958,34 @@ class CardEditorApp:
 
         self.refresh_auction_preview()
 
+    def open_auction_run_window(self):
+        """Open or refresh the auction control window."""
+
+        bot_module = getattr(self, "bot", None)
+        if bot_module is None:
+            try:
+                import bot as bot_module  # type: ignore[import]
+            except Exception as exc:
+                logger.exception("Failed to import bot module")
+                messagebox.showerror("Błąd", str(exc))
+                return
+            self.bot = bot_module
+
+        existing = getattr(self, "auction_run_window", None)
+        if existing is not None:
+            try:
+                existing.close()
+            except Exception:
+                pass
+
+        try:
+            self.auction_run_window = AuctionRunWindow(self)
+        except Exception:
+            logger.exception("Failed to open auction run window")
+            messagebox.showerror(
+                "Błąd",
+                "Nie udało się otworzyć okna sterowania aukcją.",
+            )
     def refresh_auction_preview(self):
         """Refresh data shown in the auction preview window if it exists."""
 
@@ -3091,6 +3131,7 @@ class CardEditorApp:
     def _update_auction_status(self):
         """Update status panel with info from ``aktualna_aukcja.json``."""
         path = os.path.join("templates", "aktualna_aukcja.json")
+        data: Optional[dict] = None
         if os.path.exists(path):
             try:
                 with open(path, encoding="utf-8") as f:
@@ -3142,8 +3183,15 @@ class CardEditorApp:
                         logger.warning("Failed to load current auction image: %s", exc)
             except Exception as exc:
                 logger.exception("Failed to update auction status")
+        run_window = getattr(self, "auction_run_window", None)
+        if run_window is not None:
+            try:
+                run_window.update_from_status(data)
+            except Exception:
+                logger.exception("Failed to update auction run window")
         if self.auction_frame and self.auction_frame.winfo_exists():
             self.auction_frame.after(1000, self._update_auction_status)
+        return data
 
     def _build_shoper_payload(self, card: dict) -> dict:
         """Map internal card data to the structure expected by the API."""
@@ -4774,6 +4822,13 @@ class CardEditorApp:
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
             self.auction_frame = None
+        if getattr(self, "auction_run_window", None):
+            try:
+                self.auction_run_window.close()
+            except Exception:
+                pass
+            finally:
+                self.auction_run_window = None
         if getattr(self, "statistics_frame", None):
             self.statistics_frame.destroy()
             self.statistics_frame = None
@@ -7026,3 +7081,446 @@ class CardEditorApp:
         """Send a CSV file using the Shoper API or WebDAV fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
 
+
+
+class AuctionRunWindow:
+    """Window that monitors and controls live Discord auctions."""
+
+    POLL_INTERVAL_MS = 1000
+    IMAGE_SIZE = (320, 460)
+    PARTICIPANT_LIMIT = 50
+
+    def __init__(self, app: "CardEditorApp"):
+        self.app = app
+        self.bot = getattr(app, "bot", None)
+        self.window = ctk.CTkToplevel(app.root)
+        self.window.title("Panel aukcji")
+        try:
+            self.window.configure(fg_color=BG_COLOR)
+        except tk.TclError:
+            pass
+        try:
+            self.window.minsize(520, 720)
+        except tk.TclError:
+            pass
+        if hasattr(self.window, "transient"):
+            self.window.transient(app.root)
+        if hasattr(self.window, "lift"):
+            self.window.lift()
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+        self._current_image_source: Optional[str] = None
+        self._photo = None
+        self._poll_job: Optional[str] = None
+        self._last_participants: list[str] = []
+
+        self.title_var = tk.StringVar(value="Brak aktywnej aukcji")
+        self.start_price_var = tk.StringVar(value="-")
+        self.current_price_var = tk.StringVar(value="-")
+        self.timer_var = tk.StringVar(value="0 s")
+
+        container = ctk.CTkFrame(self.window, fg_color=BG_COLOR)
+        container.pack(expand=True, fill="both", padx=12, pady=12)
+
+        ctk.CTkLabel(
+            container,
+            textvariable=self.title_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 26, "bold"),
+        ).pack(pady=(0, 12))
+
+        self.image_label = ctk.CTkLabel(
+            container, text="Brak podglądu", text_color=TEXT_COLOR
+        )
+        self.image_label.pack(pady=(0, 12))
+
+        info_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        info_frame.pack(fill="x", pady=(0, 12))
+        info_frame.grid_columnconfigure(1, weight=1)
+
+        for row, (label, var) in enumerate(
+            (
+                ("Cena startowa:", self.start_price_var),
+                ("Aktualna cena:", self.current_price_var),
+                ("Pozostały czas:", self.timer_var),
+            )
+        ):
+            ctk.CTkLabel(
+                info_frame,
+                text=label,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 18),
+            ).grid(row=row, column=0, sticky="w", padx=4, pady=2)
+            ctk.CTkLabel(
+                info_frame,
+                textvariable=var,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 18, "bold"),
+            ).grid(row=row, column=1, sticky="w", padx=4, pady=2)
+
+        participants_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        participants_frame.pack(expand=True, fill="both", pady=(0, 12))
+        ctk.CTkLabel(
+            participants_frame,
+            text="Uczestnicy",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        ).pack(anchor="w")
+
+        list_container = tk.Frame(participants_frame, bg=BG_COLOR, borderwidth=0)
+        list_container.pack(expand=True, fill="both", pady=(6, 0))
+        self.participants_list = tk.Listbox(
+            list_container,
+            height=12,
+            bg=BG_COLOR,
+            fg="white",
+            highlightthickness=0,
+            relief="flat",
+            activestyle="none",
+            exportselection=False,
+        )
+        self.participants_list.pack(expand=True, fill="both")
+        self.participants_list.insert(tk.END, "Brak ofert")
+
+        button_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        button_frame.pack(fill="x")
+
+        self.start_button = ctk.CTkButton(
+            button_frame,
+            text="Start aukcji",
+            command=self.start_auction,
+            fg_color=SAVE_BUTTON_COLOR,
+        )
+        self.start_button.pack(side="left", expand=True, fill="x", padx=4)
+
+        self.next_button = ctk.CTkButton(
+            button_frame,
+            text="Następna karta",
+            command=self.next_card,
+            fg_color=FETCH_BUTTON_COLOR,
+        )
+        self.next_button.pack(side="left", expand=True, fill="x", padx=4)
+
+        self.stop_button = ctk.CTkButton(
+            button_frame,
+            text="Zakończ",
+            command=self.finish,
+            fg_color=NAV_BUTTON_COLOR,
+        )
+        self.stop_button.pack(side="left", expand=True, fill="x", padx=4)
+
+        self.sync_queue_with_bot()
+        self._update_upcoming_info()
+        self.app._update_auction_status()
+        self._poll_status()
+
+    def sync_queue_with_bot(self) -> None:
+        """Populate the Discord bot queue with auctions from the editor."""
+
+        bot_module = getattr(self.app, "bot", None)
+        if bot_module is None or not hasattr(bot_module, "Aukcja"):
+            return
+        self.bot = bot_module
+        auctions = []
+        for row in self.app.auction_queue:
+            auction = self._row_to_auction(row)
+            if auction is not None:
+                auctions.append(auction)
+        bot_module.aukcje_kolejka = auctions
+
+    def _row_to_auction(self, row: dict) -> Optional[object]:
+        if self.bot is None or not hasattr(self.bot, "Aukcja"):
+            return None
+        nazwa = str(row.get("nazwa_karty") or row.get("name") or "").strip()
+        numer = str(row.get("numer_karty") or row.get("number") or "").strip()
+        opis = str(row.get("opis") or row.get("description") or "").strip()
+        start = row.get("cena_początkowa") or row.get("price") or 0
+        przebicie = row.get("kwota_przebicia") or row.get("przebicie") or 1
+        czas = row.get("czas_trwania") or row.get("czas") or 60
+        try:
+            auction = self.bot.Aukcja(nazwa, numer, opis, start, przebicie, czas)
+        except Exception:
+            logger.exception("Failed to build auction from row: %s", row)
+            return None
+        try:
+            start_value = float(str(start).replace(",", "."))
+        except (TypeError, ValueError):
+            start_value = getattr(auction, "cena", 0.0)
+        setattr(auction, "start_price", start_value)
+        setattr(auction, "source_row", row)
+        image_path = row.get("images 1") or row.get("image")
+        if image_path:
+            setattr(auction, "local_image", image_path)
+        return auction
+
+    def start_auction(self) -> None:
+        """Begin the next auction in the queue."""
+
+        if not self._ensure_bot_ready():
+            return
+        queue = getattr(self.bot, "aukcje_kolejka", [])
+        if not queue and getattr(self.bot, "aktualna_aukcja", None) is None:
+            messagebox.showinfo("Aukcja", "Brak kart w kolejce.")
+            return
+        coro = self.bot.start_next_auction(None)
+        self._submit_bot_coro(coro, self.start_button)
+
+    def next_card(self) -> None:
+        """Trigger the next card in the queue."""
+
+        if not self._ensure_bot_ready():
+            return
+        coro = self.bot.start_next_auction(None)
+        self._submit_bot_coro(coro, self.next_button)
+
+    def finish(self) -> None:
+        """Reset the current auction and close the window."""
+
+        if self.bot is not None and hasattr(self.bot, "aktualna_aukcja"):
+            self.bot.aktualna_aukcja = None
+        self.close()
+
+    def close(self) -> None:
+        """Destroy the window and cancel pending callbacks."""
+
+        if self._poll_job is not None and self.window is not None:
+            try:
+                self.window.after_cancel(self._poll_job)
+            except tk.TclError:
+                pass
+            self._poll_job = None
+        if self.window is not None:
+            try:
+                self.window.destroy()
+            except tk.TclError:
+                pass
+        self.window = None
+        if getattr(self.app, "auction_run_window", None) is self:
+            self.app.auction_run_window = None
+
+    def update_from_status(self, data: Optional[dict]) -> None:
+        """Update displayed values based on the latest JSON payload."""
+
+        if self.window is None:
+            return
+        self.bot = getattr(self.app, "bot", self.bot)
+        auction = getattr(self.bot, "aktualna_aukcja", None) if self.bot else None
+        if auction:
+            self._display_auction(auction)
+        else:
+            self._update_upcoming_info()
+
+        if data:
+            price = data.get("ostateczna_cena")
+            if price is not None:
+                self._set_price(self.current_price_var, price)
+            remaining = self._compute_remaining_seconds(data)
+            if remaining is not None:
+                self.timer_var.set(f"{remaining} s")
+            obraz = data.get("obraz")
+            if obraz:
+                self._update_image(obraz)
+
+        self._update_participants(data)
+
+    def _display_auction(self, auction: object) -> None:
+        name = getattr(auction, "nazwa", "")
+        number = getattr(auction, "numer", "")
+        title = name.strip()
+        if number:
+            title = f"{title} ({number})" if title else str(number)
+        self.title_var.set(title or "Aukcja")
+        start_price = getattr(auction, "start_price", getattr(auction, "cena", 0))
+        self._set_price(self.start_price_var, start_price)
+        self._set_price(self.current_price_var, getattr(auction, "cena", 0))
+        image_source = getattr(auction, "obraz_url", None) or getattr(auction, "local_image", None)
+        if image_source:
+            self._update_image(image_source)
+
+    def _update_upcoming_info(self) -> None:
+        bot_module = getattr(self.app, "bot", None)
+        if bot_module is None:
+            self.title_var.set("Brak połączenia z botem")
+            self.start_price_var.set("-")
+            self.current_price_var.set("-")
+            self.timer_var.set("0 s")
+            self._update_image(None)
+            self._set_participant_entries([])
+            return
+        self.bot = bot_module
+        if getattr(bot_module, "aktualna_aukcja", None):
+            self._display_auction(bot_module.aktualna_aukcja)
+            return
+        queue = list(getattr(bot_module, "aukcje_kolejka", []))
+        if queue:
+            upcoming = queue[0]
+            name = getattr(upcoming, "nazwa", "")
+            number = getattr(upcoming, "numer", "")
+            title = name.strip()
+            if number:
+                title = f"{title} ({number})" if title else str(number)
+            self.title_var.set(title or "Następna karta")
+            start_price = getattr(upcoming, "start_price", getattr(upcoming, "cena", 0))
+            self._set_price(self.start_price_var, start_price)
+            self._set_price(self.current_price_var, getattr(upcoming, "cena", start_price))
+            czas = getattr(upcoming, "czas", None)
+            if czas is not None:
+                try:
+                    self.timer_var.set(f"{int(czas)} s")
+                except (TypeError, ValueError):
+                    self.timer_var.set(str(czas))
+            image_source = getattr(upcoming, "local_image", None) or getattr(upcoming, "obraz_url", None)
+            self._update_image(image_source)
+        else:
+            self.title_var.set("Brak aktywnej aukcji")
+            self.start_price_var.set("-")
+            self.current_price_var.set("-")
+            self.timer_var.set("0 s")
+            self._update_image(None)
+            self._set_participant_entries([])
+
+    def _set_price(self, var: tk.StringVar, value: object) -> None:
+        text = "-"
+        if value is not None:
+            try:
+                text = f"{float(value):.2f} PLN"
+            except (TypeError, ValueError):
+                text = str(value)
+        var.set(text)
+
+    def _update_image(self, source: Optional[str]) -> None:
+        if source == self._current_image_source:
+            return
+        self._current_image_source = source
+        if not source:
+            self.image_label.configure(image=None, text="Brak podglądu")
+            self._photo = None
+            return
+        img = _get_thumbnail(source, self.IMAGE_SIZE)
+        if img is None:
+            self.image_label.configure(image=None, text="Brak podglądu")
+            self._photo = None
+            return
+        self._photo = _create_image(img)
+        self.image_label.configure(image=self._photo, text="")
+
+    def _update_participants(self, data: Optional[dict]) -> None:
+        entries: list[str] = []
+        auction = getattr(self.bot, "aktualna_aukcja", None) if self.bot else None
+        history = None
+        if auction and getattr(auction, "historia", None):
+            try:
+                history = list(auction.historia)
+            except Exception:
+                history = []
+        elif data and data.get("historia"):
+            history = list(data.get("historia", []))
+        if history:
+            trimmed = history[-self.PARTICIPANT_LIMIT :]
+            for entry in trimmed:
+                entries.append(self._format_history_entry(entry))
+        self._set_participant_entries(entries)
+
+    def _format_history_entry(self, entry: object) -> str:
+        try:
+            user, price, _timestamp = entry
+        except (ValueError, TypeError):
+            return str(entry)
+        try:
+            price_text = f"{float(price):.2f} PLN"
+        except (TypeError, ValueError):
+            price_text = str(price)
+        return f"{user} – {price_text}"
+
+    def _set_participant_entries(self, entries: list[str]) -> None:
+        display = entries or ["Brak ofert"]
+        if display == self._last_participants:
+            return
+        self.participants_list.delete(0, tk.END)
+        for item in display:
+            self.participants_list.insert(tk.END, item)
+        self._last_participants = list(display)
+
+    def _compute_remaining_seconds(self, data: dict) -> Optional[int]:
+        start_str = data.get("start_time")
+        if not start_str:
+            return None
+        try:
+            start = datetime.datetime.fromisoformat(start_str.rstrip("Z"))
+            duration = int(data.get("czas", 0))
+            end = start + datetime.timedelta(seconds=duration)
+            remaining = int((end - datetime.datetime.utcnow()).total_seconds())
+            return max(remaining, 0)
+        except (ValueError, TypeError):
+            return None
+
+    def _poll_status(self) -> None:
+        if self.window is None:
+            return
+        try:
+            self.app._update_auction_status()
+        except Exception:
+            logger.exception("Failed to refresh auction status")
+        if self.window is not None:
+            try:
+                self._poll_job = self.window.after(
+                    self.POLL_INTERVAL_MS, self._poll_status
+                )
+            except tk.TclError:
+                self._poll_job = None
+
+    def _ensure_bot_ready(self) -> bool:
+        self.bot = getattr(self.app, "bot", self.bot)
+        if self.bot is None:
+            messagebox.showerror("Błąd", "Bot aukcyjny nie jest dostępny.")
+            return False
+        loop = getattr(self.bot, "loop", None)
+        if loop is None or not getattr(loop, "is_running", lambda: False)():
+            messagebox.showerror("Błąd", "Bot aukcyjny nie jest uruchomiony.")
+            return False
+        return True
+
+    def _submit_bot_coro(
+        self, coro: Awaitable[object], button: Optional[ctk.CTkButton] = None
+    ) -> None:
+        if self.window is None:
+            return
+        loop = getattr(self.bot, "loop", None)
+        if loop is None:
+            messagebox.showerror("Błąd", "Brak aktywnej pętli asynchronicznej.")
+            return
+        if button is not None:
+            try:
+                button.configure(state="disabled")
+            except tk.TclError:
+                pass
+        try:
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+        except RuntimeError as exc:
+            logger.exception("Failed to submit coroutine to bot loop")
+            messagebox.showerror("Błąd", str(exc))
+            if button is not None:
+                try:
+                    button.configure(state="normal")
+                except tk.TclError:
+                    pass
+            return
+
+        def _on_done(fut):
+            try:
+                fut.result()
+            except Exception as exc:  # pragma: no cover - network/discord errors
+                logger.exception("Bot coroutine failed", exc_info=exc)
+                if self.window is not None:
+                    try:
+                        self.window.after(0, lambda: messagebox.showerror("Błąd", str(exc)))
+                    except tk.TclError:
+                        pass
+            finally:
+                if button is not None and self.window is not None:
+                    try:
+                        self.window.after(0, lambda: button.configure(state="normal"))
+                    except tk.TclError:
+                        pass
+
+        future.add_done_callback(_on_done)
