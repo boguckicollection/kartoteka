@@ -2619,6 +2619,34 @@ class CardEditorApp:
             foreground=[("active", TEXT_COLOR), ("pressed", TEXT_COLOR)],
         )
 
+        def sort_tree(tree, col, reverse):
+            sort_flags = getattr(tree, "_sort_reverse", {})
+            actual_reverse = sort_flags.get(col, reverse)
+
+            def parse_value(value):
+                if value is None:
+                    return (1, "")
+                if isinstance(value, str):
+                    stripped = value.strip()
+                else:
+                    stripped = value
+                if isinstance(stripped, str):
+                    try:
+                        number = float(stripped.replace(",", "."))
+                    except ValueError:
+                        return (1, stripped.lower())
+                    else:
+                        return (0, number)
+                return (0, stripped)
+
+            items = list(tree.get_children(""))
+            items.sort(key=lambda item: parse_value(tree.set(item, col)), reverse=actual_reverse)
+            for index, item in enumerate(items):
+                tree.move(item, "", index)
+
+            sort_flags[col] = not actual_reverse
+            setattr(tree, "_sort_reverse", sort_flags)
+
         tree = ttk.Treeview(
             win,
             columns=("name", "price", "warehouse_code"),
@@ -2626,12 +2654,16 @@ class CardEditorApp:
             height=15,
             style="Auction.Treeview",
         )
+        tree._sort_reverse = {}
         for col, txt, width in [
             ("name", "Karta", 200),
             ("price", "Cena", 80),
             ("warehouse_code", "Kod magazynu", 120),
         ]:
-            tree.heading(col, text=txt)
+            if col in {"name", "price"}:
+                tree.heading(col, text=txt, command=lambda c=col: sort_tree(tree, c, False))
+            else:
+                tree.heading(col, text=txt)
             tree.column(col, width=width, stretch=True)
         tree.pack(padx=5, pady=5, fill="both", expand=True)
 
