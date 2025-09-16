@@ -2708,7 +2708,19 @@ class CardEditorApp:
             font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=1, padx=2, sticky="w")
 
-        def refresh_tree():
+        def refresh_tree(select_index: Optional[int] = None):
+            try:
+                current_selection = tree.selection()
+            except tk.TclError:
+                current_selection = ()
+            current_index: Optional[int] = None
+            if current_selection:
+                try:
+                    current_index = tree.index(current_selection[0])
+                except tk.TclError:
+                    current_index = None
+            if select_index is not None:
+                current_index = select_index
             for r in tree.get_children():
                 tree.delete(r)
             for row in self.auction_queue:
@@ -2737,12 +2749,24 @@ class CardEditorApp:
                 price_var = getattr(self, "selected_card_price_var", None)
                 if price_var is not None:
                     price_var.set("Aktualna cena: -")
-            if not tree.selection():
-                items = tree.get_children()
-                if items:
-                    tree.selection_set(items[0])
+            items = tree.get_children()
+            target_index: Optional[int] = current_index
+            if not items:
+                try:
+                    tree.selection_remove(tree.selection())
+                except tk.TclError:
+                    pass
+                target_index = None
+            else:
+                if target_index is None or not (0 <= target_index < len(items)):
+                    target_index = 0
+                try:
+                    tree.selection_set(items[target_index])
+                    tree.focus(items[target_index])
+                except tk.TclError:
+                    pass
             show_selected()
-            self.refresh_auction_preview()
+            self.refresh_auction_preview(select_index=target_index)
 
         def load_image(path: Optional[str]):
             if not path:
@@ -2773,12 +2797,14 @@ class CardEditorApp:
             price_var = getattr(self, "selected_card_price_var", None)
             if price_var is not None:
                 price_var.set("Aktualna cena: -")
+            self._current_auction_row = None
             sel = tree.selection()
             if not sel:
                 return
             idx = tree.index(sel[0])
             if 0 <= idx < len(self.auction_queue):
                 row = self.auction_queue[idx]
+                self._current_auction_row = row
                 if name_var is not None:
                     name = (row.get("name") or row.get("nazwa_karty") or row.get("nazwa") or "").strip()
                     number = (
@@ -2809,18 +2835,74 @@ class CardEditorApp:
 
         def add_row():
             start, step, czas = [v.get().strip() for v in vars]
+            selected = getattr(self, "_current_auction_row", None)
+
+            def _entry_value(key: str) -> str:
+                entries = getattr(self, "entries", None)
+                if isinstance(entries, dict):
+                    widget = entries.get(key)
+                    if widget is not None:
+                        getter = getattr(widget, "get", None)
+                        if callable(getter):
+                            try:
+                                return str(getter()).strip()
+                            except Exception:
+                                return ""
+                return ""
+
+            name = ""
+            number = ""
+            base_price = ""
+            if isinstance(selected, dict):
+                name = (
+                    str(
+                        selected.get("nazwa_karty")
+                        or selected.get("name")
+                        or selected.get("nazwa")
+                        or ""
+                    ).strip()
+                )
+                number = (
+                    str(
+                        selected.get("numer_karty")
+                        or selected.get("number")
+                        or selected.get("numer")
+                        or ""
+                    ).strip()
+                )
+                base_price = str(
+                    selected.get("price")
+                    or selected.get("cena")
+                    or selected.get("cena_początkowa")
+                    or ""
+                ).strip()
+            if not name:
+                name = _entry_value("nazwa") or _entry_value("name")
+            if not number:
+                number = _entry_value("numer") or _entry_value("number")
+            if not base_price:
+                base_price = _entry_value("cena") or _entry_value("price")
+
+            start_price = start or base_price or "0"
+            price_value = base_price or start_price
             row = {
-                "nazwa_karty": "",
-                "numer_karty": "",
+                "nazwa_karty": name,
+                "numer_karty": number,
                 "opis": "",
-                "cena_początkowa": start or "0",
+                "cena_początkowa": start_price,
                 "kwota_przebicia": step or "1",
                 "czas_trwania": czas or "30",
+                "price": price_value,
             }
+            if isinstance(selected, dict):
+                for key in ("warehouse_code", "images 1"):
+                    value = selected.get(key)
+                    if value:
+                        row[key] = value
             self.auction_queue.append(row)
             for v in vars:
                 v.set("")
-            refresh_tree()
+            refresh_tree(select_index=len(self.auction_queue) - 1)
 
         def import_selected():
             previous_count = len(self.auction_queue)
