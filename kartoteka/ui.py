@@ -2591,7 +2591,7 @@ class CardEditorApp:
         tk.Label(left_panel, textvariable=self.remaining_time_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
 
         win = tk.Frame(container, bg=self.root.cget("background"))
-        win.pack(side="left", fill="y", padx=10, pady=10)
+        win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
         style = ttk.Style(win)
         style.configure(
             "Auction.Treeview",
@@ -2614,7 +2614,7 @@ class CardEditorApp:
             win,
             columns=("name", "price", "warehouse_code"),
             show="headings",
-            height=5,
+            height=15,
             style="Auction.Treeview",
         )
         for col, txt, width in [
@@ -2623,8 +2623,8 @@ class CardEditorApp:
             ("warehouse_code", "Kod magazynu", 120),
         ]:
             tree.heading(col, text=txt)
-            tree.column(col, width=width, stretch=False)
-        tree.pack(padx=5, pady=5, fill="y")
+            tree.column(col, width=width, stretch=True)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
 
         self.info_var = tk.StringVar()
         tk.Label(
