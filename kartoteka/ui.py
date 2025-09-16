@@ -2580,7 +2580,13 @@ class CardEditorApp:
 
         tk.Label(left_panel, text="Cena:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.current_price_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+        tk.Label(
+            left_panel,
+            textvariable=self.current_price_var,
+            bg=self.root.cget("background"),
+            fg="white",
+            font=("Segoe UI", 16, "bold"),
+        ).pack(anchor="w")
 
         tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
         self.leader_var = tk.StringVar()
@@ -2598,12 +2604,14 @@ class CardEditorApp:
             background=BG_COLOR,
             fieldbackground=BG_COLOR,
             foreground=TEXT_COLOR,
+            font=("Segoe UI", 14),
         )
         style.map("Auction.Treeview", background=[("selected", HOVER_COLOR)])
         style.configure(
             "Auction.Treeview.Heading",
             background=ACCENT_COLOR,
             foreground=TEXT_COLOR,
+            font=("Segoe UI", 14, "bold"),
         )
         style.map(
             "Auction.Treeview.Heading",
@@ -2632,6 +2640,7 @@ class CardEditorApp:
             textvariable=self.info_var,
             bg=self.root.cget("background"),
             fg="white",
+            font=("Segoe UI", 16, "bold"),
         ).pack(pady=2)
 
         status_frame = tk.Frame(win, bg=self.root.cget("background"))
@@ -2648,6 +2657,7 @@ class CardEditorApp:
             textvariable=self.current_price_var,
             bg=self.root.cget("background"),
             fg=CURRENT_PRICE_COLOR,
+            font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=1, padx=2, sticky="w")
 
         tk.Label(
@@ -2911,12 +2921,14 @@ class CardEditorApp:
             background=BG_COLOR,
             fieldbackground=BG_COLOR,
             foreground=TEXT_COLOR,
+            font=("Segoe UI", 14),
         )
         style.map("AuctionPreview.Treeview", background=[("selected", HOVER_COLOR)])
         style.configure(
             "AuctionPreview.Treeview.Heading",
             background=ACCENT_COLOR,
             foreground=TEXT_COLOR,
+            font=("Segoe UI", 14, "bold"),
         )
         style.map(
             "AuctionPreview.Treeview.Heading",
