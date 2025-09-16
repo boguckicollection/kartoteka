@@ -12,7 +12,6 @@ import urllib3
 import base64
 import mimetypes
 import re
-import asyncio
 import datetime
 import time
 from collections import defaultdict
@@ -1652,6 +1651,9 @@ class CardEditorApp:
         self.magazyn_frame = None
         self.location_frame = None
         self.auction_frame = None
+        self.auction_preview_window = None
+        self.auction_preview_tree = None
+        self.auction_preview_next_var = None
         self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
         self.mag_percent_labels: dict[tuple[int, int], ctk.CTkLabel] = {}
         self.mag_labels: list[ctk.CTkLabel] = []
@@ -2691,6 +2693,7 @@ class CardEditorApp:
                 if items:
                     tree.selection_set(items[0])
             show_selected()
+            self.refresh_auction_preview()
 
         def find_scan(name: str, num: str) -> Optional[str]:
             name = name.strip().lower().replace(" ", "_")
@@ -2761,159 +2764,34 @@ class CardEditorApp:
                 v.set("")
             refresh_tree()
 
-        def remove_selected():
-            sel = tree.selection()
-            for item_id in reversed(sel):
-                idx = tree.index(item_id)
-                tree.delete(item_id)
-                if 0 <= idx < len(self.auction_queue):
-                    self.auction_queue.pop(idx)
-            refresh_tree()
-
         def import_selected():
-            rows = []
-            treeview = getattr(self, "inventory_tree", None)
-            if treeview and str(treeview.winfo_exists()) == "1":
-                codes = [treeview.item(i, "values")[0] for i in treeview.selection()]
-                if codes:
-                    try:
-                        rows = self.read_inventory_rows(codes, csv_utils.WAREHOUSE_CSV)
-                    except (OSError, csv.Error, UnicodeDecodeError) as exc:
-                        logger.exception("Failed to read inventory rows")
-                        messagebox.showerror("Błąd", str(exc))
-                        return
-            if not rows:
-                path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
-                if not path:
-                    return
-                try:
-                    rows = self.read_inventory_rows([], path)
-                except (OSError, csv.Error, UnicodeDecodeError) as exc:
-                    logger.exception("Failed to read inventory rows")
-                    messagebox.showerror("Błąd", str(exc))
-                    return
-            self.auction_queue.extend(rows)
+            if not self.load_auction_list():
+                return
             refresh_tree()
+            if getattr(self, "auction_frame", None):
+                try:
+                    self.auction_frame.destroy()
+                except tk.TclError:
+                    pass
+                self.auction_frame = None
+            self.open_auction_preview_window()
 
-        def save_queue():
-            fieldnames = [
-                "nazwa_karty",
-                "numer_karty",
-                "opis",
-                "cena_początkowa",
-                "kwota_przebicia",
-                "czas_trwania",
-            ]
-            with open("aukcje.csv", "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in self.auction_queue:
-                    writer.writerow(row)
-            try:
-                import bot
-
-                bot.aukcje_kolejka.clear()
-                for r in self.auction_queue:
-                    aukcja = bot.Aukcja(
-                        r.get("nazwa_karty"),
-                        r.get("numer_karty"),
-                        r.get("opis"),
-                        r.get("cena_początkowa"),
-                        r.get("kwota_przebicia"),
-                        r.get("czas_trwania"),
-                    )
-                    bot.aukcje_kolejka.append(aukcja)
-            except Exception:
-                logger.exception("Failed to update bot auction queue")
-            messagebox.showinfo("Aukcje", "Kolejka zapisana do aukcje.csv")
-
-        btn_frame = tk.Frame(win, bg=self.root.cget("background"))
-        btn_frame.pack(pady=5)
+        button_bar = tk.Frame(win, bg=self.root.cget("background"))
+        button_bar.pack(pady=10)
         self.create_button(
-            btn_frame,
+            button_bar,
             text="Dodaj",
             command=add_row,
             fg_color=SAVE_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            btn_frame,
-            text="Wczytaj zaznaczone",
+            button_bar,
+            text="Wczytaj listę",
             command=import_selected,
             fg_color=FETCH_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            btn_frame,
-            text="Usuń zaznaczone",
-            command=remove_selected,
-            fg_color=NAV_BUTTON_COLOR,
-        ).pack(side="left", padx=5)
-        self.create_button(
-            btn_frame,
-            text="Zapisz",
-            command=save_queue,
-            fg_color=SAVE_BUTTON_COLOR,
-        ).pack(side="left", padx=5)
-
-
-        control_frame = tk.Frame(win, bg=self.root.cget("background"))
-        control_frame.pack(pady=5)
-
-        def start_auction():
-            try:
-                import bot
-                asyncio.run_coroutine_threadsafe(
-                    bot.start_next_auction(), bot.bot.loop
-                )
-            except Exception as e:
-                logger.exception("Failed to start auction")
-                messagebox.showerror("Błąd", str(e))
-
-        def next_card():
-            start_auction()
-
-        pause_btn = self.create_button(
-            control_frame, text="⏸ Pauza", fg_color=NAV_BUTTON_COLOR
-        )
-        pause_btn.pack(side="left", padx=5)
-
-        def reload_queue():
-            try:
-                self._load_auction_queue()
-                refresh_tree()
-            except (OSError, csv.Error, UnicodeDecodeError, ValueError) as exc:
-                logger.exception("Failed to reload auction queue")
-                messagebox.showerror("Błąd", str(exc))
-
-        def toggle_pause():
-            try:
-                import bot
-                bot.paused = not bot.paused
-                pause_btn.configure(text="▶ Wznów" if bot.paused else "⏸ Pauza")
-            except (ImportError, AttributeError) as e:
-                logger.exception("Failed to toggle pause")
-                messagebox.showerror("Błąd", str(e))
-
-        self.create_button(
-            control_frame,
-            text="Start aukcji",
-            command=start_auction,
-            fg_color=SAVE_BUTTON_COLOR,
-        ).pack(side="left", padx=5)
-        self.create_button(
-            control_frame,
-            text="Następna karta",
-            command=next_card,
-            fg_color=NAV_BUTTON_COLOR,
-        ).pack(side="left", padx=5)
-        pause_btn.configure(command=toggle_pause)
-        self.create_button(
-            control_frame,
-            text="Wczytaj ponownie",
-            command=reload_queue,
-            fg_color=FETCH_BUTTON_COLOR,
-        ).pack(side="left", padx=5)
-        self.create_button(
-            control_frame,
+            button_bar,
             text="Powrót do menu",
             command=self.back_to_welcome,
             fg_color=NAV_BUTTON_COLOR,
@@ -2922,6 +2800,203 @@ class CardEditorApp:
         tree.bind("<<TreeviewSelect>>", show_selected)
 
         return refresh_tree
+
+    def load_auction_list(self) -> bool:
+        """Prompt for auction rows and append them to ``self.auction_queue``."""
+
+        rows: list[dict] = []
+        treeview = getattr(self, "inventory_tree", None)
+        if treeview is not None:
+            try:
+                exists = str(treeview.winfo_exists()) == "1"
+            except tk.TclError:
+                exists = False
+            else:
+                if exists:
+                    try:
+                        selection = treeview.selection()
+                        codes = [treeview.item(i, "values")[0] for i in selection]
+                    except tk.TclError:
+                        codes = []
+                    if codes:
+                        try:
+                            rows = self.read_inventory_rows(
+                                codes, csv_utils.WAREHOUSE_CSV
+                            )
+                        except (OSError, csv.Error, UnicodeDecodeError) as exc:
+                            logger.exception("Failed to read inventory rows")
+                            messagebox.showerror("Błąd", str(exc))
+                            return False
+        if not rows:
+            path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+            if not path:
+                return False
+            try:
+                rows = self.read_inventory_rows([], path)
+            except (OSError, csv.Error, UnicodeDecodeError) as exc:
+                logger.exception("Failed to read inventory rows")
+                messagebox.showerror("Błąd", str(exc))
+                return False
+        if not rows:
+            return False
+        self.auction_queue.extend(rows)
+        self.refresh_auction_preview()
+        return True
+
+    def open_auction_preview_window(self):
+        """Display a simple window with the current auction queue."""
+
+        existing = getattr(self, "auction_preview_window", None)
+        if existing:
+            try:
+                if str(existing.winfo_exists()) == "1":
+                    existing.destroy()
+            except tk.TclError:
+                pass
+        self.auction_preview_window = None
+        self.auction_preview_tree = None
+        self.auction_preview_next_var = None
+
+        top = ctk.CTkToplevel(self.root)
+        top.title("Podgląd licytacji")
+        try:
+            top.configure(fg_color=BG_COLOR)
+        except tk.TclError:
+            pass
+        try:
+            top.minsize(720, 420)
+        except tk.TclError:
+            pass
+        if hasattr(top, "transient"):
+            top.transient(self.root)
+        if hasattr(top, "lift"):
+            top.lift()
+        self.auction_preview_window = top
+
+        container = ctk.CTkFrame(top, fg_color=BG_COLOR)
+        container.pack(expand=True, fill="both", padx=10, pady=10)
+
+        title_lbl = ctk.CTkLabel(
+            container,
+            text="Podgląd kolejki licytacji",
+            font=("Segoe UI", 28, "bold"),
+            text_color=TEXT_COLOR,
+        )
+        title_lbl.pack(pady=(0, 10))
+
+        next_var = tk.StringVar()
+        self.auction_preview_next_var = next_var
+        ctk.CTkLabel(
+            container,
+            textvariable=next_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20),
+        ).pack(pady=(0, 10))
+
+        style = ttk.Style(top)
+        style.configure(
+            "AuctionPreview.Treeview",
+            background=BG_COLOR,
+            fieldbackground=BG_COLOR,
+            foreground=TEXT_COLOR,
+        )
+        style.map("AuctionPreview.Treeview", background=[("selected", HOVER_COLOR)])
+        style.configure(
+            "AuctionPreview.Treeview.Heading",
+            background=ACCENT_COLOR,
+            foreground=TEXT_COLOR,
+        )
+        style.map(
+            "AuctionPreview.Treeview.Heading",
+            background=[("active", HOVER_COLOR)],
+        )
+
+        tree = ttk.Treeview(
+            container,
+            columns=("name", "number", "start", "step", "time"),
+            show="headings",
+            height=12,
+            style="AuctionPreview.Treeview",
+        )
+        headings = [
+            ("name", "Karta", "w", 320),
+            ("number", "Numer", "center", 140),
+            ("start", "Cena start", "center", 130),
+            ("step", "Przebicie", "center", 130),
+            ("time", "Czas [s]", "center", 110),
+        ]
+        for column, text, anchor, width in headings:
+            tree.heading(column, text=text)
+            tree.column(column, anchor=anchor, width=width, stretch=False)
+        tree.pack(expand=True, fill="both", padx=5, pady=5)
+        self.auction_preview_tree = tree
+
+        def on_close():
+            self.auction_preview_window = None
+            self.auction_preview_tree = None
+            self.auction_preview_next_var = None
+            try:
+                if str(top.winfo_exists()) == "1":
+                    top.destroy()
+            except tk.TclError:
+                pass
+
+        if hasattr(top, "protocol"):
+            top.protocol("WM_DELETE_WINDOW", on_close)
+
+        self.refresh_auction_preview()
+
+    def refresh_auction_preview(self):
+        """Refresh data shown in the auction preview window if it exists."""
+
+        tree = getattr(self, "auction_preview_tree", None)
+        window = getattr(self, "auction_preview_window", None)
+        if not tree or not window:
+            return
+        try:
+            exists = str(window.winfo_exists()) == "1"
+        except tk.TclError:
+            exists = False
+        if not exists:
+            self.auction_preview_tree = None
+            self.auction_preview_window = None
+            self.auction_preview_next_var = None
+            return
+
+        for item_id in tree.get_children():
+            tree.delete(item_id)
+
+        for row in self.auction_queue:
+            values = (
+                row.get("nazwa_karty") or row.get("name") or "",
+                row.get("numer_karty") or row.get("number") or "",
+                row.get("cena_początkowa") or row.get("price") or "",
+                row.get("kwota_przebicia") or row.get("przebicie") or "",
+                row.get("czas_trwania") or row.get("czas") or "",
+            )
+            tree.insert(
+                "",
+                "end",
+                values=tuple(
+                    str(value) if value is not None else "" for value in values
+                ),
+            )
+
+        next_var = getattr(self, "auction_preview_next_var", None)
+        if next_var is not None:
+            if self.auction_queue:
+                nxt = self.auction_queue[0]
+                name = str(nxt.get("nazwa_karty") or nxt.get("name") or "").strip()
+                number = str(nxt.get("numer_karty") or nxt.get("number") or "").strip()
+                if name and number:
+                    text = f"Następna karta: {name} ({number})"
+                elif name:
+                    text = f"Następna karta: {name}"
+                else:
+                    text = "Następna karta: -"
+            else:
+                text = "Brak kart w kolejce"
+            next_var.set(text)
 
     def _load_auction_queue(self):
         """Load auction queue from inventory CSV into ``self.auction_queue``."""
@@ -4702,6 +4777,15 @@ class CardEditorApp:
         if getattr(self, "statistics_frame", None):
             self.statistics_frame.destroy()
             self.statistics_frame = None
+        if getattr(self, "auction_preview_window", None):
+            try:
+                if str(self.auction_preview_window.winfo_exists()) == "1":
+                    self.auction_preview_window.destroy()
+            except tk.TclError:
+                pass
+            self.auction_preview_window = None
+            self.auction_preview_tree = None
+            self.auction_preview_next_var = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
