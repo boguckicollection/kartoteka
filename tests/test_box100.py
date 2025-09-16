@@ -35,8 +35,13 @@ def test_compute_box_occupancy_box100(tmp_path, monkeypatch):
 def test_generate_and_next_free_location_box100():
     from kartoteka import storage
 
+    assert storage.BOX_COLUMNS[100] == 2
     idx = storage.BOX_COUNT * storage.BOX_CAPACITY[1]
     assert storage.generate_location(idx) == "K100R1P0001"
+    assert (
+        storage.generate_location(idx + storage.BOX_COLUMN_CAPACITY)
+        == "K100R2P0001"
+    )
 
     app = SimpleNamespace(output_data=[{"warehouse_code": "K100R1P0001"}], starting_idx=idx)
     assert storage.next_free_location(app) == "K100R1P0002"
@@ -95,5 +100,15 @@ def test_mag_box_order_contains_100(tmp_path, monkeypatch):
     percent = occ[100] / storage.BOX_CAPACITY[100] * 100
     assert percent == pytest.approx(0.05)
 
-    bar = app.mag_progressbars[(100, 1)]
-    assert bar.get() == pytest.approx(1 / ui.storage.BOX_COLUMN_CAPACITY)
+    column_occ = ui.storage.compute_column_occupancy()
+    assert column_occ[100][1] == 1
+    assert column_occ[100][2] == 0
+
+    col1_key = (100, 1)
+    col2_key = (100, 2)
+    assert col1_key in app.mag_progressbars
+    assert col2_key in app.mag_progressbars
+    assert app.mag_progressbars[col1_key].get() == pytest.approx(
+        1 / ui.storage.BOX_COLUMN_CAPACITY
+    )
+    assert app.mag_progressbars[col2_key].get() == 0
