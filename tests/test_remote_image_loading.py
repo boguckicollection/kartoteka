@@ -322,6 +322,57 @@ def test_load_image_ssl_error_retry(tmp_path):
 
     assert img is not None
     assert mock_get.call_count == 2
+    first_kwargs = mock_get.call_args_list[0][1]
+    assert first_kwargs["verify"] is True
+    assert first_kwargs["headers"]["User-Agent"] == "Mozilla/5.0"
     assert mock_get.call_args_list[1][1]["verify"] is False
     assert mock_get.call_args_list[1][1]["headers"]["User-Agent"] == "Mozilla/5.0"
 
+
+def test_load_image_connection_error_retry_cached(tmp_path):
+    url = "https://example.com/card.png"
+    img_bytes = io.BytesIO()
+    Image.new("RGB", (10, 10), "white").save(img_bytes, format="PNG")
+    img_bytes = img_bytes.getvalue()
+
+    def _run_with_error(error_factory):
+        ui = _setup_module(tmp_path)
+        resp = SimpleNamespace(content=img_bytes, raise_for_status=lambda: None)
+        side_effects = [error_factory(ui), resp]
+
+        def _side_effect(*args, **kwargs):
+            result = side_effects.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        with patch.object(ui.requests, "get", side_effect=_side_effect) as mock_get:
+            first_img = ui._load_image(url)
+            cached_img = ui._load_image(url)
+
+        assert first_img is not None
+        assert cached_img is not None
+        assert mock_get.call_count == 2
+        first_kwargs = mock_get.call_args_list[0][1]
+        second_kwargs = mock_get.call_args_list[1][1]
+        assert first_kwargs["verify"] is True
+        assert first_kwargs["headers"]["User-Agent"] == "Mozilla/5.0"
+        assert second_kwargs["verify"] is False
+        assert second_kwargs["headers"]["User-Agent"] == "Mozilla/5.0"
+
+    disconnect_message = "Remote end closed connection without response"
+    error_factories = [
+        lambda module: module.requests.exceptions.ConnectionError(
+            module.urllib3.exceptions.ProtocolError(
+                "Connection aborted.",
+                module.RemoteDisconnected(disconnect_message),
+            )
+        ),
+        lambda module: module.urllib3.exceptions.ProtocolError(
+            "Connection aborted.",
+            module.RemoteDisconnected(disconnect_message),
+        ),
+    ]
+
+    for factory in error_factories:
+        _run_with_error(factory)

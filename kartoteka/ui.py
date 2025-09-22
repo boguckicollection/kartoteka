@@ -54,6 +54,7 @@ import io
 import webbrowser
 import logging
 from gettext import gettext as _
+from http.client import RemoteDisconnected
 try:  # pragma: no cover - optional dependency
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -154,6 +155,21 @@ _IMAGE_CACHE: dict[str, tuple[Optional[bytes], float]] = {}
 
 # cache for resized thumbnails keyed by source path/URL
 _THUMB_CACHE: dict[str, Image.Image] = {}
+
+_REMOTE_IMAGE_HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+
+def _download_remote_image(url: str, *, verify: bool) -> bytes:
+    """Return raw image bytes fetched from ``url``."""
+
+    response = requests.get(
+        url,
+        timeout=5,
+        headers=_REMOTE_IMAGE_HEADERS,
+        verify=verify,
+    )
+    response.raise_for_status()
+    return response.content
 
 
 def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int]) -> float:
@@ -263,40 +279,43 @@ def _load_image(path: str) -> Optional[Image.Image]:
             else:
                 # expire stale entry
                 _IMAGE_CACHE.pop(path, None)
+        download_errors = (
+            requests.exceptions.RequestException,
+            urllib3.exceptions.HTTPError,
+            RemoteDisconnected,
+        )
+        retryable_errors = (
+            requests.exceptions.SSLError,
+            requests.exceptions.ConnectionError,
+            urllib3.exceptions.ProtocolError,
+            urllib3.exceptions.MaxRetryError,
+            urllib3.exceptions.NewConnectionError,
+            RemoteDisconnected,
+        )
+
+        def _cache_failure() -> None:
+            _IMAGE_CACHE[path] = (None, time.time())
+
         try:
-            resp = requests.get(path, timeout=5)
-            resp.raise_for_status()
-            data = resp.content
-            img = load_rgba_image(io.BytesIO(data))
-            if img is not None:
-                _IMAGE_CACHE[path] = (data, time.time())
-                return img
-            _IMAGE_CACHE[path] = (None, time.time())
-            return None
-        except requests.exceptions.SSLError:
+            data = _download_remote_image(path, verify=True)
+        except retryable_errors:
             try:
-                resp = requests.get(
-                    path,
-                    timeout=5,
-                    verify=False,
-                    headers={"User-Agent": "Mozilla/5.0"},
-                )
-                resp.raise_for_status()
-                data = resp.content
-                img = load_rgba_image(io.BytesIO(data))
-                if img is not None:
-                    _IMAGE_CACHE[path] = (data, time.time())
-                    return img
-                _IMAGE_CACHE[path] = (None, time.time())
-                return None
-            except requests.RequestException as exc:
+                data = _download_remote_image(path, verify=False)
+            except download_errors as exc:
                 logger.warning("Failed to download image %s: %s", path, exc)
-                _IMAGE_CACHE[path] = (None, time.time())
+                _cache_failure()
                 return None
-        except requests.RequestException as exc:
+        except download_errors as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
-            _IMAGE_CACHE[path] = (None, time.time())
+            _cache_failure()
             return None
+
+        img = load_rgba_image(io.BytesIO(data))
+        if img is not None:
+            _IMAGE_CACHE[path] = (data, time.time())
+            return img
+        _cache_failure()
+        return None
 
     return None
 
