@@ -55,6 +55,31 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
+logger = logging.getLogger(__name__)
+
+
+def _ensure_warehouse_csv_exists(path: str = WAREHOUSE_CSV) -> None:
+    """Create an empty warehouse CSV with headers when missing."""
+
+    if not path:
+        return
+
+    directory = os.path.dirname(path)
+    try:
+        if directory and not os.path.isdir(directory):
+            os.makedirs(directory, exist_ok=True)
+        if os.path.exists(path):
+            return
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(WAREHOUSE_FIELDNAMES)
+    except OSError as exc:  # pragma: no cover - best effort logging
+        logger.warning("Unable to initialise warehouse CSV at %s: %s", path, exc)
+
+
+_ensure_warehouse_csv_exists()
+
+
 def load_store_export(path: str = STORE_EXPORT_CSV) -> dict[str, dict[str, str]]:
     """Return mapping of ``product_code`` to rows from the store export CSV.
 

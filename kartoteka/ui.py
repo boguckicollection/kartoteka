@@ -14,6 +14,7 @@ import mimetypes
 import re
 import datetime
 import time
+import math
 import asyncio
 from collections import defaultdict
 from dotenv import load_dotenv, set_key
@@ -441,6 +442,7 @@ CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
 MAX_CARD_THUMB_SIZE = 160
 MAG_CARD_GAP = 3  # spacing between card frames in magazine view
+MAG_CARDS_PER_PAGE = 20  # number of cards displayed per magazyn page
 GRID_COLUMNS = STANDARD_BOX_COLUMNS  # number of columns per storage box
 WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
 # BOX_COLUMN_CAPACITY, BOX_COUNT, SPECIAL_BOX_NUMBER and SPECIAL_BOX_CAPACITY
@@ -4232,6 +4234,18 @@ class CardEditorApp:
         self.mag_labels = []
         self.mag_box_order = []
 
+        per_page = getattr(self, "mag_cards_per_page", MAG_CARDS_PER_PAGE)
+        try:
+            per_page = int(per_page)
+        except (TypeError, ValueError):
+            per_page = MAG_CARDS_PER_PAGE
+        if per_page <= 0:
+            per_page = MAG_CARDS_PER_PAGE
+        self.mag_cards_per_page = per_page
+        self.mag_page = 0
+        self.mag_total_pages = 1
+        self._mag_filtered_total = 0
+
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
 
@@ -4317,9 +4331,9 @@ class CardEditorApp:
                 if width <= 1:
                     width_fn = getattr(self.magazyn_frame, "winfo_width", lambda: 0)
                     width = width_fn()
-                if width <= 1:
-                    return
                 max_thumb = MAX_CARD_THUMB_SIZE
+                if width <= 1:
+                    width = max_thumb * 4 + MAG_CARD_GAP * 6
                 cols = max(1, width // (max_thumb + MAG_CARD_GAP * 2))
                 thumb = max(
                     32,
@@ -4481,6 +4495,34 @@ class CardEditorApp:
 
                 indices.sort(key=_quantity, reverse=True)
 
+            per_page = getattr(self, "mag_cards_per_page", MAG_CARDS_PER_PAGE)
+            try:
+                per_page = int(per_page)
+            except (TypeError, ValueError):
+                per_page = MAG_CARDS_PER_PAGE
+            if per_page <= 0:
+                per_page = MAG_CARDS_PER_PAGE
+
+            if not any("era" in row for row in self.mag_card_rows):
+                per_page = max(per_page, len(indices))
+
+            total_cards = len(indices)
+            self._mag_filtered_total = total_cards
+            total_pages = max(1, math.ceil(total_cards / per_page)) if total_cards else 1
+            current_page = getattr(self, "mag_page", 0)
+            if current_page < 0:
+                current_page = 0
+            if current_page >= total_pages:
+                current_page = max(total_pages - 1, 0)
+            if total_cards == 0:
+                current_page = 0
+            self.mag_page = current_page
+            self.mag_total_pages = total_pages
+
+            start = current_page * per_page
+            end = start + per_page
+            page_indices = indices[start:end]
+
             unbind = getattr(self.mag_list_frame, "unbind", None)
             if callable(unbind) and getattr(self, "_mag_bind_id", None):
                 unbind("<Configure>", self._mag_bind_id)
@@ -4502,9 +4544,10 @@ class CardEditorApp:
                 labels[i] = None
             self.mag_card_labels = []
             self.mag_sold_labels = []
-            displayed = set(indices)
+            displayed = set(page_indices)
+            self._mag_visible_indices = list(page_indices)
 
-            for idx in indices:
+            for idx in page_indices:
                 row = self.mag_card_rows[idx]
                 photo = self.mag_card_images[idx]
                 frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
@@ -4612,22 +4655,113 @@ class CardEditorApp:
             if callable(root_bind):
                 self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
 
+            pagination_frame = getattr(self, "_mag_pagination_frame", None)
+            need_pagination = self.mag_total_pages > 1 and total_cards > 0
+            if need_pagination:
+                if pagination_frame is not None:
+                    pack = getattr(pagination_frame, "pack", None)
+                    if callable(pack):
+                        pack(pady=5)
+                if not hasattr(self, "mag_prev_button"):
+                    prev_btn = self.create_button(
+                        pagination_frame,
+                        text="Poprzednia",
+                        command=_prev_page,
+                        fg_color=NAV_BUTTON_COLOR,
+                        width=120,
+                        height=40,
+                    )
+                    if hasattr(prev_btn, "pack"):
+                        prev_btn.pack(side="left", padx=5)
+                    self.mag_prev_button = prev_btn
+                if not hasattr(self, "mag_next_button"):
+                    next_btn = self.create_button(
+                        pagination_frame,
+                        text="Następna",
+                        command=_next_page,
+                        fg_color=NAV_BUTTON_COLOR,
+                        width=120,
+                        height=40,
+                    )
+                    if hasattr(next_btn, "pack"):
+                        next_btn.pack(side="left", padx=5)
+                    self.mag_next_button = next_btn
+            else:
+                if hasattr(self, "mag_prev_button"):
+                    prev_btn = self.mag_prev_button
+                    destroy = getattr(prev_btn, "destroy", None)
+                    if callable(destroy):
+                        try:
+                            destroy()
+                        except Exception:
+                            pass
+                    delattr(self, "mag_prev_button")
+                if hasattr(self, "mag_next_button"):
+                    next_btn = self.mag_next_button
+                    destroy = getattr(next_btn, "destroy", None)
+                    if callable(destroy):
+                        try:
+                            destroy()
+                        except Exception:
+                            pass
+                    delattr(self, "mag_next_button")
+                if pagination_frame is not None:
+                    forget = getattr(pagination_frame, "pack_forget", None)
+                    if callable(forget):
+                        forget()
+
+            prev_btn = getattr(self, "mag_prev_button", None)
+            next_btn = getattr(self, "mag_next_button", None)
+            prev_state = "normal" if self.mag_page > 0 else "disabled"
+            next_state = (
+                "normal"
+                if self.mag_page < self.mag_total_pages - 1 and total_cards > 0
+                else "disabled"
+            )
+            for btn, state in ((prev_btn, prev_state), (next_btn, next_state)):
+                if btn is None:
+                    continue
+                configure = getattr(btn, "configure", None)
+                if callable(configure):
+                    configure(state=state)
+                else:
+                    btn.state = state
+
+        pagination_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
+
+        def _prev_page():
+            if getattr(self, "mag_page", 0) > 0:
+                self.mag_page -= 1
+                _update_mag_list()
+
+        def _next_page():
+            if getattr(self, "mag_page", 0) < getattr(self, "mag_total_pages", 1) - 1:
+                self.mag_page += 1
+                _update_mag_list()
+
+        self._mag_pagination_frame = pagination_frame
+
         self._update_mag_list = _update_mag_list
+
+        def _reset_and_update():
+            self.mag_page = 0
+            _update_mag_list()
+
         if hasattr(search_entry, "bind"):
-            search_entry.bind("<Return>", lambda _e: _update_mag_list())
+            search_entry.bind("<Return>", lambda _e: _reset_and_update())
         if hasattr(search_button, "configure"):
-            search_button.configure(command=_update_mag_list)
+            search_button.configure(command=_reset_and_update)
         else:
-            search_button.command = _update_mag_list
-        self.mag_sold_filter_var.trace_add("write", _update_mag_list)
+            search_button.command = _reset_and_update
+        self.mag_sold_filter_var.trace_add("write", lambda *_: _reset_and_update())
         if hasattr(sort_menu, "configure"):
-            sort_menu.configure(command=lambda _: _update_mag_list())
+            sort_menu.configure(command=lambda *_: _reset_and_update())
         else:
-            sort_menu.command = lambda _: _update_mag_list()
+            sort_menu.command = lambda *_: _reset_and_update()
         if hasattr(sold_filter_menu, "configure"):
-            sold_filter_menu.configure(command=lambda _: _update_mag_list())
+            sold_filter_menu.configure(command=lambda *_: _reset_and_update())
         else:
-            sold_filter_menu.command = lambda _: _update_mag_list()
+            sold_filter_menu.command = lambda *_: _reset_and_update()
         _update_mag_list()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -6238,7 +6372,9 @@ class CardEditorApp:
             return f"{name}|{number}|{set_name}|"
         return None
 
-    def _update_card_progress(self, value: float, show: bool = False):
+    def _update_card_progress(
+        self, value: float, show: bool = False, hide: bool = False
+    ):
         """Update the progress bar for analyzing a single card."""
         if not hasattr(self, "progress_bar"):
             return
@@ -6246,6 +6382,14 @@ class CardEditorApp:
             self.progress_bar.set(value)
             if show and hasattr(self, "progress_frame"):
                 self.progress_frame.grid()
+            elif hide and hasattr(self, "progress_frame"):
+                remover = getattr(self.progress_frame, "grid_remove", None)
+                if callable(remover):
+                    remover()
+                else:
+                    forget = getattr(self.progress_frame, "grid_forget", None)
+                    if callable(forget):
+                        forget()
         except tk.TclError:
             pass
 
@@ -6462,8 +6606,6 @@ class CardEditorApp:
         if idx != self.index:
             return
         progress_cb = getattr(self, "_update_card_progress", None)
-        if progress_cb:
-            progress_cb(1.0)
         if result:
             name = result.get("name", "")
             number = result.get("number", "")
@@ -6500,6 +6642,19 @@ class CardEditorApp:
                 name, number, set_name, variant
             )
             if duplicates:
+                if progress_cb:
+                    progress_cb(0, hide=True)
+                csv_price = next(
+                    (row.get("price") for row in duplicates if row.get("price")),
+                    None,
+                )
+                if csv_price is not None:
+                    price = csv_price
+                    result["price"] = csv_price
+                    price_entry = self.entries.get("cena")
+                    if price_entry is not None:
+                        price_entry.delete(0, tk.END)
+                        price_entry.insert(0, csv_price)
                 codes = ", ".join(
                     [d.get("warehouse_code", "") for d in duplicates if d.get("warehouse_code")]
                 )
@@ -6511,7 +6666,7 @@ class CardEditorApp:
                         "Skipping duplicate card %s #%s in set %s", name, number, set_name
                     )
                     if progress_cb:
-                        progress_cb(1.0)
+                        progress_cb(1.0, hide=True)
                     self.current_analysis_thread = None
                     return
                 self.current_location = self.next_free_location()
@@ -6520,6 +6675,8 @@ class CardEditorApp:
                 logger.info(
                     "Assigned storage location %s to duplicate card", self.current_location
                 )
+            elif progress_cb:
+                progress_cb(1.0, hide=True)
             rect = result.get("rect")
             self._analysis_orientation = result.get("orientation", 0)
             if rect and hasattr(self, "current_card_image"):
