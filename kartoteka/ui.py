@@ -5708,6 +5708,19 @@ class CardEditorApp:
                 variable=var,
             ).pack(side="left", padx=2)
 
+        self.ball_type_var = tk.StringVar(value="")
+        ball_frame = ctk.CTkFrame(self.type_frame, fg_color="transparent")
+        ball_frame.pack(side="left", padx=(10, 0))
+        ctk.CTkLabel(ball_frame, text="Ball:").pack(side="left", padx=(0, 4))
+        for label, value in (("Pokéball", "P"), ("Masterball", "M")):
+            ctk.CTkRadioButton(
+                ball_frame,
+                text=label,
+                variable=self.ball_type_var,
+                value=value,
+            ).pack(side="left", padx=2)
+        self.entries["ball_type"] = self.ball_type_var
+
         tk.Label(
             self.info_frame, text="Stan", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
@@ -6168,6 +6181,8 @@ class CardEditorApp:
                         entry.set("ENG")
                     elif key == "stan":
                         entry.set("NM")
+                    elif key == "ball_type":
+                        entry.set("")
                     else:
                         entry.set("")
                 else:
@@ -6584,10 +6599,20 @@ class CardEditorApp:
                 preview_cb=getattr(self, "update_set_area_preview", None),
                 preview_image=getattr(self, "current_card_image", None),
             )
+        ball_suffix = None
+        ball_var = getattr(self, "ball_type_var", None)
+        if ball_var is not None:
+            try:
+                current_ball = (ball_var.get() or "").strip().upper()
+            except tk.TclError:
+                current_ball = ""
+            if current_ball in {"P", "M"}:
+                ball_suffix = current_ball
         product_code = csv_utils.build_product_code(
             result.get("set", ""),
             result.get("number", ""),
             result.get("variant"),
+            ball_suffix=ball_suffix,
         )
         result["product_code"] = product_code
         store_row = getattr(self, "store_data", {}).get(product_code)
@@ -7474,6 +7499,13 @@ class CardEditorApp:
                 data[k] = v.get()
             except tk.TclError:
                 continue
+        if "ball_type" in data:
+            ball_value = (data["ball_type"] or "").strip().upper()
+            if ball_value not in {"P", "M"}:
+                ball_value = ""
+            data["ball_type"] = ball_value
+        else:
+            ball_value = ""
         data.setdefault("psa10_price", "")
         data.setdefault("nazwa", "")
         data.setdefault("numer", "")
@@ -7559,7 +7591,13 @@ class CardEditorApp:
             if types.get("Reverse")
             else ""
         )
-        data["product_code"] = csv_utils.build_product_code(set_name, number, variant)
+        ball_suffix = ball_value or None
+        data["product_code"] = csv_utils.build_product_code(
+            set_name,
+            number,
+            variant,
+            ball_suffix=ball_suffix,
+        )
         data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['era']} > {data['set']}"
         data["producer"] = "Pokémon"
