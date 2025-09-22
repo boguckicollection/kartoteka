@@ -129,7 +129,12 @@ def _sanitize_number(value: str) -> str:
 VARIANT_SUFFIXES = {"holo": "H", "reverse": "R"}
 
 
-def build_product_code(set_name: str, number: str, variant: str | None = None) -> str:
+def build_product_code(
+    set_name: str,
+    number: str,
+    variant: str | None = None,
+    ball_suffix: str | None = None,
+) -> str:
     """Return a product code based on set abbreviation and card number."""
     from .ui import get_set_abbr  # local import to avoid circular dependency
 
@@ -139,7 +144,10 @@ def build_product_code(set_name: str, number: str, variant: str | None = None) -
         abbr = sanitized[:3]
     num = _sanitize_number(str(number))
     suffix = VARIANT_SUFFIXES.get((variant or "").strip().lower(), "")
-    return f"PKM-{abbr}-{num}{suffix}"
+    ball = (ball_suffix or "").strip().upper()
+    if ball not in {"P", "M"}:
+        ball = ""
+    return f"PKM-{abbr}-{num}{suffix}{ball}"
 
 
 def find_duplicates(
@@ -450,6 +458,7 @@ def load_csv_data(app):
                 row.get("set", ""),
                 number,
                 row.get("variant"),
+                ball_suffix=row.get("ball_type"),
             )
 
     if qty_field is None:
