@@ -45,6 +45,7 @@ def test_save_and_reload_variant_flags(tmp_path):
         sys.path.append(str(Path(__file__).resolve().parents[1]))
         import kartoteka.ui as ui
         importlib.reload(ui)
+        card_type_var = DummyVar("R")
         dummy = SimpleNamespace(
             entries={
                 "nazwa": DummyVar("Charizard"),
@@ -55,8 +56,9 @@ def test_save_and_reload_variant_flags(tmp_path):
                 "stan": DummyVar("NM"),
                 "cena": DummyVar(""),
                 "psa10_price": DummyVar(""),
+                "card_type": card_type_var,
             },
-            type_vars={"Reverse": DummyVar(True), "Holo": DummyVar(False)},
+            card_type_var=card_type_var,
             card_cache={},
             cards=[str(img_path)],
             index=0,
@@ -79,15 +81,16 @@ def test_save_and_reload_variant_flags(tmp_path):
             auto_lookup=False,
             hash_db=None,
         )
+        dummy._get_card_type_code = ui.CardEditorApp._get_card_type_code.__get__(dummy, ui.CardEditorApp)
+        dummy._set_card_type_code = ui.CardEditorApp._set_card_type_code.__get__(dummy, ui.CardEditorApp)
+        dummy._set_card_type_from_mapping = ui.CardEditorApp._set_card_type_from_mapping.__get__(dummy, ui.CardEditorApp)
         with patch.object(ui.ImageTk, "PhotoImage", return_value=SimpleNamespace()), \
              patch.object(ui.threading, "Thread", lambda *a, **k: SimpleNamespace(start=lambda: None)):
             ui.CardEditorApp.save_current_data(dummy)
             row = dummy.output_data[0]
             assert row["types"] == {"Reverse": True, "Holo": False}
-            dummy.type_vars["Reverse"].set(False)
-            dummy.type_vars["Holo"].set(False)
+            dummy.card_type_var.set("C")
             key = "Charizard|4|Base Set|"
             dummy.file_to_key[os.path.basename(str(img_path))] = key
             ui.CardEditorApp.show_card(dummy)
-            assert dummy.type_vars["Reverse"].get() is True
-            assert dummy.type_vars["Holo"].get() is False
+            assert dummy.card_type_var.get() == "R"

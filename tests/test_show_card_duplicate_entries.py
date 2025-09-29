@@ -51,13 +51,20 @@ def test_show_card_warns_on_magazyn_duplicate(tmp_path, monkeypatch):
     num_entry = DummyEntry()
     set_var = SimpleNamespace(set=lambda *a, **k: None)
 
+    card_type_var = SimpleNamespace(set=lambda *a, **k: None, get=lambda: "C")
     dummy = SimpleNamespace(
         cards=[str(img)],
         index=0,
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": SimpleNamespace(set=lambda *a, **k: None)},
+        entries={
+            "nazwa": name_entry,
+            "numer": num_entry,
+            "set": set_var,
+            "era": SimpleNamespace(set=lambda *a, **k: None),
+            "card_type": card_type_var,
+        },
         type_vars={},
         card_cache={},
         file_to_key={},
@@ -72,6 +79,7 @@ def test_show_card_warns_on_magazyn_duplicate(tmp_path, monkeypatch):
                 distance=0,
             )
         ),
+        card_type_var=card_type_var,
     )
     dummy._analyze_and_fill = lambda *a, **k: None
     dummy._apply_analysis_result = lambda *a, **k: None
@@ -91,7 +99,7 @@ def test_show_card_warns_on_magazyn_duplicate(tmp_path, monkeypatch):
     with patch.object(ui.Image, "open", return_value=DummyImage()):
         ui.CardEditorApp.show_card(dummy)
 
-    find_mock.assert_called_once_with("Pika", "1", "Set X", None)
+    find_mock.assert_called_once_with("Pika", "1", "Set X", "C")
     assert ask_mock.called
     assert name_entry.get() == ""
     assert num_entry.get() == ""
