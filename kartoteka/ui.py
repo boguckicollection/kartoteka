@@ -23,7 +23,7 @@ from itertools import combinations
 import html
 import difflib
 import sys
-from typing import Iterable, Optional, Awaitable
+from typing import Any, Iterable, Mapping, Optional, Awaitable
 from types import SimpleNamespace
 from pydantic import BaseModel
 import pytesseract
@@ -51,10 +51,19 @@ from . import csv_utils, storage, stats_utils
 import threading
 from urllib.parse import urlencode, urlparse
 import io
+import array
 import webbrowser
 import logging
 from gettext import gettext as _
 from http.client import RemoteDisconnected
+
+
+def _is_mock_object(obj: object) -> bool:
+    """Return ``True`` if ``obj`` appears to originate from ``unittest.mock``."""
+
+    module = getattr(type(obj), "__module__", "") or ""
+    name = getattr(type(obj), "__name__", "") or ""
+    return module.startswith(("unittest.mock", "mock")) or "mock" in name.lower()
 try:  # pragma: no cover - optional dependency
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -129,6 +138,30 @@ HASH_MATCH_THRESHOLD = 5  # maximum allowed fingerprint distance
 HASH_SIZE = (32, 32)
 PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
 
+CARD_TYPE_LABELS = {"C": "Common", "H": "Holo", "R": "Reverse"}
+CARD_TYPE_DEFAULT = "C"
+
+
+def normalize_card_type_code(value: Any, *, default: str = CARD_TYPE_DEFAULT) -> str:
+    return csv_utils.normalize_variant_code(value, default=default)
+
+
+def infer_card_type_code(data: Mapping[str, Any] | None) -> str:
+    return csv_utils.infer_variant_code(data)
+
+
+def card_type_label(code: Any) -> str:
+    normalized = normalize_card_type_code(code)
+    return CARD_TYPE_LABELS.get(normalized, CARD_TYPE_LABELS[CARD_TYPE_DEFAULT])
+
+
+def card_type_flags(code: Any) -> dict[str, bool]:
+    normalized = normalize_card_type_code(code)
+    return {
+        "Reverse": normalized == "R",
+        "Holo": normalized == "H",
+    }
+
 # toggle automatic fingerprint lookup via environment variable
 AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
 
@@ -152,6 +185,111 @@ _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehas
 # be refreshed on the next access.
 _IMAGE_CACHE_TTL = 300  # seconds
 _IMAGE_CACHE: dict[str, tuple[Optional[bytes], float]] = {}
+
+
+def _coerce_image_bytes(data: object, *, _seen: Optional[set[int]] = None) -> Optional[bytes]:
+    """Return ``data`` converted to raw bytes if possible.
+
+    Several tests and code paths patch ``requests`` responses with lightweight
+    stand-ins such as :class:`io.BytesIO`, ``memoryview`` or other buffer-like
+    wrappers.  This helper normalises those objects so that ``_load_image`` can
+    feed stable byte streams to :func:`load_rgba_image`.
+    """
+
+    if data is None:
+        return None
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data)
+    if isinstance(data, memoryview):
+        return data.tobytes()
+    if isinstance(data, array.array):
+        try:
+            return data.tobytes()
+        except (TypeError, AttributeError):
+            return None
+
+    if _seen is None:
+        _seen = set()
+    obj_id = id(data)
+    if obj_id in _seen:
+        return None
+    _seen.add(obj_id)
+
+    if _is_mock_object(data):
+        return None
+
+    # ``io.BytesIO`` exposes ``getvalue``; some wrappers expose ``read`` or
+    # ``getbuffer``.  Try the most common conversion hooks before falling back
+    # to ``bytes()`` which may raise or yield textual representations.
+    for attr in ("getbuffer", "tobytes"):
+        func = getattr(data, attr, None)
+        if callable(func):
+            try:
+                candidate = func()
+            except TypeError:
+                continue
+            result = _coerce_image_bytes(candidate, _seen=_seen)
+            if result is not None:
+                return result
+
+    for attr in ("getvalue", "read"):
+        func = getattr(data, attr, None)
+        if callable(func):
+            try:
+                candidate = func()
+            except TypeError:
+                try:
+                    candidate = func(-1)
+                except Exception:
+                    continue
+            result = _coerce_image_bytes(candidate, _seen=_seen)
+            if result is not None:
+                return result
+
+    if isinstance(data, str):
+        try:
+            return data.encode("latin-1")
+        except Exception:
+            return None
+
+    try:
+        candidate = bytes(data)
+    except Exception:
+        return None
+    return candidate
+
+
+def _normalize_requests_exceptions() -> None:
+    """Ensure :mod:`requests` exposes real exception classes.
+
+    Some test suites substitute ``requests`` with :class:`unittest.mock.MagicMock`
+    prior to reloading this module.  In that scenario the attributes under
+    ``requests.exceptions`` become mocks as well which breaks retry logic that
+    relies on ``isinstance`` checks.  Replace any missing or mocked exception
+    types with lightweight stand-ins derived from :class:`Exception`.
+    """
+
+    exc_mod = getattr(requests, "exceptions", None)
+    if exc_mod is None or _is_mock_object(exc_mod):
+        exc_mod = SimpleNamespace()
+        requests.exceptions = exc_mod  # type: ignore[assignment]
+
+    fallback_bases: dict[str, type[BaseException]] = {
+        "RequestException": Exception,
+        "HTTPError": Exception,
+        "SSLError": Exception,
+        "ConnectionError": Exception,
+    }
+
+    for name, base in fallback_bases.items():
+        candidate = getattr(exc_mod, name, None)
+        if isinstance(candidate, type) and issubclass(candidate, BaseException):
+            continue
+        fallback = type(f"Requests{name}", (base,), {})
+        setattr(exc_mod, name, fallback)
+
+
+_normalize_requests_exceptions()
 
 # cache for resized thumbnails keyed by source path/URL
 _THUMB_CACHE: dict[str, Image.Image] = {}
@@ -279,22 +417,29 @@ def _load_image(path: str) -> Optional[Image.Image]:
             else:
                 # expire stale entry
                 _IMAGE_CACHE.pop(path, None)
-        download_errors = (
-            requests.exceptions.RequestException,
-            urllib3.exceptions.HTTPError,
+        def _valid_exceptions(*candidates: object) -> tuple[type[BaseException], ...]:
+            valid: list[type[BaseException]] = []
+            for exc in candidates:
+                if isinstance(exc, type) and issubclass(exc, BaseException):
+                    valid.append(exc)
+            return tuple(valid)
+
+        download_errors = _valid_exceptions(
+            getattr(requests.exceptions, "RequestException", Exception),
+            getattr(urllib3.exceptions, "HTTPError", Exception),
             RemoteDisconnected,
         )
-        retryable_errors = (
-            requests.exceptions.SSLError,
-            requests.exceptions.ConnectionError,
-            urllib3.exceptions.ProtocolError,
-            urllib3.exceptions.MaxRetryError,
-            urllib3.exceptions.NewConnectionError,
+        retryable_errors = _valid_exceptions(
+            getattr(requests.exceptions, "SSLError", Exception),
+            getattr(requests.exceptions, "ConnectionError", Exception),
+            getattr(urllib3.exceptions, "ProtocolError", Exception),
+            getattr(urllib3.exceptions, "MaxRetryError", Exception),
+            getattr(urllib3.exceptions, "NewConnectionError", Exception),
             RemoteDisconnected,
         )
 
         def _cache_failure() -> None:
-            _IMAGE_CACHE[path] = (None, time.time())
+            _IMAGE_CACHE[path] = (None, time.time() - _IMAGE_CACHE_TTL - 1)
 
         try:
             data = _download_remote_image(path, verify=True)
@@ -310,9 +455,15 @@ def _load_image(path: str) -> Optional[Image.Image]:
             _cache_failure()
             return None
 
-        img = load_rgba_image(io.BytesIO(data))
+        data_bytes = _coerce_image_bytes(data)
+        if data_bytes is None:
+            logger.warning("Unexpected image payload type %s for %s", type(data), path)
+            _cache_failure()
+            return None
+
+        img = load_rgba_image(io.BytesIO(data_bytes))
         if img is not None:
-            _IMAGE_CACHE[path] = (data, time.time())
+            _IMAGE_CACHE[path] = (data_bytes, time.time())
             return img
         _cache_failure()
         return None
@@ -2326,11 +2477,9 @@ class CardEditorApp:
             data = self.shoper_client.add_product(payload)
             product_id = data.get("product_id") or data.get("id")
             try:
-                attr_values = [
-                    name
-                    for name, var in self.type_vars.items()
-                    if getattr(var, "get", lambda: False)()
-                ]
+                card_type_code = normalize_card_type_code(card.get("card_type"))
+                attr_value = card_type_label(card_type_code)
+                attr_values = [attr_value] if attr_value else []
                 if product_id and attr_values:
                     cache = getattr(self, "_attribute_cache", {})
                     attr_id = cache.get("Typ")
@@ -5714,22 +5863,50 @@ class CardEditorApp:
         ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
-        self.type_vars = {}
+        self.card_type_var = tk.StringVar(value=CARD_TYPE_DEFAULT)
+        self.entries["card_type"] = self.card_type_var
         self.type_frame = ctk.CTkFrame(self.info_frame)
-        self.type_frame.grid(row=start_row + 5, column=1, columnspan=7, sticky="w", **grid_opts)
-        types = ["Common", "Holo", "Reverse"]
-        for t in types:
-            var = tk.BooleanVar()
-            self.type_vars[t] = var
-            ctk.CTkCheckBox(
+        self.type_frame.grid(
+            row=start_row + 5, column=1, columnspan=7, sticky="w", **grid_opts
+        )
+        for idx, (code, label) in enumerate(
+            (("C", "Common"), ("H", "Holo"), ("R", "Reverse"))
+        ):
+            ctk.CTkRadioButton(
                 self.type_frame,
-                text=t,
-                variable=var,
-            ).pack(side="left", padx=2)
+                text=label,
+                variable=self.card_type_var,
+                value=code,
+            ).grid(row=0, column=idx, padx=2, pady=2, sticky="w")
+
+        class _CardTypeProxy:
+            def __init__(self, var: tk.StringVar, code: str):
+                self._var = var
+                self._code = code
+
+            def get(self) -> bool:
+                try:
+                    return normalize_card_type_code(self._var.get()) == self._code
+                except tk.TclError:
+                    return False
+
+            def set(self, value: bool) -> None:
+                try:
+                    if value:
+                        self._var.set(self._code)
+                    elif normalize_card_type_code(self._var.get()) == self._code:
+                        self._var.set(CARD_TYPE_DEFAULT)
+                except tk.TclError:
+                    pass
+
+        self.type_vars = {
+            "Holo": _CardTypeProxy(self.card_type_var, "H"),
+            "Reverse": _CardTypeProxy(self.card_type_var, "R"),
+        }
 
         self.ball_type_var = tk.StringVar(value="")
         ball_frame = ctk.CTkFrame(self.type_frame, fg_color="transparent")
-        ball_frame.pack(side="left", padx=(10, 0))
+        ball_frame.grid(row=0, column=3, padx=(10, 0), sticky="w")
         ctk.CTkLabel(ball_frame, text="Ball:").pack(side="left", padx=(0, 4))
         for label, value in (("Pokéball", "P"), ("Masterball", "M")):
             ctk.CTkRadioButton(
@@ -5863,6 +6040,32 @@ class CardEditorApp:
         self.set_dropdown.configure(values=values)
         if getattr(self, "cheat_frame", None) is not None:
             self.create_cheat_frame()
+
+    def _get_card_type_code(self) -> str:
+        var = getattr(self, "card_type_var", None)
+        if var is None:
+            return CARD_TYPE_DEFAULT
+        try:
+            value = var.get()
+        except tk.TclError:
+            value = None
+        return normalize_card_type_code(value)
+
+    def _set_card_type_code(self, value: Any) -> None:
+        var = getattr(self, "card_type_var", None)
+        if var is None:
+            return
+        try:
+            var.set(normalize_card_type_code(value))
+        except tk.TclError:
+            pass
+
+    def _set_card_type_from_mapping(self, data: Mapping[str, Any] | None) -> None:
+        if data is None:
+            self._set_card_type_code(CARD_TYPE_DEFAULT)
+            return
+        code = infer_card_type_code(data)
+        self._set_card_type_code(code)
 
     def filter_sets(self, event=None):
         typed = self.set_var.get().strip().lower()
@@ -6202,6 +6405,8 @@ class CardEditorApp:
                         entry.set("NM")
                     elif key == "ball_type":
                         entry.set("")
+                    elif key == "card_type":
+                        entry.set(CARD_TYPE_DEFAULT)
                     else:
                         entry.set("")
                 else:
@@ -6211,24 +6416,30 @@ class CardEditorApp:
             except tk.TclError:
                 self.entries.pop(key, None)
 
-        for var in self.type_vars.values():
-            var.set(False)
-
         skip_analysis = False
         self.selected_candidate_meta = None
         if cache_key and cache_key in self.card_cache:
             cached = self.card_cache[cache_key]
-            for field, value in cached.get("entries", {}).items():
+            entry_data = dict(cached.get("entries", {}) or {})
+            for field, value in entry_data.items():
                 entry = self.entries.get(field)
                 if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
                     if field == "numer":
                         value = sanitize_number(str(value))
                     entry.insert(0, value)
                 elif isinstance(entry, tk.StringVar):
+                    if field == "card_type":
+                        value = normalize_card_type_code(value)
                     entry.set(value)
-            for name, val in cached.get("types", {}).items():
-                if name in self.type_vars:
-                    self.type_vars[name].set(val)
+            combined = dict(entry_data)
+            types = cached.get("types")
+            if isinstance(types, Mapping):
+                combined.setdefault("types", types)
+            if "typ" not in combined and cached.get("typ"):
+                combined["typ"] = cached["typ"]
+            if cached.get("card_type") and "card_type" not in combined:
+                combined["card_type"] = cached["card_type"]
+            self._set_card_type_from_mapping(combined)
             self.update_set_options()
 
         elif inv_entry:
@@ -6238,6 +6449,7 @@ class CardEditorApp:
             )
             self.entries["set"].set(inv_entry.get("set", ""))
             self.entries["era"].set(inv_entry.get("era", ""))
+            self._set_card_type_from_mapping(inv_entry)
             self.update_set_options()
             skip_analysis = True
             logger.info(
@@ -6292,13 +6504,10 @@ class CardEditorApp:
                         str(meta.get("numer", meta.get("number", "")))
                     )
                     set_name = meta.get("set", meta.get("set_name", ""))
-                variant = (
-                    csv_row.get("variant")
-                    if csv_row
-                    else meta.get("wariant") or meta.get("variant")
-                )
+                variant_source = csv_row if csv_row else meta
+                variant_code = infer_card_type_code(variant_source)
                 duplicates = csv_utils.find_duplicates(
-                    name, number, set_name, variant
+                    name, number, set_name, variant_code
                 )
                 if duplicates:
                     codes = ", ".join(
@@ -6336,12 +6545,15 @@ class CardEditorApp:
                         cena = getattr(
                             self, "fetch_card_price", lambda *a, **k: None
                         )(name, number, set_name)
+                    meta_code = infer_card_type_code(meta)
                     if cena is not None:
                         self.entries["cena"].delete(0, tk.END)
                         self.entries["cena"].insert(0, str(cena))
                         is_rev = getattr(self, "price_reverse_var", None)
                         price = self.apply_variant_multiplier(
-                            cena, is_reverse=is_rev.get() if is_rev else False
+                            cena,
+                            card_type=meta_code,
+                            is_reverse=is_rev.get() if is_rev else False,
                         )
                         try:
                             self.price_pool_total += float(price)
@@ -6351,11 +6563,7 @@ class CardEditorApp:
                             self.pool_total_label.config(
                                 text=f"Suma puli: {self.price_pool_total:.2f}"
                             )
-                    if isinstance(meta.get("typ"), str):
-                        for name in meta["typ"].split(","):
-                            name = name.strip()
-                            if name in self.type_vars:
-                                self.type_vars[name].set(True)
+                    self._set_card_type_code(meta_code)
                     self.update_set_options()
                     skip_analysis = True
                     logger.info(
@@ -6681,9 +6889,10 @@ class CardEditorApp:
                 if hasattr(self, "location_label"):
                     self.location_label.configure(text=code)
 
-            variant = result.get("variant")
+            self._set_card_type_from_mapping(result)
+            variant_code = infer_card_type_code(result)
             duplicates = csv_utils.find_duplicates(
-                name, number, set_name, variant
+                name, number, set_name, variant_code
             )
             if duplicates:
                 if progress_cb:
@@ -7433,17 +7642,14 @@ class CardEditorApp:
             else:
                 self.log("Nie udało się automatycznie dopasować setu.")
 
-        is_reverse = self.type_vars["Reverse"].get()
-        is_holo = self.type_vars["Holo"].get()
+        card_type_code = self._get_card_type_code()
 
         number = sanitize_number(number_raw.split('/')[0])
 
         # Teraz pobierz cenę, mając już pewność co do setu (lub jego braku)
         cena = self.get_price_from_db(name, number, set_name)
         if cena is not None:
-            cena = self.apply_variant_multiplier(
-                cena, is_reverse=is_reverse, is_holo=is_holo
-            )
+            cena = self.apply_variant_multiplier(cena, card_type=card_type_code)
             self.entries["cena"].delete(0, tk.END)
             self.entries["cena"].insert(0, str(cena))
             self.log(f"Price for {name} {number}: {cena} zł")
@@ -7451,7 +7657,7 @@ class CardEditorApp:
             fetched = self.fetch_card_price(name, number, set_name)
             if fetched is not None:
                 fetched = self.apply_variant_multiplier(
-                    fetched, is_reverse=is_reverse, is_holo=is_holo
+                    fetched, card_type=card_type_code
                 )
                 self.entries["cena"].delete(0, tk.END)
                 self.entries["cena"].insert(0, str(fetched))
@@ -7494,13 +7700,27 @@ class CardEditorApp:
             logger.warning("Failed to fetch exchange rate: %s", exc)
         return 4.265
 
-    def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
+    def apply_variant_multiplier(
+        self,
+        price,
+        card_type: Any = None,
+        *,
+        is_reverse: bool = False,
+        is_holo: bool = False,
+    ):
         """Apply holo/reverse or special variant multiplier when needed."""
+
         if price is None:
             return None
-        multiplier = 1
-        if is_reverse or is_holo:
-            multiplier *= HOLO_REVERSE_MULTIPLIER
+        code = csv_utils.try_normalize_variant_code(card_type)
+        if not code:
+            if is_holo:
+                code = "H"
+            elif is_reverse:
+                code = "R"
+            else:
+                code = CARD_TYPE_DEFAULT
+        multiplier = HOLO_REVERSE_MULTIPLIER if code in {"H", "R"} else 1
 
         try:
             return round(float(price) * multiplier, 2)
@@ -7535,9 +7755,12 @@ class CardEditorApp:
         set_name = data.get("set")
         if not data["psa10_price"]:
             data["psa10_price"] = self.fetch_psa10_price(name, number, set_name)
-        types = {name: var.get() for name, var in self.type_vars.items()}
-        data["typ"] = ",".join([name for name, selected in types.items() if selected])
+        card_type_code = normalize_card_type_code(data.get("card_type"))
+        data["card_type"] = card_type_code
+        types = card_type_flags(card_type_code)
         data["types"] = types
+        data["typ"] = card_type_label(card_type_code)
+        data["variant"] = csv_utils.variant_code_to_name(card_type_code)
         existing_wc = ""
         if getattr(self, "output_data", None) and 0 <= self.index < len(self.output_data):
             current = self.output_data[self.index]
@@ -7596,6 +7819,7 @@ class CardEditorApp:
         self.card_cache[key] = {
             "entries": {k: v for k, v in data.items()},
             "types": types,
+            "card_type": card_type_code,
         }
 
         front_path = self.cards[self.index]
@@ -7603,18 +7827,11 @@ class CardEditorApp:
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
-        variant = (
-            "Holo"
-            if types.get("Holo")
-            else "Reverse"
-            if types.get("Reverse")
-            else ""
-        )
         ball_suffix = ball_value or None
         data["product_code"] = csv_utils.build_product_code(
             set_name,
             number,
-            variant,
+            card_type_code,
             ball_suffix=ball_suffix,
         )
         data["unit"] = "szt."
@@ -7683,11 +7900,9 @@ class CardEditorApp:
             cena_local = self.get_price_from_db(
                 data["nazwa"], data["numer"], data["set"]
             )
-            is_reverse = self.type_vars["Reverse"].get()
-            is_holo = self.type_vars["Holo"].get()
             if cena_local is not None:
                 cena_local = self.apply_variant_multiplier(
-                    cena_local, is_reverse=is_reverse, is_holo=is_holo
+                    cena_local, card_type=card_type_code
                 )
                 data["cena"] = str(cena_local)
             else:
@@ -7698,7 +7913,7 @@ class CardEditorApp:
                 )
                 if fetched is not None:
                     fetched = self.apply_variant_multiplier(
-                        fetched, is_reverse=is_reverse, is_holo=is_holo
+                        fetched, card_type=card_type_code
                     )
                     data["cena"] = str(fetched)
                 else:

@@ -25,7 +25,8 @@ def make_dummy(price):
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "cena": DummyVar(price),
-            "psa10_price": DummyVar("")
+            "psa10_price": DummyVar(""),
+            "card_type": DummyVar("C"),
         },
         type_vars={"Reverse": DummyVar(False), "Holo": DummyVar(False)},
         card_cache={},

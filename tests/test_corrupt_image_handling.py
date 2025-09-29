@@ -15,13 +15,14 @@ def test_show_card_logs_corrupt_image(tmp_path, capsys):
     img = tmp_path / "bad.jpg"
     img.write_bytes(b"not an image")
 
+    card_type_var = SimpleNamespace(set=lambda *a, **k: None, get=lambda: "C")
     dummy = SimpleNamespace(
         cards=[str(img)],
         index=0,
         image_objects=[],
         image_label=MagicMock(),
         progress_var=SimpleNamespace(set=lambda *a, **k: None),
-        entries={},
+        entries={"card_type": card_type_var},
         type_vars={},
         card_cache={},
         file_to_key={},
@@ -29,6 +30,7 @@ def test_show_card_logs_corrupt_image(tmp_path, capsys):
         _guess_key_from_filename=lambda *a, **k: None,
         lookup_inventory_entry=lambda *a, **k: None,
         export_csv=lambda *a, **k: None,
+        card_type_var=card_type_var,
     )
     dummy.show_card = lambda: ui.CardEditorApp.show_card(dummy)
 

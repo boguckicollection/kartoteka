@@ -1,9 +1,10 @@
+import csv
 import os
 import re
-import csv
 from datetime import date, timedelta
-from typing import Optional, Tuple
+from typing import Any, Mapping, Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
+import unicodedata
 
 import logging
 
@@ -126,7 +127,56 @@ def _sanitize_number(value: str) -> str:
     return value.strip().lstrip("0") or "0"
 
 
-VARIANT_SUFFIXES = {"holo": "H", "reverse": "R"}
+VARIANT_CODE_TO_NAME = {"C": "common", "H": "holo", "R": "reverse"}
+VARIANT_SUFFIXES = {name: code for code, name in VARIANT_CODE_TO_NAME.items()}
+
+
+def try_normalize_variant_code(value: Any) -> Optional[str]:
+    """Return the variant code (``C``, ``H`` or ``R``) when recognised."""
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        normalized = unicodedata.normalize("NFKD", stripped)
+        ascii_variant = "".join(ch for ch in normalized if not unicodedata.combining(ch)) or stripped
+        upper = ascii_variant.upper()
+        if upper in VARIANT_CODE_TO_NAME:
+            return upper
+        lower = ascii_variant.lower()
+        if lower in VARIANT_SUFFIXES:
+            return VARIANT_SUFFIXES[lower]
+    return None
+
+
+def normalize_variant_code(value: Any, *, default: str = "C") -> str:
+    """Return a variant code, falling back to ``default`` when unknown."""
+
+    return try_normalize_variant_code(value) or default
+
+
+def variant_code_to_name(code: str, *, default: str = "common") -> str:
+    """Return the textual name for ``code``."""
+
+    return VARIANT_CODE_TO_NAME.get(code, default)
+
+
+def infer_variant_code(data: Mapping[str, Any] | None) -> str:
+    """Infer variant code from ``data`` supporting legacy structures."""
+
+    if not data:
+        return "C"
+    for key in ("card_type", "variant", "typ"):
+        code = try_normalize_variant_code(data.get(key))
+        if code:
+            return code
+    types = data.get("types") if isinstance(data, Mapping) else None
+    if isinstance(types, Mapping):
+        if types.get("Holo") or types.get("holo"):
+            return "H"
+        if types.get("Reverse") or types.get("reverse"):
+            return "R"
+    return "C"
 
 
 def build_product_code(
@@ -143,11 +193,11 @@ def build_product_code(
         sanitized = re.sub(r"[^A-Za-z0-9]", "", set_name).upper()
         abbr = sanitized[:3]
     num = _sanitize_number(str(number))
-    suffix = VARIANT_SUFFIXES.get((variant or "").strip().lower(), "")
+    variant_code = normalize_variant_code(variant)
     ball = (ball_suffix or "").strip().upper()
     if ball not in {"P", "M"}:
         ball = ""
-    return f"PKM-{abbr}-{num}{suffix}{ball}"
+    return f"PKM-{abbr}-{num}{variant_code}{ball}"
 
 
 def find_duplicates(
@@ -174,7 +224,7 @@ def find_duplicates(
     number = _sanitize_number(str(number))
     name_norm = normalize(name)
     set_norm = normalize(set_name)
-    variant_norm = normalize(variant) if variant else None
+    requested_code = try_normalize_variant_code(variant)
 
     if not os.path.exists(WAREHOUSE_CSV):
         return matches
@@ -186,12 +236,12 @@ def find_duplicates(
                 row_number = _sanitize_number(str(row.get("number", "")))
                 row_name = normalize(row.get("name") or "")
                 row_set = normalize(row.get("set") or "")
-                row_variant = normalize(row.get("variant") or "common") or "common"
+                row_variant_code = infer_variant_code(row)
                 if (
                     row_name == name_norm
                     and row_number == number
                     and row_set == set_norm
-                    and (variant_norm is None or row_variant == variant_norm)
+                    and (requested_code is None or row_variant_code == requested_code)
                 ):
                     matches.append(row)
     except OSError:
@@ -360,14 +410,8 @@ def format_store_row(row):
 
 def format_warehouse_row(row):
     """Return a row formatted for the warehouse CSV."""
-    types = row.get("types") or {}
-    variant = (
-        "holo"
-        if types.get("Holo")
-        else "reverse"
-        if types.get("Reverse")
-        else row.get("variant", "common")
-    )
+    variant_code = infer_variant_code(row)
+    variant = variant_code_to_name(variant_code)
     return {
         "name": row.get("nazwa", ""),
         "number": row.get("numer", ""),
@@ -457,7 +501,7 @@ def load_csv_data(app):
             row["product_code"] = build_product_code(
                 row.get("set", ""),
                 number,
-                row.get("variant"),
+                infer_variant_code(row),
                 ball_suffix=row.get("ball_type"),
             )
 
