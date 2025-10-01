@@ -5465,6 +5465,49 @@ class CardEditorApp:
 
         self.price_reverse_var.trace_add("write", lambda *a: self.on_reverse_toggle())
 
+        controls_frame = ctk.CTkFrame(
+            self.image_frame,
+            fg_color=BG_COLOR,
+        )
+        controls_frame.pack(fill="x", pady=(0, 10))
+        controls_frame.columnconfigure(3, weight=1)
+
+        ctk.CTkLabel(
+            controls_frame,
+            text="Widok:",
+            text_color=TEXT_COLOR,
+        ).grid(row=0, column=0, padx=(10, 5), pady=5, sticky="w")
+
+        self._pricing_view_map = {"Lista": "list", "Siatka": "grid"}
+        self.pricing_view_mode = tk.StringVar(value="list")
+        self.pricing_view_display_var = ctk.StringVar(value="Lista")
+        self.pricing_view_switch = ctk.CTkSegmentedButton(
+            controls_frame,
+            values=list(self._pricing_view_map.keys()),
+            command=self.on_pricing_view_change,
+            variable=self.pricing_view_display_var,
+        )
+        self.pricing_view_switch.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.pricing_view_switch.set("Lista")
+
+        ctk.CTkLabel(
+            controls_frame,
+            text="Sortowanie:",
+            text_color=TEXT_COLOR,
+        ).grid(row=0, column=2, padx=(20, 5), pady=5, sticky="w")
+
+        self._pricing_sort_map = {"Nazwa": "name", "Cena": "price"}
+        self.pricing_sort_key = tk.StringVar(value="name")
+        self.pricing_sort_display_var = ctk.StringVar(value="Nazwa")
+        self.pricing_sort_menu = ctk.CTkOptionMenu(
+            controls_frame,
+            values=list(self._pricing_sort_map.keys()),
+            command=self.on_pricing_sort_change,
+            variable=self.pricing_sort_display_var,
+        )
+        self.pricing_sort_menu.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+        self.pricing_sort_menu.set("Nazwa")
+
         btn_frame = tk.Frame(
             self.input_frame, bg=self.root.cget("background")
         )
@@ -5493,6 +5536,11 @@ class CardEditorApp:
         )
         self.result_frame.pack(expand=True, fill="both", pady=10)
 
+        self.search_results: list[dict[str, Any]] = []
+        self.search_result_images: list[Any] = []
+        self.search_result_logo_images: list[Any] = []
+        self._primary_search_result: Optional[dict[str, Any]] = None
+
         self.pool_frame = tk.Frame(
             self.pricing_frame, bg=self.root.cget("background")
         )
@@ -5517,69 +5565,303 @@ class CardEditorApp:
         name = self.price_name_entry.get()
         number = self.price_number_entry.get()
         set_name = self.price_set_entry.get()
-        is_reverse = self.price_reverse_var.get()
-
-        info = self.lookup_card_info(name, number, set_name)
-        for w in self.result_frame.winfo_children():
-            w.destroy()
+        results = self.fetch_card_variants(name, number, set_name)
+        self.search_results = results
         self.price_labels = []
         self.result_image_label = None
         self.set_logo_label = None
         self.add_pool_button = None
         self.card_info_labels = []
-        if not info:
+        if not results:
+            for w in self.result_frame.winfo_children():
+                w.destroy()
+            self._primary_search_result = None
             messagebox.showinfo("Brak wyników", "Nie znaleziono karty.")
             return
-        self.current_price_info = info
+        self.render_pricing_results()
 
-        if info.get("image_url"):
-            try:
-                res = requests.get(info["image_url"], timeout=10)
-                if res.status_code == 200:
-                    img = load_rgba_image(io.BytesIO(res.content))
-                    if img:
-                        img.thumbnail((240, 340))
-                        self.pricing_photo = _create_image(img)
-                        self.result_image_label = ctk.CTkLabel(
-                            self.result_frame,
-                            image=self.pricing_photo,
-                            text="",
-                        )
-                        self.result_image_label.pack(pady=5)
-            except (requests.RequestException, OSError, UnidentifiedImageError) as e:
-                logger.warning("Loading image failed: %s", e)
+    def render_pricing_results(self):
+        """Render pricing search results according to current settings."""
 
-        if info.get("set_logo_url"):
-            try:
-                res = requests.get(info["set_logo_url"], timeout=10)
-                if res.status_code == 200:
-                    img = load_rgba_image(io.BytesIO(res.content))
-                    if img:
-                        img.thumbnail((180, 60))
-                        self.set_logo_photo = _create_image(img)
-                        self.set_logo_label = ctk.CTkLabel(
-                            self.result_frame,
-                            image=self.set_logo_photo,
-                            text="",
-                        )
-                        self.set_logo_label.pack(pady=5)
-            except (requests.RequestException, OSError, UnidentifiedImageError) as e:
-                logger.warning("Loading set logo failed: %s", e)
+        for widget in self.result_frame.winfo_children():
+            widget.destroy()
 
-        info_fields = (
-            ("Nazwa", info.get("name")),
-            ("Numer", info.get("number")),
-            ("Set", info.get("set")),
+        results = getattr(self, "search_results", [])
+        if not results:
+            ctk.CTkLabel(
+                self.result_frame,
+                text="Brak wyników do wyświetlenia.",
+                text_color=TEXT_COLOR,
+            ).pack(pady=20)
+            self._primary_search_result = None
+            return
+
+        sorted_results = self._get_sorted_search_results(results)
+        self.search_result_images = []
+        self.search_result_logo_images = []
+        self._primary_search_result = sorted_results[0] if sorted_results else None
+
+        if self._primary_search_result:
+            base_rate = self._primary_search_result.get("eur_pln_rate")
+            price_eur = self._primary_search_result.get("price_eur")
+            price_pln = self._primary_search_result.get("price_pln")
+            if price_eur is not None and base_rate is None:
+                try:
+                    base_rate = float(self.get_exchange_rate())
+                except (TypeError, ValueError):
+                    base_rate = None
+            self.current_price_info = {
+                "price_pln": price_pln,
+                "price_eur": price_eur or 0,
+                "eur_pln_rate": base_rate or 0,
+            }
+        else:
+            self.current_price_info = None
+
+        view_mode = self.pricing_view_mode.get()
+        if view_mode == "grid":
+            self.render_results_grid(sorted_results)
+        else:
+            self.render_results_list(sorted_results)
+
+    def _get_sorted_search_results(self, results: list[dict[str, Any]]):
+        key = self.pricing_sort_key.get()
+        reverse_flag = False
+
+        if key == "price":
+            def sort_key(res: dict[str, Any]):
+                price = self._get_result_price(res)
+                if price is None:
+                    return (1, float("inf"), (res.get("name") or "").lower())
+                return (0, price, (res.get("name") or "").lower())
+
+            sorted_results = sorted(results, key=sort_key, reverse=reverse_flag)
+        else:
+            sorted_results = sorted(
+                results,
+                key=lambda res: (res.get("name") or "").lower(),
+                reverse=reverse_flag,
+            )
+        return sorted_results
+
+    def _get_result_price(self, result: dict[str, Any]) -> Optional[float]:
+        price_pln = result.get("price_pln")
+        if price_pln in {None, ""}:
+            return None
+        price = self.apply_variant_multiplier(
+            price_pln, is_reverse=self.price_reverse_var.get()
         )
-        for label, value in info_fields:
-            if value:
-                info_label = ctk.CTkLabel(
-                    self.result_frame,
-                    text=f"{label}: {value}",
-                )
-                info_label.pack(pady=2)
-                self.card_info_labels.append(info_label)
-        self.display_price_info(info, is_reverse)
+        try:
+            return float(price)
+        except (TypeError, ValueError):
+            return None
+
+    def _format_result_price(self, result: dict[str, Any]) -> str:
+        price = self._get_result_price(result)
+        if price is None:
+            return "Cena: brak danych"
+        return f"Cena: {price:.2f} PLN"
+
+    def _build_result_image(self, url: str, size: tuple[int, int]) -> Optional[Any]:
+        if not url:
+            return None
+        img = _get_thumbnail(url, size)
+        if not img:
+            return None
+        return _create_image(img.copy()) if hasattr(img, "copy") else _create_image(img)
+
+    def render_results_list(self, results: list[dict[str, Any]]):
+        container = ctk.CTkFrame(self.result_frame, fg_color=BG_COLOR)
+        container.pack(fill="both", expand=True)
+
+        for result in results:
+            item_frame = ctk.CTkFrame(
+                container,
+                fg_color=LIGHT_BG_COLOR,
+                corner_radius=8,
+            )
+            item_frame.pack(fill="x", padx=10, pady=6)
+            item_frame.grid_columnconfigure(1, weight=1)
+
+            thumb_photo = self._build_result_image(result.get("image_url"), (160, 220))
+            thumb_label = ctk.CTkLabel(item_frame, text="")
+            thumb_label.grid(row=0, column=0, rowspan=3, padx=10, pady=10)
+            if thumb_photo:
+                thumb_label.configure(image=thumb_photo)
+                thumb_label.image = thumb_photo
+                self.search_result_images.append(thumb_photo)
+
+            name = result.get("name") or "Nieznana karta"
+            number = result.get("number") or "-"
+            set_name = result.get("set") or "-"
+
+            ctk.CTkLabel(
+                item_frame,
+                text=name,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 18, "bold"),
+            ).grid(row=0, column=1, sticky="w", padx=5, pady=(10, 2))
+
+            ctk.CTkLabel(
+                item_frame,
+                text=f"#{number} | {set_name}",
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).grid(row=1, column=1, sticky="w", padx=5)
+
+            ctk.CTkLabel(
+                item_frame,
+                text=self._format_result_price(result),
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).grid(row=2, column=1, sticky="w", padx=5, pady=(0, 10))
+
+            logo_photo = self._build_result_image(result.get("set_logo_url"), (120, 40))
+            if logo_photo:
+                logo_label = ctk.CTkLabel(item_frame, text="", image=logo_photo)
+                logo_label.grid(row=0, column=2, rowspan=2, padx=10, pady=10)
+                logo_label.image = logo_photo
+                self.search_result_logo_images.append(logo_photo)
+
+            add_button = ctk.CTkButton(
+                item_frame,
+                text="Dodaj do kolekcji",
+                width=180,
+                height=36,
+                fg_color=SAVE_BUTTON_COLOR,
+                hover_color=HOVER_COLOR,
+                command=lambda res=result: self.add_search_result_to_collection(res),
+                font=("Segoe UI", 16, "bold"),
+            )
+            button_column = 3 if logo_photo else 2
+            add_button.grid(
+                row=0,
+                column=button_column,
+                rowspan=3,
+                padx=10,
+                pady=10,
+                sticky="e",
+            )
+
+    def render_results_grid(self, results: list[dict[str, Any]]):
+        grid_container = tk.Frame(
+            self.result_frame,
+            bg=self.root.cget("background"),
+        )
+        grid_container.pack(fill="both", expand=True)
+
+        columns = 3
+        for col in range(columns):
+            grid_container.grid_columnconfigure(col, weight=1)
+
+        for index, result in enumerate(results):
+            row, col = divmod(index, columns)
+            card_frame = ctk.CTkFrame(
+                grid_container,
+                fg_color=LIGHT_BG_COLOR,
+                corner_radius=12,
+            )
+            card_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+            thumb_photo = self._build_result_image(result.get("image_url"), (200, 260))
+            image_label = ctk.CTkLabel(card_frame, text="")
+            image_label.pack(padx=10, pady=(12, 6))
+            if thumb_photo:
+                image_label.configure(image=thumb_photo)
+                image_label.image = thumb_photo
+                self.search_result_images.append(thumb_photo)
+
+            name = result.get("name") or "Nieznana karta"
+            number = result.get("number") or "-"
+            set_name = result.get("set") or "-"
+            price_text = self._format_result_price(result)
+
+            ctk.CTkLabel(
+                card_frame,
+                text=name,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16, "bold"),
+            ).pack(padx=10, pady=(0, 4))
+
+            ctk.CTkLabel(
+                card_frame,
+                text=f"#{number} | {set_name}",
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).pack(padx=10)
+
+            ctk.CTkLabel(
+                card_frame,
+                text=price_text,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).pack(padx=10, pady=(4, 6))
+
+            logo_photo = self._build_result_image(result.get("set_logo_url"), (120, 40))
+            if logo_photo:
+                logo_label = ctk.CTkLabel(card_frame, text="", image=logo_photo)
+                logo_label.pack(padx=10, pady=(4, 10))
+                logo_label.image = logo_photo
+                self.search_result_logo_images.append(logo_photo)
+
+            add_button = ctk.CTkButton(
+                card_frame,
+                text="+",
+                width=36,
+                height=36,
+                fg_color=SAVE_BUTTON_COLOR,
+                hover_color=HOVER_COLOR,
+                font=("Segoe UI", 18, "bold"),
+                command=lambda res=result: self.add_search_result_to_collection(res),
+            )
+            add_button.place(in_=image_label, relx=0.95, rely=0.05, anchor="ne")
+
+    def on_pricing_view_change(self, selected_label: str):
+        value = self._pricing_view_map.get(selected_label)
+        if value:
+            self.pricing_view_mode.set(value)
+        if getattr(self, "search_results", None):
+            self.render_pricing_results()
+
+    def on_pricing_sort_change(self, selected_label: str):
+        key = self._pricing_sort_map.get(selected_label)
+        if key:
+            self.pricing_sort_key.set(key)
+        if getattr(self, "search_results", None):
+            self.render_pricing_results()
+
+    def add_search_result_to_collection(self, result: dict[str, Any]):
+        if not result:
+            return
+
+        collection_entry = {
+            "nazwa": result.get("name", ""),
+            "numer": result.get("number", ""),
+            "set": result.get("set", ""),
+        }
+
+        price_value = self._get_result_price(result)
+        if price_value is not None:
+            collection_entry["cena"] = f"{price_value:.2f}"
+        else:
+            collection_entry["cena"] = ""
+
+        if getattr(self, "output_data", None) is None:
+            self.output_data = []
+        self.output_data.append(collection_entry)
+
+        message = (
+            f"Dodano do kolekcji: {collection_entry['nazwa']} "
+            f"({collection_entry['numer']})"
+        )
+        try:
+            self.log(message)
+        except AttributeError:
+            logger.info(message)
+        try:
+            messagebox.showinfo("Sukces", message)
+        except tk.TclError:
+            logger.info("%s", message)
 
     def display_price_info(self, info, is_reverse):
         """Show pricing data with optional reverse multiplier."""
@@ -5630,18 +5912,25 @@ class CardEditorApp:
             pln80.config(text=f"80% ceny PLN: {price_80}")
 
     def on_reverse_toggle(self, *args):
+        if getattr(self, "search_results", None):
+            self.render_pricing_results()
+            return
         if getattr(self, "current_price_info", None):
             self.display_price_info(
                 self.current_price_info, self.price_reverse_var.get()
             )
 
     def add_to_price_pool(self):
-        if not getattr(self, "current_price_info", None):
+        price_source = getattr(self, "_primary_search_result", None)
+        if price_source:
+            price = self._get_result_price(price_source)
+        elif getattr(self, "current_price_info", None):
+            price = self.apply_variant_multiplier(
+                self.current_price_info["price_pln"],
+                is_reverse=self.price_reverse_var.get(),
+            )
+        else:
             return
-        price = self.apply_variant_multiplier(
-            self.current_price_info["price_pln"],
-            is_reverse=self.price_reverse_var.get(),
-        )
         try:
             self.price_pool_total += float(price)
         except (TypeError, ValueError):
@@ -7527,22 +7816,66 @@ class CardEditorApp:
                 card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
-                number_match = number_input == card_number
+                number_match = not number_input or number_input == card_number
                 set_match = set_input in card_set or card_set.startswith(set_input)
 
                 if name_match and number_match and set_match:
                     price_eur = extract_cardmarket_price(card)
-                    price_pln = 0
+                    price_pln = None
+                    price_eur_value = None
                     if price_eur is not None:
-                        price_pln = round(
-                            float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2
-                        )
+                        try:
+                            price_eur_value = round(float(price_eur), 2)
+                        except (TypeError, ValueError):
+                            price_eur_value = None
+                    try:
+                        eur_pln_rate = round(float(eur_pln), 4)
+                    except (TypeError, ValueError):
+                        eur_pln_rate = None
+
+                    if price_eur_value is not None:
+                        try:
+                            price_pln = round(
+                                float(price_eur_value)
+                                * float(eur_pln)
+                                * PRICE_MULTIPLIER,
+                                2,
+                            )
+                        except (TypeError, ValueError):
+                            price_pln = None
+
+                    set_info = card.get("episode") or card.get("set") or {}
+                    if not isinstance(set_info, dict):
+                        set_info = {}
+                    images = set_info.get("images", {})
+                    if not isinstance(images, dict):
+                        images = {}
+                    set_logo = (
+                        images.get("logo")
+                        or images.get("logoUrl")
+                        or images.get("logo_url")
+                        or set_info.get("logo")
+                    )
+                    card_images = card.get("images", {})
+                    if not isinstance(card_images, dict):
+                        card_images = {}
+                    image_url = (
+                        card_images.get("large")
+                        or card.get("image")
+                        or card.get("imageUrl")
+                        or card.get("image_url")
+                    )
+
                     results.append(
                         {
-                            "name": card.get("name"),
-                            "number": card_number,
-                            "set": card.get("episode", {}).get("name", ""),
-                            "price": price_pln,
+                            "name": card.get("name", ""),
+                            "number": card_number_raw,
+                            "set": set_info.get("name", ""),
+                            "price_pln": price_pln,
+                            "price_eur": price_eur_value,
+                            "eur_pln_rate": eur_pln_rate,
+                            "image_url": image_url,
+                            "set_logo_url": set_logo,
                         }
                     )
             return results
