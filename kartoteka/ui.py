@@ -5526,6 +5526,7 @@ class CardEditorApp:
         self.result_image_label = None
         self.set_logo_label = None
         self.add_pool_button = None
+        self.card_info_labels = []
         if not info:
             messagebox.showinfo("Brak wyników", "Nie znaleziono karty.")
             return
@@ -5564,6 +5565,20 @@ class CardEditorApp:
                         self.set_logo_label.pack(pady=5)
             except (requests.RequestException, OSError, UnidentifiedImageError) as e:
                 logger.warning("Loading set logo failed: %s", e)
+
+        info_fields = (
+            ("Nazwa", info.get("name")),
+            ("Numer", info.get("number")),
+            ("Set", info.get("set")),
+        )
+        for label, value in info_fields:
+            if value:
+                info_label = ctk.CTkLabel(
+                    self.result_frame,
+                    text=f"{label}: {value}",
+                )
+                info_label.pack(pady=2)
+                self.card_info_labels.append(info_label)
         self.display_price_info(info, is_reverse)
 
     def display_price_info(self, info, is_reverse):
@@ -7278,9 +7293,16 @@ class CardEditorApp:
             candidates = []
 
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -7382,9 +7404,16 @@ class CardEditorApp:
                     cards = []
 
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -7486,9 +7515,16 @@ class CardEditorApp:
             results = []
             eur_pln = self.get_exchange_rate()
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -7563,9 +7599,16 @@ class CardEditorApp:
                     cards = []
 
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -7594,6 +7637,9 @@ class CardEditorApp:
                         or card.get("imageUrl")
                         or card.get("image_url")
                     )
+                    set_name_value = ""
+                    if isinstance(set_info, dict):
+                        set_name_value = set_info.get("name", "")
                     return {
                         "image_url": image_url,
                         "set_logo_url": set_logo,
@@ -7601,6 +7647,9 @@ class CardEditorApp:
                         "eur_pln_rate": round(base_rate, 4),
                         "price_pln": price_pln,
                         "price_pln_80": round(price_pln * 0.8, 2),
+                        "name": card_name_raw,
+                        "number": card_number_raw,
+                        "set": set_name_value,
                     }
         except requests.Timeout:
             logger.warning("Request timed out")
