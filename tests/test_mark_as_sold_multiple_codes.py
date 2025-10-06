@@ -42,6 +42,7 @@ def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
     sys.modules["numpy"] = MagicMock()
     from tests.ctk_mocks import (
         DummyCTkButton,
+        DummyCTkCheckBox,
         DummyCTkEntry,
         DummyCTkFrame,
         DummyCTkLabel,
@@ -54,6 +55,7 @@ def test_mark_as_sold_updates_group(tmp_path, monkeypatch):
         CTkFrame=DummyCTkFrame,
         CTkLabel=DummyCTkLabel,
         CTkButton=DummyCTkButton,
+        CTkCheckBox=DummyCTkCheckBox,
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkEntry=DummyCTkEntry,
         CTkOptionMenu=DummyCTkOptionMenu,

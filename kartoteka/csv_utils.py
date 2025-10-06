@@ -200,6 +200,116 @@ def build_product_code(
     return f"PKM-{abbr}-{num}{variant_code}{ball}"
 
 
+def infer_product_code(data: Mapping[str, Any] | None) -> str:
+    """Return a product code derived from ``data`` when available."""
+
+    if not data:
+        return ""
+
+    for key in ("product_code", "code", "producer_code"):
+        value = str(data.get(key) or "").strip()
+        if value:
+            return value
+
+    set_name = data.get("set") or data.get("set_name") or ""
+    number = data.get("number") or data.get("numer") or ""
+    variant = data.get("variant") or data.get("card_type")
+    ball = data.get("ball") or data.get("ball_suffix")
+    if not set_name or not number:
+        return ""
+
+    try:
+        return build_product_code(set_name, number, variant, ball)
+    except Exception:
+        return ""
+
+
+def decrement_store_stock(
+    quantities: Mapping[str, int] | None,
+    *,
+    path: str | None = None,
+) -> int:
+    """Decrease stock values in the store CSV based on ``quantities``.
+
+    Each key in ``quantities`` represents a ``product_code`` and its value the
+    number of copies to deduct.  Rows reaching zero stock are removed entirely.
+
+    Returns the total number of stock units deducted across all products.
+    """
+
+    if not quantities:
+        return 0
+
+    normalized: dict[str, int] = {}
+    for key, value in quantities.items():
+        key_str = str(key or "").strip()
+        if not key_str:
+            continue
+        try:
+            qty = int(value)
+        except (TypeError, ValueError):
+            continue
+        if qty <= 0:
+            continue
+        normalized[key_str] = normalized.get(key_str, 0) + qty
+
+    if not normalized:
+        return 0
+
+    csv_path = path or STORE_EXPORT_CSV
+    if not csv_path or not os.path.exists(csv_path):
+        return 0
+
+    try:
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = list(reader)
+            fieldnames = reader.fieldnames or STORE_FIELDNAMES
+    except FileNotFoundError:
+        return 0
+
+    if "stock" not in fieldnames:
+        fieldnames = list(fieldnames) + ["stock"]
+
+    updated_rows: list[dict[str, str]] = []
+    deducted_total = 0
+
+    for row in rows:
+        code = str(row.get("product_code") or "").strip()
+        qty = normalized.get(code)
+        if not code or qty is None:
+            updated_rows.append(row)
+            continue
+
+        try:
+            stock = int(str(row.get("stock") or "0"))
+        except ValueError:
+            stock = 0
+
+        if stock <= 0:
+            continue
+
+        deducted = min(stock, qty)
+        remaining = stock - deducted
+        deducted_total += deducted
+
+        if remaining > 0:
+            updated = dict(row)
+            updated["stock"] = str(remaining)
+            updated_rows.append(updated)
+
+    if deducted_total == 0:
+        return 0
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        for row in updated_rows:
+            writer.writerow({fn: row.get(fn, "") for fn in fieldnames})
+
+    return deducted_total
+
+
 def mark_warehouse_codes_as_sold(codes, *, path: str | None = None) -> int:
     """Mark cards associated with ``codes`` as sold in the warehouse CSV.
 

@@ -16,7 +16,11 @@ import datetime
 import time
 import math
 import asyncio
-from collections import defaultdict
+import platform
+import shutil
+import subprocess
+import tempfile
+from collections import Counter, defaultdict
 from dotenv import load_dotenv, set_key
 import unicodedata
 from itertools import combinations
@@ -64,6 +68,106 @@ def _is_mock_object(obj: object) -> bool:
     module = getattr(type(obj), "__module__", "") or ""
     name = getattr(type(obj), "__name__", "") or ""
     return module.startswith(("unittest.mock", "mock")) or "mock" in name.lower()
+
+
+def _create_bool_var(value: bool = False):
+    try:
+        return tk.BooleanVar(value=value)
+    except (tk.TclError, RuntimeError):
+        class _Var:
+            def __init__(self, default: bool):
+                self._value = bool(default)
+
+            def get(self) -> bool:
+                return self._value
+
+            def set(self, new_value: bool) -> None:
+                self._value = bool(new_value)
+
+        return _Var(value)
+
+
+def _coerce_quantity(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        if isinstance(value, str):
+            cleaned = value.replace(" ", "").replace(",", ".")
+            return max(0, int(float(cleaned)))
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _extract_numeric(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        match = re.findall(r"-?\d+[\.,]?\d*", text.replace(" ", ""))
+        if not match:
+            return None
+        try:
+            return float(match[-1].replace(",", "."))
+        except ValueError:
+            return None
+    if isinstance(value, Mapping):
+        for key in (
+            "gross",
+            "total_gross",
+            "brutto",
+            "value",
+            "amount",
+            "total",
+            "with_tax",
+            "to_pay",
+        ):
+            if key in value:
+                result = _extract_numeric(value[key])
+                if result is not None:
+                    return result
+        for subvalue in value.values():
+            result = _extract_numeric(subvalue)
+            if result is not None:
+                return result
+        return None
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            result = _extract_numeric(item)
+            if result is not None:
+                return result
+    return None
+
+
+def _format_order_total(order: Mapping[str, Any] | None) -> str:
+    if not isinstance(order, Mapping):
+        return ""
+
+    currency = (
+        str(
+            order.get("currency")
+            or order.get("order_currency")
+            or order.get("summary", {}).get("currency")
+            or "PLN"
+        )
+        .strip()
+        .upper()
+    )
+
+    for key in ("summary", "total", "amount", "order_value", "payment"):
+        if key in order:
+            result = _extract_numeric(order[key])
+            if result is not None:
+                return f"{result:.2f} {currency or 'PLN'}"
+
+    result = _extract_numeric(order)
+    if result is None:
+        return ""
+    return f"{result:.2f} {currency or 'PLN'}"
 try:  # pragma: no cover - optional dependency
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -175,11 +279,26 @@ class OrdersListView(ctk.CTkScrollableFrame):
         self._title_font = ctk.CTkFont(size=16, weight="bold")
         self._meta_font = ctk.CTkFont(size=13)
         self._item_font = ctk.CTkFont(size=14)
+        self._order_payloads: list[dict[str, Any]] = []
+        self._on_select = None
 
     def _clear_placeholder(self) -> None:
         if self._empty_label is not None:
             self._empty_label.destroy()
             self._empty_label = None
+
+    def set_order_handler(self, callback) -> None:
+        """Register ``callback`` invoked when an order card is clicked."""
+
+        self._on_select = callback
+
+    def _handle_select(self, order: dict) -> None:
+        if self._on_select is None:
+            return
+        try:
+            self._on_select(order)
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Failed to handle order selection")
 
     def clear_orders(self) -> None:
         """Remove all rendered order cards from the view."""
@@ -191,6 +310,7 @@ class OrdersListView(ctk.CTkScrollableFrame):
             except Exception:
                 logger.exception("Failed to destroy order card widget")
         self._order_cards.clear()
+        self._order_payloads.clear()
 
     def render_orders(self, orders: list[dict[str, Any]]) -> None:
         """Render ``orders`` inside the scrollable frame."""
@@ -210,6 +330,8 @@ class OrdersListView(ctk.CTkScrollableFrame):
             card = ctk.CTkFrame(self, fg_color=BG_COLOR, corner_radius=12)
             card.pack(fill="x", expand=True, padx=12, pady=8)
             self._order_cards.append(card)
+            self._order_payloads.append(entry)
+            payload = entry
 
             title = entry.get("title") or "Zamówienie"
             ctk.CTkLabel(
@@ -225,12 +347,21 @@ class OrdersListView(ctk.CTkScrollableFrame):
             status = entry.get("status")
             if status:
                 meta_parts.append(f"Status: {status}")
+            status_type = entry.get("status_type")
+            if status_type:
+                meta_parts.append(f"Typ statusu: {status_type}")
             customer = entry.get("customer")
             if customer:
                 meta_parts.append(f"Klient: {customer}")
             created = entry.get("created")
             if created:
                 meta_parts.append(f"Data: {created}")
+            total_value = entry.get("total")
+            if total_value:
+                meta_parts.append(f"Wartość: {total_value}")
+            quantity = entry.get("quantity")
+            if quantity not in (None, ""):
+                meta_parts.append(f"Ilość kart: {quantity}")
             if meta_parts:
                 ctk.CTkLabel(
                     card,
@@ -278,6 +409,17 @@ class OrdersListView(ctk.CTkScrollableFrame):
                     anchor="w",
                     justify="left",
                 ).grid(row=2, column=0, sticky="w", padx=12, pady=(0, 8))
+
+            def _bind_clicks(widget):
+                bind = getattr(widget, "bind", None)
+                if callable(bind):
+                    bind("<Button-1>", lambda _e, data=payload: self._handle_select(data))
+                children = getattr(widget, "winfo_children", None)
+                if callable(children):
+                    for child in children():
+                        _bind_clicks(child)
+
+            _bind_clicks(card)
 
 # toggle automatic fingerprint lookup via environment variable
 AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
@@ -2567,6 +2709,8 @@ class CardEditorApp:
         orders_output = OrdersListView(orders_tab)
         orders_output.grid(row=1, column=0, sticky="nsew", padx=10, pady=(10, 5))
         self.orders_output = orders_output
+        if hasattr(orders_output, "set_order_handler"):
+            orders_output.set_order_handler(self.show_order_details)
 
         buttons_frame = ctk.CTkFrame(orders_tab, fg_color=BG_COLOR, corner_radius=12)
         buttons_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
@@ -4091,9 +4235,12 @@ class CardEditorApp:
                 widget = getattr(self, "orders_output", None)
             if widget is None:
                 return
-            status_filters = {"filters[status]": ["new", "processing"]}
+            status_filters = {"filters[status.type]": [1, 2, 3, 4]}
             orders = self.shoper_client.list_orders(status_filters)
-            orders_list = orders.get("list", orders)
+            orders_list_raw = orders.get("list", orders)
+            if isinstance(orders_list_raw, Mapping):
+                orders_list_raw = orders_list_raw.get("list", [])
+            orders_list = [o for o in orders_list_raw if o]
             self.pending_orders = orders_list
             choose_nearest_locations(orders_list, self.output_data)
 
@@ -4109,6 +4256,11 @@ class CardEditorApp:
                     or order.get("status")
                     or order.get("order_status")
                 )
+                status_type = order.get("status_type")
+                if isinstance(status_type, Mapping):
+                    status_type = status_type.get("type") or status_type.get("id")
+                if not status_type and isinstance(order.get("status"), Mapping):
+                    status_type = order["status"].get("type")
                 customer_name = ""
                 customer = order.get("customer")
                 if isinstance(customer, Mapping):
@@ -4130,10 +4282,13 @@ class CardEditorApp:
                     or order.get("date_add")
                     or order.get("date")
                 )
+                total_value = _format_order_total(order)
 
                 items: list[dict[str, Any]] = []
                 lines.append(title)
 
+                total_quantity = 0
+                code_map: dict[str, str] = {}
                 for item in order.get("products", []):
                     code_raw = (
                         item.get("warehouse_code")
@@ -4146,7 +4301,11 @@ class CardEditorApp:
                         for code in codes
                     ]
                     location_text = "; ".join(l for l in locations if l)
-                    quantity = item.get("quantity")
+                    quantity = _coerce_quantity(item.get("quantity"))
+                    total_quantity += quantity
+                    product_code = csv_utils.infer_product_code(item)
+                    for code in codes:
+                        code_map[code] = product_code
                     items.append(
                         {
                             "name": item.get("name"),
@@ -4163,9 +4322,14 @@ class CardEditorApp:
                     {
                         "title": title,
                         "status": status,
+                        "status_type": status_type,
                         "customer": customer_name,
                         "created": created,
+                        "total": total_value,
+                        "quantity": total_quantity,
                         "items": items,
+                        "data": order,
+                        "_code_map": code_map,
                     }
                 )
 
@@ -4178,23 +4342,295 @@ class CardEditorApp:
             logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
 
-    def complete_order(self, order: dict):
+    def show_order_details(self, entry: Mapping[str, Any] | None):
+        """Display details for ``entry`` and allow marking selected cards."""
+
+        if not entry:
+            return
+
+        if isinstance(entry, Mapping):
+            order = entry.get("data")
+        else:
+            order = None
+
+        if not isinstance(order, Mapping):
+            order = entry if isinstance(entry, Mapping) else {}
+
+        title = entry.get("title") if isinstance(entry, Mapping) else None
+        if not title:
+            oid = order.get("order_id") or order.get("id")
+            title = f"Zamówienie #{oid}" if oid else "Zamówienie"
+
+        status = entry.get("status") if isinstance(entry, Mapping) else None
+        if not status:
+            status = (
+                order.get("status_label")
+                or order.get("status_name")
+                or order.get("status")
+                or order.get("order_status")
+            )
+
+        status_type = entry.get("status_type") if isinstance(entry, Mapping) else None
+        if not status_type and isinstance(order.get("status"), Mapping):
+            status_type = order["status"].get("type")
+
+        customer = entry.get("customer") if isinstance(entry, Mapping) else None
+        if not customer:
+            raw_customer = order.get("customer")
+            if isinstance(raw_customer, Mapping):
+                customer = " ".join(
+                    part
+                    for part in (
+                        raw_customer.get("firstname")
+                        or raw_customer.get("first_name"),
+                        raw_customer.get("lastname")
+                        or raw_customer.get("last_name"),
+                    )
+                    if part
+                ).strip()
+            elif isinstance(raw_customer, str):
+                customer = raw_customer.strip()
+
+        created = entry.get("created") if isinstance(entry, Mapping) else None
+        if not created:
+            created = (
+                order.get("order_date")
+                or order.get("created_at")
+                or order.get("date_add")
+                or order.get("date")
+            )
+
+        total = entry.get("total") if isinstance(entry, Mapping) else None
+        if not total:
+            total = _format_order_total(order)
+
+        items = []
+        if isinstance(entry, Mapping):
+            items = list(entry.get("items") or [])
+        if not items:
+            for product in order.get("products", []):
+                code_raw = (
+                    product.get("warehouse_code")
+                    or product.get("product_code")
+                    or product.get("code", "")
+                )
+                codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
+                location_text = "; ".join(
+                    l for l in (self.location_from_code(code) for code in codes) if l
+                )
+                items.append(
+                    {
+                        "name": product.get("name"),
+                        "quantity": _coerce_quantity(product.get("quantity")),
+                        "code": code_raw,
+                        "location": location_text,
+                    }
+                )
+
+        code_map = {}
+        if isinstance(entry, Mapping):
+            code_map.update(entry.get("_code_map") or {})
+        if not code_map:
+            for product in order.get("products", []):
+                product_code = csv_utils.infer_product_code(product)
+                raw_codes = (
+                    product.get("warehouse_code")
+                    or product.get("product_code")
+                    or product.get("code", "")
+                )
+                for code in str(raw_codes).split(";"):
+                    code = code.strip()
+                    if code and product_code:
+                        code_map[code] = product_code
+
+        top = ctk.CTkToplevel(self.root)
+        if hasattr(top, "transient"):
+            top.transient(self.root)
+        if hasattr(top, "grab_set"):
+            top.grab_set()
+        if hasattr(top, "lift"):
+            top.lift()
+        if hasattr(top, "focus_force"):
+            top.focus_force()
+        if hasattr(top, "protocol"):
+            top.protocol("WM_DELETE_WINDOW", top.destroy)
+        if hasattr(top, "geometry"):
+            top.geometry("720x520")
+
+        top.title(title)
+
+        header = ctk.CTkFrame(top, fg_color=BG_COLOR)
+        header.pack(fill="x", padx=10, pady=(10, 0))
+
+        ctk.CTkLabel(
+            header,
+            text=title,
+            text_color=TEXT_COLOR,
+            font=ctk.CTkFont(size=20, weight="bold"),
+            anchor="w",
+        ).pack(anchor="w", padx=10, pady=(5, 2))
+
+        meta_lines = []
+        if status:
+            meta_lines.append(f"Status: {status}")
+        if status_type:
+            meta_lines.append(f"Typ statusu: {status_type}")
+        if customer:
+            meta_lines.append(f"Klient: {customer}")
+        if created:
+            meta_lines.append(f"Data: {created}")
+        if total:
+            meta_lines.append(f"Wartość: {total}")
+
+        if meta_lines:
+            ctk.CTkLabel(
+                header,
+                text="\n".join(meta_lines),
+                text_color=TEXT_COLOR,
+                font=ctk.CTkFont(size=14),
+                anchor="w",
+                justify="left",
+            ).pack(anchor="w", padx=10, pady=(0, 5))
+
+        items_frame = ctk.CTkScrollableFrame(top, fg_color=LIGHT_BG_COLOR)
+        items_frame.pack(expand=True, fill="both", padx=10, pady=10)
+
+        selection_vars: dict[str, Any] = {}
+        code_to_product: dict[str, str] = {}
+
+        for item in items:
+            item_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=12)
+            item_frame.pack(fill="x", expand=True, padx=10, pady=6)
+
+            name = item.get("name") or "-"
+            quantity = _coerce_quantity(item.get("quantity"))
+            code_raw = item.get("code") or ""
+            codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
+            location_text = item.get("location")
+
+            ctk.CTkLabel(
+                item_frame,
+                text=f"{name} x{quantity}",
+                text_color=TEXT_COLOR,
+                font=ctk.CTkFont(size=16, weight="bold"),
+                anchor="w",
+            ).pack(anchor="w", padx=12, pady=(10, 4))
+
+            if not codes:
+                ctk.CTkLabel(
+                    item_frame,
+                    text="Brak przypisanych kodów magazynowych",
+                    text_color=TEXT_COLOR,
+                    font=ctk.CTkFont(size=13),
+                    anchor="w",
+                ).pack(anchor="w", padx=12, pady=(0, 10))
+                continue
+
+            checkbox_container = ctk.CTkFrame(item_frame, fg_color=BG_COLOR)
+            checkbox_container.pack(fill="x", padx=12, pady=(0, 10))
+
+            for idx, code in enumerate(codes):
+                var = _create_bool_var(idx < quantity or quantity <= 0)
+                product_code = code_map.get(code)
+                if product_code:
+                    code_to_product[code] = product_code
+                desc_parts = [code]
+                if location_text:
+                    desc_parts.append(location_text)
+                else:
+                    loc = self.location_from_code(code)
+                    if loc:
+                        desc_parts.append(loc)
+                checkbox_text = " – ".join(desc_parts)
+                checkbox = ctk.CTkCheckBox(
+                    checkbox_container,
+                    text=checkbox_text,
+                    variable=var,
+                    text_color=TEXT_COLOR,
+                )
+                checkbox.pack(anchor="w", pady=2)
+                selection_vars[code] = var
+
+        buttons = ctk.CTkFrame(top, fg_color=BG_COLOR)
+        buttons.pack(fill="x", padx=10, pady=(0, 10))
+
+        def _mark_selected() -> None:
+            selected = [code for code, var in selection_vars.items() if code and bool(var.get())]
+            if not selected:
+                messagebox.showwarning("Zamówienia", "Wybierz karty do oznaczenia jako sprzedane")
+                return
+            self.complete_order(order, selected_codes=selected, code_product_map=code_to_product)
+            if hasattr(top, "grab_release"):
+                try:
+                    top.grab_release()
+                except tk.TclError:
+                    pass
+            top.destroy()
+
+        def _print_details() -> None:
+            self.print_order_items(title, customer, created, total, items)
+
+        self.create_button(
+            buttons,
+            text="Oznacz jako sprzedane",
+            command=_mark_selected,
+            fg_color=SAVE_BUTTON_COLOR,
+            width=200,
+            height=48,
+        ).pack(side="left", padx=8, pady=8)
+
+        self.create_button(
+            buttons,
+            text="Drukuj listę",
+            command=_print_details,
+            fg_color=FETCH_BUTTON_COLOR,
+            width=160,
+            height=48,
+        ).pack(side="left", padx=8, pady=8)
+
+        self.create_button(
+            buttons,
+            text="Zamknij",
+            command=top.destroy,
+            fg_color=NAV_BUTTON_COLOR,
+            width=140,
+            height=48,
+        ).pack(side="right", padx=8, pady=8)
+
+    def complete_order(
+        self,
+        order: Mapping[str, Any],
+        selected_codes: Iterable[str] | None = None,
+        code_product_map: Mapping[str, str] | None = None,
+    ):
         """Mark warehouse codes from ``order`` as sold.
 
         After updating the CSV the inventory statistics are recalculated and
         the warehouse view is refreshed.
         """
 
-        codes_to_mark = {
-            c.strip()
-            for item in order.get("products", [])
-            for c in str(
+        mapping: dict[str, str] = {}
+        for item in order.get("products", []) if isinstance(order, Mapping) else []:
+            raw_codes = (
                 item.get("warehouse_code")
                 or item.get("product_code")
                 or item.get("code", "")
-            ).split(";")
-            if c.strip()
-        }
+            )
+            product_code = csv_utils.infer_product_code(item)
+            for code in str(raw_codes).split(";"):
+                code = code.strip()
+                if code:
+                    mapping.setdefault(code, product_code)
+
+        if code_product_map:
+            for code, product_code in code_product_map.items():
+                if code and product_code:
+                    mapping[code] = product_code
+
+        if selected_codes is not None:
+            codes_to_mark = {c.strip() for c in selected_codes if str(c).strip()}
+        else:
+            codes_to_mark = set(mapping)
 
         if not codes_to_mark:
             return
@@ -4202,6 +4638,15 @@ class CardEditorApp:
         marked = csv_utils.mark_warehouse_codes_as_sold(codes_to_mark)
         if not marked:
             return
+
+        product_counts: Counter[str] = Counter()
+        for code in codes_to_mark:
+            product = mapping.get(code)
+            if product:
+                product_counts[product] += 1
+
+        if product_counts:
+            csv_utils.decrement_store_stock(product_counts)
 
         if hasattr(self, "update_inventory_stats"):
             try:
@@ -4215,6 +4660,20 @@ class CardEditorApp:
             except Exception:
                 logger.exception("Failed to refresh magazyn window")
 
+        order_id = order.get("order_id") if isinstance(order, Mapping) else None
+        order_id = order_id or (order.get("id") if isinstance(order, Mapping) else None)
+        pending = getattr(self, "pending_orders", None)
+        if order_id and isinstance(pending, list):
+            self.pending_orders = [
+                o for o in pending if (o.get("order_id") or o.get("id")) != order_id
+            ]
+
+        if hasattr(self, "orders_output") and getattr(self, "orders_output", None):
+            try:
+                self.show_orders(self.orders_output)
+            except Exception:  # pragma: no cover - defensive logging
+                logger.exception("Failed to refresh orders view after completion")
+
     def confirm_order(self):
         """Confirm the first pending order and mark codes as sold."""
 
@@ -4223,6 +4682,79 @@ class CardEditorApp:
             return
         order = orders.pop(0)
         self.complete_order(order)
+
+    def print_order_items(
+        self,
+        title: str,
+        customer: str | None,
+        created: str | None,
+        total: str | None,
+        items: Iterable[Mapping[str, Any]],
+    ) -> None:
+        """Generate a printable summary for ``items`` and invoke system print."""
+
+        lines = [title]
+        if customer:
+            lines.append(f"Klient: {customer}")
+        if created:
+            lines.append(f"Data: {created}")
+        if total:
+            lines.append(f"Wartość: {total}")
+        lines.append("")
+
+        for item in items:
+            name = item.get("name") or "-"
+            quantity = _coerce_quantity(item.get("quantity"))
+            code_raw = str(item.get("code") or "")
+            codes = [c.strip() for c in code_raw.split(";") if c.strip()]
+            if not codes:
+                codes = ["-"]
+            location_text = item.get("location")
+            if not location_text:
+                location_text = "; ".join(
+                    l for l in (self.location_from_code(code) for code in codes) if l
+                )
+            lines.append(
+                f"{name} x{quantity} [{'; '.join(codes)}] {location_text or ''}".strip()
+            )
+
+        content = "\n".join(lines)
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", suffix=".txt") as tmp:
+                tmp.write(content)
+                tmp_path = Path(tmp.name)
+        except OSError as exc:
+            messagebox.showerror("Drukowanie", f"Nie udało się przygotować pliku do wydruku: {exc}")
+            return
+
+        printed = False
+        error: Exception | None = None
+        if platform.system().lower().startswith("win"):
+            try:
+                os.startfile(str(tmp_path), "print")  # type: ignore[attr-defined]
+                printed = True
+            except Exception as exc:  # pragma: no cover - platform dependent
+                error = exc
+        else:
+            cmd = shutil.which("lpr")
+            if cmd:
+                try:
+                    subprocess.run([cmd, str(tmp_path)], check=True)
+                    printed = True
+                except Exception as exc:  # pragma: no cover - depends on environment
+                    error = exc
+
+        if printed:
+            messagebox.showinfo("Drukowanie", "Wysłano zamówienie do drukarki.")
+        else:
+            msg = "Nie udało się automatycznie wydrukować listy."
+            if tmp_path:
+                msg += f"\nPlik zapisany: {tmp_path}"
+            if error:
+                msg += f"\nSzczegóły: {error}"
+            messagebox.showwarning("Drukowanie", msg)
 
     @staticmethod
     def location_from_code(code: str) -> str:
@@ -4375,6 +4907,9 @@ class CardEditorApp:
         self.mag_card_frames = []
         self._image_threads = []
         self._mag_column_occ: dict[tuple[int, int], int] = {}
+        self._mag_image_paths: list[str] = []
+        self._mag_loaded_images: dict[int, Any] = {}
+        self._mag_loading_indices: set[int] = set()
 
         if not os.path.exists(csv_path):
             self._mag_prev_thumb = 0
@@ -4440,91 +4975,68 @@ class CardEditorApp:
                 idx = len(self.mag_card_rows)
                 self.mag_card_rows.append(combined)
                 self.mag_card_images.append(self.mag_placeholder_photo)
+                self._mag_image_paths.append(combined.get("image") or "")
                 self.mag_card_image_labels.append(None)
-
-                img_path = combined.get("image") or ""
-                if urlparse(img_path).scheme in ("http", "https"):
-                    def _worker(i=idx, url=img_path):
-                        img = _load_image(url)
-                        if img is None:
-                            return
-
-                        def _update(img=img) -> None:
-                            img_resized = _resize_to_width(img, thumb_size)
-                            photo = _create_image(img_resized)
-                            self.mag_card_images[i] = photo
-                            lbl = self.mag_card_image_labels[i]
-                            exists_fn = getattr(lbl, "winfo_exists", None)
-                            if not lbl or (exists_fn and not exists_fn()):
-                                return
-                            if hasattr(lbl, "configure"):
-                                try:
-                                    lbl.configure(image=photo)
-                                except tk.TclError:
-                                    return
-                            else:  # simple dummy widgets in tests
-                                lbl.image = photo
-                            relayout = getattr(self, "_relayout_mag_cards", None)
-                            if callable(relayout):
-                                after2 = getattr(self.root, "after", None)
-                                if callable(after2):
-                                    after2(0, relayout)
-                                else:
-                                    relayout()
-
-                        after = getattr(self.root, "after", None)
-                        if callable(after):
-                            after(0, _update)
-                        else:
-                            _update()
-
-                    th = threading.Thread(target=_worker, daemon=True)
-                    th.start()
-                    self._image_threads.append(th)
-                else:
-                    def _worker(i=idx, path=img_path):
-                        img = _load_image(path)
-                        if img is None:
-                            return
-
-                        def _update(img=img) -> None:
-                            img_resized = _resize_to_width(img, thumb_size)
-                            photo = _create_image(img_resized)
-                            self.mag_card_images[i] = photo
-                            lbl = self.mag_card_image_labels[i]
-                            exists_fn = getattr(lbl, "winfo_exists", None)
-                            if not lbl or (exists_fn and not exists_fn()):
-                                return
-                            if hasattr(lbl, "configure"):
-                                try:
-                                    lbl.configure(image=photo)
-                                except tk.TclError:
-                                    return
-                            else:  # simple dummy widgets in tests
-                                lbl.image = photo
-                            relayout = getattr(self, "_relayout_mag_cards", None)
-                            if callable(relayout):
-                                after2 = getattr(self.root, "after", None)
-                                if callable(after2):
-                                    after2(0, relayout)
-                                else:
-                                    relayout()
-
-                        after = getattr(self.root, "after", None)
-                        if callable(after):
-                            after(0, _update)
-                        else:
-                            _update()
-
-                    th = threading.Thread(target=_worker, daemon=True)
-                    th.start()
-                    self._image_threads.append(th)
 
         self._mag_prev_thumb = 0
         try:
             self._mag_csv_mtime = os.path.getmtime(csv_path)
         except OSError:
             self._mag_csv_mtime = None
+
+        def _ensure_image(index: int) -> None:
+            if index < 0 or index >= len(self._mag_image_paths):
+                return
+            if index in self._mag_loaded_images or index in self._mag_loading_indices:
+                return
+
+            path = self._mag_image_paths[index]
+            if not path:
+                return
+
+            self._mag_loading_indices.add(index)
+
+            def _worker(i=index, img_path=path):
+                img = _load_image(img_path)
+                if img is None:
+                    self._mag_loading_indices.discard(i)
+                    return
+
+                def _update(image=img):
+                    self._mag_loading_indices.discard(i)
+                    img_resized = _resize_to_width(image, thumb_size)
+                    photo = _create_image(img_resized)
+                    self._mag_loaded_images[i] = photo
+                    self.mag_card_images[i] = photo
+                    lbl = self.mag_card_image_labels[i]
+                    exists_fn = getattr(lbl, "winfo_exists", None)
+                    if lbl and (exists_fn is None or exists_fn()):
+                        if hasattr(lbl, "configure"):
+                            try:
+                                lbl.configure(image=photo)
+                            except tk.TclError:
+                                pass
+                        else:
+                            lbl.image = photo
+                    relayout = getattr(self, "_relayout_mag_cards", None)
+                    if callable(relayout):
+                        after2 = getattr(self.root, "after", None)
+                        if callable(after2):
+                            after2(0, relayout)
+                        else:
+                            relayout()
+
+                after = getattr(self.root, "after", None)
+                if callable(after):
+                    after(0, _update)
+                else:
+                    _update()
+
+            th = threading.Thread(target=_worker, daemon=True)
+            th.start()
+            self._image_threads.append(th)
+
+        self._ensure_mag_image = _ensure_image
 
     def show_magazyn_view(self):
         """Display storage occupancy inside the main window."""
@@ -4921,6 +5433,9 @@ class CardEditorApp:
                 if callable(grid):
                     grid(row=0, column=0, sticky="n")
                 self.mag_card_image_labels[idx] = img_label
+                ensure = getattr(self, "_ensure_mag_image", None)
+                if callable(ensure):
+                    ensure(idx)
 
                 count = int(row.get("_count", 1))
                 if count > 1:
@@ -5485,6 +6000,10 @@ class CardEditorApp:
         marked = csv_utils.mark_warehouse_codes_as_sold([target])
         if not marked:
             return
+
+        product_code = csv_utils.infer_product_code(row)
+        if product_code:
+            csv_utils.decrement_store_stock({product_code: 1})
 
         if window is not None:
             try:

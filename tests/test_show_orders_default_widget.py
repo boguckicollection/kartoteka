@@ -14,10 +14,14 @@ class DummyOrdersView:
     def __init__(self):
         self.rendered = None
         self.calls = 0
+        self.handler = None
 
     def render_orders(self, orders):
         self.calls += 1
         self.rendered = orders
+
+    def set_order_handler(self, callback):
+        self.handler = callback
 
 
 def test_show_orders_uses_default_widget():
@@ -76,9 +80,9 @@ def test_show_orders_requests_processing_status():
     with patch("kartoteka.ui.choose_nearest_locations"):
         ui.CardEditorApp.show_orders(app)
 
-    status_filter = captured_filters.get("filters[status]")
+    status_filter = captured_filters.get("filters[status.type]")
     assert status_filter is not None
-    assert set(status_filter) >= {"new", "processing"}
+    assert set(map(str, status_filter)) >= {"1", "2", "3", "4"}
     assert dummy_output.rendered is not None
     assert dummy_output.rendered[0]["title"] == "Zamówienie #2"
 
