@@ -116,7 +116,10 @@ class ShoperClient:
             to ordered items without issuing follow-up requests.
         """
 
-        params = {"page": page, "per-page": per_page}
+        params = {"page": page}
+        limit = self._coerce_limit(per_page)
+        if limit is not None:
+            params["limit"] = limit
         if filters:
             params.update(filters)
         self._normalise_status_filters(params)
@@ -136,13 +139,39 @@ class ShoperClient:
     # New helper methods for dashboard statistics
     def get_orders(self, status=None, filters=None, page=1, per_page=20):
         """Return orders optionally filtered by status and other criteria."""
-        params = {"page": page, "per-page": per_page}
+        params = {"page": page}
+        limit = self._coerce_limit(per_page)
+        if limit is not None:
+            params["limit"] = limit
         if filters:
             params.update(filters)
         if status:
             params["filters[status]"] = status
         self._normalise_status_filters(params)
         return self.get("orders", params=params)
+
+    @staticmethod
+    def _coerce_limit(value: Optional[int]) -> Optional[int]:
+        """Return a Shoper-compatible ``limit`` value.
+
+        The orders endpoint expects ``limit`` instead of ``per-page`` used by
+        other API calls and caps it at ``50``.  The helper keeps the public
+        ``per_page`` argument for backwards compatibility while ensuring the
+        request complies with the documented contract.
+        """
+
+        if value is None:
+            return None
+
+        try:
+            limit = int(value)
+        except (TypeError, ValueError):
+            return None
+
+        if limit <= 0:
+            return None
+
+        return min(limit, 50)
 
     @staticmethod
     def _normalise_status_filters(params: dict) -> None:
