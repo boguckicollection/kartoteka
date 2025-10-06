@@ -3975,7 +3975,7 @@ class CardEditorApp:
                         f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
                     )
             widget.insert(tk.END, "\n".join(lines))
-        except requests.RequestException as e:
+        except (requests.RequestException, RuntimeError) as e:
             logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
 
