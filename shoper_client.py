@@ -180,29 +180,29 @@ class ShoperClient:
         if not params:
             return
 
-        status_values = None
-        if "filters[status]" in params:
-            status_values = params.get("filters[status]")
-            key_to_remove = "filters[status]"
-        elif "filters[status][in]" in params:
-            status_values = params.get("filters[status][in]")
-            key_to_remove = "filters[status][in]"
-        else:
-            return
+        for base in ("filters[status]", "filters[status.type]"):
+            if base in params:
+                status_values = params.get(base)
+                key_to_remove = base
+            elif f"{base}[in]" in params:
+                status_values = params.get(f"{base}[in]")
+                key_to_remove = f"{base}[in]"
+            else:
+                continue
 
-        if isinstance(status_values, (list, tuple, set)):
-            values = [str(value) for value in status_values if value]
-        elif isinstance(status_values, str):
-            values = [part.strip() for part in status_values.split(",") if part.strip()]
-        else:
-            values = [str(status_values)] if status_values else []
+            if isinstance(status_values, (list, tuple, set)):
+                values = [str(value) for value in status_values if value]
+            elif isinstance(status_values, str):
+                values = [part.strip() for part in status_values.split(",") if part.strip()]
+            else:
+                values = [str(status_values)] if status_values else []
 
-        if not values:
             params.pop(key_to_remove, None)
-            return
 
-        params.pop(key_to_remove, None)
-        params["filters[status][in]"] = ",".join(dict.fromkeys(values))
+            if not values:
+                continue
+
+            params[f"{base}[in]"] = ",".join(dict.fromkeys(values))
 
     def get_sales_stats(self, params=None):
         """Return sales statistics using the built-in Shoper endpoint."""

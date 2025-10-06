@@ -59,6 +59,15 @@ class DummyCTkEntry(_Widget):
         self.textvariable = textvariable
 
 
+class DummyCTkCheckBox(_Widget):
+    def __init__(self, master=None, text="", variable=None, text_color=None, **kwargs):
+        self.master = master
+        self.text = text
+        self.variable = variable
+        self.text_color = text_color
+        self.kwargs = kwargs
+
+
 class DummyCTkOptionMenu(_Widget):
     def __init__(self, master=None, variable=None, values=(), command=None, **kwargs):
         self.master = master
@@ -113,6 +122,7 @@ def _setup_module(tmp_path):
         CTkFrame=DummyCTkFrame,
         CTkLabel=DummyCTkLabel,
         CTkButton=DummyCTkButton,
+        CTkCheckBox=DummyCTkCheckBox,
         CTkScrollableFrame=DummyCTkScrollableFrame,
         CTkToplevel=DummyCTkToplevel,
         CTkEntry=DummyCTkEntry,
