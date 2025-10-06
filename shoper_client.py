@@ -119,6 +119,7 @@ class ShoperClient:
         params = {"page": page, "per-page": per_page}
         if filters:
             params.update(filters)
+        self._normalise_status_filters(params)
         if include_products:
             includes = params.get("with")
             if not includes:
@@ -140,7 +141,39 @@ class ShoperClient:
             params.update(filters)
         if status:
             params["filters[status]"] = status
+        self._normalise_status_filters(params)
         return self.get("orders", params=params)
+
+    @staticmethod
+    def _normalise_status_filters(params: dict) -> None:
+        """Convert list-like status filters to the API ``[in]`` form."""
+
+        if not params:
+            return
+
+        status_values = None
+        if "filters[status]" in params:
+            status_values = params.get("filters[status]")
+            key_to_remove = "filters[status]"
+        elif "filters[status][in]" in params:
+            status_values = params.get("filters[status][in]")
+            key_to_remove = "filters[status][in]"
+        else:
+            return
+
+        if isinstance(status_values, (list, tuple, set)):
+            values = [str(value) for value in status_values if value]
+        elif isinstance(status_values, str):
+            values = [part.strip() for part in status_values.split(",") if part.strip()]
+        else:
+            values = [str(status_values)] if status_values else []
+
+        if not values:
+            params.pop(key_to_remove, None)
+            return
+
+        params.pop(key_to_remove, None)
+        params["filters[status][in]"] = ",".join(dict.fromkeys(values))
 
     def get_sales_stats(self, params=None):
         """Return sales statistics using the built-in Shoper endpoint."""

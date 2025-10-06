@@ -3963,7 +3963,8 @@ class CardEditorApp:
                 widget = getattr(self, "orders_output", None)
             if widget is None:
                 return
-            orders = self.shoper_client.list_orders({"filters[status]": "new"})
+            status_filters = {"filters[status]": ["new", "processing"]}
+            orders = self.shoper_client.list_orders(status_filters)
             orders_list = orders.get("list", orders)
             self.pending_orders = orders_list
             choose_nearest_locations(orders_list, self.output_data)
