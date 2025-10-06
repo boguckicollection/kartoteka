@@ -47,6 +47,40 @@ def test_show_orders_uses_default_widget():
     assert "Zamówienie #1" in dummy_output.content
 
 
+def test_show_orders_requests_processing_status():
+    orders = {
+        "list": [
+            {
+                "order_id": 2,
+                "products": [
+                    {"name": "In progress", "quantity": 3, "warehouse_code": "B2"}
+                ],
+            }
+        ]
+    }
+    captured_filters = {}
+
+    def list_orders(filters):
+        captured_filters.update(filters)
+        return orders
+
+    dummy_client = SimpleNamespace(list_orders=list_orders)
+    dummy_output = DummyText()
+    app = SimpleNamespace(
+        shoper_client=dummy_client,
+        orders_output=dummy_output,
+        output_data=[],
+        location_from_code=lambda code: code,
+    )
+    with patch("kartoteka.ui.choose_nearest_locations"):
+        ui.CardEditorApp.show_orders(app)
+
+    status_filter = captured_filters.get("filters[status]")
+    assert status_filter is not None
+    assert set(status_filter) >= {"new", "processing"}
+    assert "Zamówienie #2" in dummy_output.content
+
+
 def test_show_orders_handles_runtime_error():
     dummy_client = SimpleNamespace(
         list_orders=MagicMock(side_effect=RuntimeError("boom"))

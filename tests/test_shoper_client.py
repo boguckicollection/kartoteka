@@ -153,6 +153,39 @@ def test_list_orders_respects_existing_with(monkeypatch):
     assert captured["params"]["with"] == "products,payment"
 
 
+def test_list_orders_normalises_status_filters(monkeypatch):
+    client = ShoperClient(base_url="https://shop", token="tok")
+
+    captured_params = {}
+
+    def fake_get(endpoint, **kwargs):
+        captured_params.update(kwargs.get("params", {}))
+        return {}
+
+    monkeypatch.setattr(client, "get", fake_get)
+
+    client.list_orders(filters={"filters[status]": ["new", "processing", "new"]})
+
+    assert captured_params["filters[status][in]"] == "new,processing"
+    assert "filters[status]" not in captured_params
+
+
+def test_get_orders_accepts_iterable_status(monkeypatch):
+    client = ShoperClient(base_url="https://shop", token="tok")
+
+    captured_params = {}
+
+    def fake_get(endpoint, **kwargs):
+        captured_params.update(kwargs.get("params", {}))
+        return {}
+
+    monkeypatch.setattr(client, "get", fake_get)
+
+    client.get_orders(status={"new", "processing"})
+
+    assert captured_params["filters[status][in]"] in {"new,processing", "processing,new"}
+
+
 def test_client_credentials_auth(monkeypatch):
     monkeypatch.setenv("SHOPER_API_URL", "https://shop")
     monkeypatch.setenv("SHOPER_API_TOKEN", "secret")
