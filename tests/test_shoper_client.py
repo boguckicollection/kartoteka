@@ -43,6 +43,21 @@ def test_env_vars_trimmed(monkeypatch):
     assert client.token == "tok"
 
 
+@pytest.mark.parametrize(
+    "provided,expected",
+    [
+        ("https://shop", "https://shop/webapi/rest"),
+        ("https://shop/webapi", "https://shop/webapi/rest"),
+        ("https://shop/webapi/", "https://shop/webapi/rest"),
+        ("https://shop/webapi/rest", "https://shop/webapi/rest"),
+        ("https://shop/webapi/rest/", "https://shop/webapi/rest"),
+        ("https://shop/webapi/rest/rest", "https://shop/webapi/rest"),
+    ],
+)
+def test_base_url_normalization(provided, expected):
+    assert ShoperClient._normalize_base_url(provided) == expected
+
+
 def test_client_endpoints(monkeypatch):
     client = ShoperClient(base_url="https://shop", token="tok")
     captured = {}
