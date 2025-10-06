@@ -3986,18 +3986,6 @@ class CardEditorApp:
         the warehouse view is refreshed.
         """
 
-        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
-        try:
-            with open(csv_path, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                rows = list(reader)
-                fieldnames = reader.fieldnames or []
-        except FileNotFoundError:
-            return
-
-        if "sold" not in fieldnames:
-            fieldnames.append("sold")
-
         codes_to_mark = {
             c.strip()
             for item in order.get("products", [])
@@ -4012,14 +4000,9 @@ class CardEditorApp:
         if not codes_to_mark:
             return
 
-        for r in rows:
-            if r.get("warehouse_code") in codes_to_mark:
-                r["sold"] = "1"
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-            writer.writeheader()
-            writer.writerows(rows)
+        marked = csv_utils.mark_warehouse_codes_as_sold(codes_to_mark)
+        if not marked:
+            return
 
         if hasattr(self, "update_inventory_stats"):
             try:
@@ -5294,33 +5277,15 @@ class CardEditorApp:
     ):
         """Mark the card as sold, update CSV and refresh views."""
 
-        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
-        try:
-            with open(csv_path, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                rows = list(reader)
-                fieldnames = reader.fieldnames or []
-        except FileNotFoundError:
-            return
-
-        if "sold" not in fieldnames:
-            fieldnames.append("sold")
-
         codes = [
             c.strip()
             for c in str(row.get("warehouse_code", "")).split(";")
             if c.strip()
         ]
         target = warehouse_code or (codes[0] if codes else "")
-        for r in rows:
-            if r.get("warehouse_code") == target:
-                r["sold"] = "1"
-                break
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-            writer.writeheader()
-            writer.writerows(rows)
+        marked = csv_utils.mark_warehouse_codes_as_sold([target])
+        if not marked:
+            return
 
         if window is not None:
             try:
