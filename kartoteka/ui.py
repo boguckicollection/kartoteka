@@ -119,6 +119,7 @@ RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 SHOPER_API_URL = os.getenv("SHOPER_API_URL", "").strip()
 SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN", "").strip()
+SHOPER_CLIENT_ID = os.getenv("SHOPER_CLIENT_ID", "").strip()
 WEBDAV_URL = os.getenv("WEBDAV_URL")
 WEBDAV_USER = os.getenv("WEBDAV_USER")
 WEBDAV_PASSWORD = os.getenv("WEBDAV_PASSWORD")
@@ -287,6 +288,18 @@ def _normalize_requests_exceptions() -> None:
             continue
         fallback = type(f"Requests{name}", (base,), {})
         setattr(exc_mod, name, fallback)
+
+    # Ensure top-level aliases (``requests.RequestException`` etc.) exist.
+    for attr, exc_name in (
+        ("RequestException", "RequestException"),
+        ("HTTPError", "HTTPError"),
+        ("ConnectionError", "ConnectionError"),
+    ):
+        candidate = getattr(requests, attr, None)
+        resolved = getattr(exc_mod, exc_name)
+        if isinstance(candidate, type) and issubclass(candidate, BaseException):
+            continue
+        setattr(requests, attr, resolved)
 
 
 _normalize_requests_exceptions()
@@ -7344,14 +7357,15 @@ class CardEditorApp:
         If configuration is missing or authentication fails, a configuration
         dialog is shown to the user.
         """
-        global SHOPER_API_URL, SHOPER_API_TOKEN
+        global SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID
         url = os.getenv("SHOPER_API_URL", "").strip()
         token = os.getenv("SHOPER_API_TOKEN", "").strip()
+        client_id = os.getenv("SHOPER_CLIENT_ID", "").strip()
         if not url or not token:
             self.open_config_dialog()
             return
         try:
-            client = ShoperClient(url, token)
+            client = ShoperClient(url, token, client_id or None)
             try:
                 # perform a simple request to verify credentials
                 client.get("products", params={"page": 1, "per-page": 1})
@@ -7360,8 +7374,12 @@ class CardEditorApp:
                 self.open_config_dialog()
                 return
             self.shoper_client = client
-            SHOPER_API_URL, SHOPER_API_TOKEN = url, token
-        except requests.RequestException as exc:
+            SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID = (
+                url,
+                token,
+                client_id,
+            )
+        except (requests.RequestException, RuntimeError) as exc:
             messagebox.showerror("Błąd", f"Nie można połączyć się z API Shoper: {exc}")
             self.open_config_dialog()
 
@@ -8356,46 +8374,62 @@ class CardEditorApp:
         """Display a dialog for editing Shoper API configuration."""
         url_var = tk.StringVar(value=os.getenv("SHOPER_API_URL", ""))
         token_var = tk.StringVar(value=os.getenv("SHOPER_API_TOKEN", ""))
+        client_id_var = tk.StringVar(value=os.getenv("SHOPER_CLIENT_ID", ""))
 
         top = ctk.CTkToplevel(self.root)
         top.title("Konfiguracja Shoper API")
         top.grab_set()
 
-        ctk.CTkLabel(top, text="URL API:", text_color=TEXT_COLOR).grid(
+        ctk.CTkLabel(top, text="Client ID:", text_color=TEXT_COLOR).grid(
             row=0, column=0, padx=10, pady=(10, 5), sticky="e"
         )
-        url_entry = ctk.CTkEntry(top, textvariable=url_var, width=400)
-        url_entry.grid(row=0, column=1, padx=10, pady=(10, 5))
+        client_id_entry = ctk.CTkEntry(top, textvariable=client_id_var, width=400)
+        client_id_entry.grid(row=0, column=1, padx=10, pady=(10, 5))
 
-        ctk.CTkLabel(top, text="Token API:", text_color=TEXT_COLOR).grid(
+        ctk.CTkLabel(top, text="URL API:", text_color=TEXT_COLOR).grid(
             row=1, column=0, padx=10, pady=5, sticky="e"
         )
+        url_entry = ctk.CTkEntry(top, textvariable=url_var, width=400)
+        url_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        ctk.CTkLabel(top, text="Token API:", text_color=TEXT_COLOR).grid(
+            row=2, column=0, padx=10, pady=5, sticky="e"
+        )
         token_entry = ctk.CTkEntry(top, textvariable=token_var, width=400)
-        token_entry.grid(row=1, column=1, padx=10, pady=5)
+        token_entry.grid(row=2, column=1, padx=10, pady=5)
 
         def save():
             url = url_var.get().strip()
             token = token_var.get().strip()
+            client_id = client_id_var.get().strip()
             if not url or not token:
-                messagebox.showerror("Błąd", "Podaj URL i token API")
+                messagebox.showerror(
+                    "Błąd", "Podaj URL i token API (oraz Client ID jeśli wymagany)"
+                )
                 return
             set_key(ENV_FILE, "SHOPER_API_URL", url)
             set_key(ENV_FILE, "SHOPER_API_TOKEN", token)
+            set_key(ENV_FILE, "SHOPER_CLIENT_ID", client_id)
             os.environ["SHOPER_API_URL"] = url
             os.environ["SHOPER_API_TOKEN"] = token
+            os.environ["SHOPER_CLIENT_ID"] = client_id
             try:
-                client = ShoperClient(url, token)
+                client = ShoperClient(url, token, client_id or None)
                 try:
                     client.get("products", params={"page": 1, "per-page": 1})
                 except RuntimeError as exc:
                     messagebox.showerror("Błąd", f"Autoryzacja nieudana: {exc}")
                     return
                 self.shoper_client = client
-                global SHOPER_API_URL, SHOPER_API_TOKEN
-                SHOPER_API_URL, SHOPER_API_TOKEN = url, token
+                global SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID
+                SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID = (
+                    url,
+                    token,
+                    client_id,
+                )
                 messagebox.showinfo("Sukces", "Zapisano konfigurację Shoper API")
                 top.destroy()
-            except requests.RequestException as exc:
+            except (requests.RequestException, RuntimeError) as exc:
                 messagebox.showerror(
                     "Błąd", f"Nie można połączyć się z API Shoper: {exc}"
                 )
@@ -8403,7 +8437,7 @@ class CardEditorApp:
         save_btn = ctk.CTkButton(
             top, text="Zapisz", command=save, fg_color=SAVE_BUTTON_COLOR
         )
-        save_btn.grid(row=2, column=0, columnspan=2, pady=10)
+        save_btn.grid(row=3, column=0, columnspan=2, pady=10)
         top.grid_columnconfigure(1, weight=1)
         self.root.wait_window(top)
 

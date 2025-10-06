@@ -1,6 +1,38 @@
 import time
+
+import sys
+import time
+from pathlib import Path
+
 import pytest
+import requests
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 from shoper_client import ShoperClient
+
+
+class DummyResponse:
+    def __init__(self, status_code=200, data=None, text=""):
+        self.status_code = status_code
+        self._data = data or {}
+        if text:
+            self.text = text
+        elif self._data:
+            import json
+
+            self.text = json.dumps(self._data)
+        else:
+            self.text = ""
+        self.headers = {}
+
+    def raise_for_status(self):
+        if 400 <= self.status_code < 600:
+            error = requests.HTTPError(f"{self.status_code} error")
+            error.response = self
+            raise error
+
+    def json(self):
+        return self._data
 
 
 def test_env_vars_trimmed(monkeypatch):
@@ -104,3 +136,73 @@ def test_list_orders_respects_existing_with(monkeypatch):
 
     assert captured["endpoint"] == "orders"
     assert captured["params"]["with"] == "products,payment"
+
+
+def test_client_credentials_auth(monkeypatch):
+    monkeypatch.setenv("SHOPER_API_URL", "https://shop")
+    monkeypatch.setenv("SHOPER_API_TOKEN", "secret")
+    monkeypatch.setenv("SHOPER_CLIENT_ID", "client")
+
+    auth_payloads = []
+    request_headers = []
+
+    class FakeSession:
+        def __init__(self):
+            self.headers = {}
+
+        def post(self, url, json=None, timeout=15, **kwargs):
+            auth_payloads.append((url, json))
+            return DummyResponse(200, {"access_token": "token1", "expires_in": 120})
+
+        def request(self, method, url, timeout=15, **kwargs):
+            request_headers.append(self.headers.get("Authorization"))
+            return DummyResponse(200, {"ok": True})
+
+    monkeypatch.setattr(requests, "Session", FakeSession)
+
+    client = ShoperClient()
+    result = client.get("orders")
+
+    assert auth_payloads[0][0] == "https://shop/webapi/rest/auth"
+    assert auth_payloads[0][1]["client_id"] == "client"
+    assert request_headers[0] == "Bearer token1"
+    assert result == {"ok": True}
+
+
+def test_reauth_on_401(monkeypatch):
+    monkeypatch.setenv("SHOPER_API_URL", "https://shop")
+    monkeypatch.setenv("SHOPER_API_TOKEN", "secret")
+    monkeypatch.setenv("SHOPER_CLIENT_ID", "client")
+
+    tokens = iter(["token1", "token2"])
+
+    class FakeSession:
+        def __init__(self):
+            self.headers = {}
+            self.calls = 0
+
+        def post(self, url, json=None, timeout=15, **kwargs):
+            return DummyResponse(200, {"access_token": next(tokens), "expires_in": 120})
+
+        def request(self, method, url, timeout=15, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return DummyResponse(401)
+            return DummyResponse(200, {"ok": True})
+
+    session_holder = {}
+
+    def make_session():
+        session = FakeSession()
+        session_holder["session"] = session
+        return session
+
+    monkeypatch.setattr(requests, "Session", make_session)
+
+    client = ShoperClient()
+    result = client.get("orders")
+
+    session = session_holder["session"]
+    assert session.calls == 2
+    assert session.headers["Authorization"] == "Bearer token2"
+    assert result == {"ok": True}
