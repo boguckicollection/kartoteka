@@ -10,15 +10,14 @@ import kartoteka.ui as ui
 importlib.reload(ui)
 
 
-class DummyText:
+class DummyOrdersView:
     def __init__(self):
-        self.content = ""
+        self.rendered = None
+        self.calls = 0
 
-    def delete(self, *args, **kwargs):
-        self.content = ""
-
-    def insert(self, idx, txt):
-        self.content += txt
+    def render_orders(self, orders):
+        self.calls += 1
+        self.rendered = orders
 
 
 def test_show_orders_uses_default_widget():
@@ -34,7 +33,7 @@ def test_show_orders_uses_default_widget():
     }
     dummy_client = SimpleNamespace(list_orders=lambda params: orders)
 
-    dummy_output = DummyText()
+    dummy_output = DummyOrdersView()
     app = SimpleNamespace(
         shoper_client=dummy_client,
         orders_output=dummy_output,
@@ -44,7 +43,9 @@ def test_show_orders_uses_default_widget():
     with patch("kartoteka.ui.choose_nearest_locations") as ch:
         ui.CardEditorApp.show_orders(app)
         ch.assert_called_once()
-    assert "Zamówienie #1" in dummy_output.content
+    assert dummy_output.calls == 1
+    assert dummy_output.rendered is not None
+    assert dummy_output.rendered[0]["title"] == "Zamówienie #1"
 
 
 def test_show_orders_requests_processing_status():
@@ -65,7 +66,7 @@ def test_show_orders_requests_processing_status():
         return orders
 
     dummy_client = SimpleNamespace(list_orders=list_orders)
-    dummy_output = DummyText()
+    dummy_output = DummyOrdersView()
     app = SimpleNamespace(
         shoper_client=dummy_client,
         orders_output=dummy_output,
@@ -78,14 +79,15 @@ def test_show_orders_requests_processing_status():
     status_filter = captured_filters.get("filters[status]")
     assert status_filter is not None
     assert set(status_filter) >= {"new", "processing"}
-    assert "Zamówienie #2" in dummy_output.content
+    assert dummy_output.rendered is not None
+    assert dummy_output.rendered[0]["title"] == "Zamówienie #2"
 
 
 def test_show_orders_handles_runtime_error():
     dummy_client = SimpleNamespace(
         list_orders=MagicMock(side_effect=RuntimeError("boom"))
     )
-    dummy_output = DummyText()
+    dummy_output = DummyOrdersView()
     app = SimpleNamespace(
         shoper_client=dummy_client,
         orders_output=dummy_output,
@@ -102,4 +104,5 @@ def test_show_orders_handles_runtime_error():
     choose.assert_not_called()
     showerror.assert_called_once()
     log_exception.assert_called_once()
-    assert dummy_output.content == ""
+    assert dummy_output.calls == 0
+    assert dummy_output.rendered is None
