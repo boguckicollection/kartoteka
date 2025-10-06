@@ -163,6 +163,122 @@ def card_type_flags(code: Any) -> dict[str, bool]:
         "Holo": normalized == "H",
     }
 
+
+class OrdersListView(ctk.CTkScrollableFrame):
+    """Scrollable list view tailored for displaying Shoper orders."""
+
+    def __init__(self, master, **kwargs):
+        kwargs.setdefault("fg_color", LIGHT_BG_COLOR)
+        super().__init__(master, **kwargs)
+        self._order_cards: list[tk.Widget] = []
+        self._empty_label: ctk.CTkLabel | None = None
+        self._title_font = ctk.CTkFont(size=16, weight="bold")
+        self._meta_font = ctk.CTkFont(size=13)
+        self._item_font = ctk.CTkFont(size=14)
+
+    def _clear_placeholder(self) -> None:
+        if self._empty_label is not None:
+            self._empty_label.destroy()
+            self._empty_label = None
+
+    def clear_orders(self) -> None:
+        """Remove all rendered order cards from the view."""
+
+        self._clear_placeholder()
+        for card in self._order_cards:
+            try:
+                card.destroy()
+            except Exception:
+                logger.exception("Failed to destroy order card widget")
+        self._order_cards.clear()
+
+    def render_orders(self, orders: list[dict[str, Any]]) -> None:
+        """Render ``orders`` inside the scrollable frame."""
+
+        self.clear_orders()
+        if not orders:
+            self._empty_label = ctk.CTkLabel(
+                self,
+                text="Brak zamówień do wyświetlenia",
+                text_color=TEXT_COLOR,
+                font=self._item_font,
+            )
+            self._empty_label.pack(pady=20)
+            return
+
+        for entry in orders:
+            card = ctk.CTkFrame(self, fg_color=BG_COLOR, corner_radius=12)
+            card.pack(fill="x", expand=True, padx=12, pady=8)
+            self._order_cards.append(card)
+
+            title = entry.get("title") or "Zamówienie"
+            ctk.CTkLabel(
+                card,
+                text=title,
+                text_color=TEXT_COLOR,
+                font=self._title_font,
+                anchor="w",
+                justify="left",
+            ).pack(anchor="w", padx=16, pady=(12, 4))
+
+            meta_parts: list[str] = []
+            status = entry.get("status")
+            if status:
+                meta_parts.append(f"Status: {status}")
+            customer = entry.get("customer")
+            if customer:
+                meta_parts.append(f"Klient: {customer}")
+            created = entry.get("created")
+            if created:
+                meta_parts.append(f"Data: {created}")
+            if meta_parts:
+                ctk.CTkLabel(
+                    card,
+                    text="  •  ".join(meta_parts),
+                    text_color=TEXT_COLOR,
+                    font=self._meta_font,
+                    anchor="w",
+                    justify="left",
+                ).pack(anchor="w", padx=16, pady=(0, 10))
+
+            for item in entry.get("items", []):
+                row = ctk.CTkFrame(card, fg_color=FIELD_BG_COLOR, corner_radius=8)
+                row.pack(fill="x", expand=True, padx=16, pady=6)
+                row.grid_columnconfigure(0, weight=1)
+
+                name = item.get("name") or "-"
+                quantity = item.get("quantity")
+                quantity_text = f" x{quantity}" if quantity not in (None, "") else ""
+                ctk.CTkLabel(
+                    row,
+                    text=f"{name}{quantity_text}",
+                    text_color=TEXT_COLOR,
+                    font=self._item_font,
+                    anchor="w",
+                    justify="left",
+                ).grid(row=0, column=0, sticky="w", padx=12, pady=(8, 0))
+
+                code = item.get("code") or "-"
+                ctk.CTkLabel(
+                    row,
+                    text=f"Kod: {code}",
+                    text_color=TEXT_COLOR,
+                    font=self._meta_font,
+                    anchor="w",
+                    justify="left",
+                ).grid(row=1, column=0, sticky="w", padx=12)
+
+                location = item.get("location")
+                location_text = location or "Brak przypisanej lokalizacji"
+                ctk.CTkLabel(
+                    row,
+                    text=f"Lokalizacja: {location_text}",
+                    text_color=TEXT_COLOR,
+                    font=self._meta_font,
+                    anchor="w",
+                    justify="left",
+                ).grid(row=2, column=0, sticky="w", padx=12, pady=(0, 8))
+
 # toggle automatic fingerprint lookup via environment variable
 AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
 
@@ -2437,30 +2553,42 @@ class CardEditorApp:
         orders_tab = self.shoper_tabs.tab("Zamówienia")
 
         orders_tab.columnconfigure(0, weight=1)
-        orders_tab.rowconfigure(0, weight=1)
+        orders_tab.rowconfigure(1, weight=1)
 
-        orders_output = tk.Text(
+        ctk.CTkLabel(
             orders_tab,
-            height=10,
-            bg=self.root.cget("background"),
-            fg="white",
-        )
-        orders_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+            text="Lista zamówień",
+            text_color=TEXT_COLOR,
+            font=ctk.CTkFont(size=18, weight="bold"),
+            anchor="w",
+            justify="left",
+        ).grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
+
+        orders_output = OrdersListView(orders_tab)
+        orders_output.grid(row=1, column=0, sticky="nsew", padx=10, pady=(10, 5))
         self.orders_output = orders_output
 
-        self.create_button(
-            orders_tab,
-            text="Zamówienia",
-            command=self.show_orders,
-            fg_color=FETCH_BUTTON_COLOR,
-        ).grid(row=1, column=0, pady=5)
+        buttons_frame = ctk.CTkFrame(orders_tab, fg_color=BG_COLOR, corner_radius=12)
+        buttons_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
+        buttons_frame.grid_columnconfigure((0, 1), weight=1, uniform="orders_buttons")
 
         self.create_button(
-            orders_tab,
+            buttons_frame,
+            text="Odśwież zamówienia",
+            command=self.show_orders,
+            fg_color=FETCH_BUTTON_COLOR,
+            width=220,
+            height=55,
+        ).grid(row=0, column=0, padx=10, pady=12, sticky="ew")
+
+        self.create_button(
+            buttons_frame,
             text="Potwierdź zamówienie",
             command=self.confirm_order,
             fg_color=SAVE_BUTTON_COLOR,
-        ).grid(row=2, column=0, pady=5)
+            width=220,
+            height=55,
+        ).grid(row=0, column=1, padx=10, pady=12, sticky="ew")
 
         self.create_button(
             self.shoper_frame,
@@ -3968,27 +4096,84 @@ class CardEditorApp:
             orders_list = orders.get("list", orders)
             self.pending_orders = orders_list
             choose_nearest_locations(orders_list, self.output_data)
-            widget.delete("1.0", tk.END)
-            lines = []
+
+            rendered_orders: list[dict[str, Any]] = []
+            lines: list[str] = []
+
             for order in orders_list:
                 oid = order.get("order_id") or order.get("id")
-                lines.append(f"Zamówienie #{oid}")
+                title = f"Zamówienie #{oid}" if oid else "Zamówienie"
+                status = (
+                    order.get("status_label")
+                    or order.get("status_name")
+                    or order.get("status")
+                    or order.get("order_status")
+                )
+                customer_name = ""
+                customer = order.get("customer")
+                if isinstance(customer, Mapping):
+                    customer_name = " ".join(
+                        part
+                        for part in (
+                            customer.get("firstname")
+                            or customer.get("first_name"),
+                            customer.get("lastname") or customer.get("last_name"),
+                        )
+                        if part
+                    ).strip()
+                elif isinstance(customer, str):
+                    customer_name = customer.strip()
+
+                created = (
+                    order.get("order_date")
+                    or order.get("created_at")
+                    or order.get("date_add")
+                    or order.get("date")
+                )
+
+                items: list[dict[str, Any]] = []
+                lines.append(title)
+
                 for item in order.get("products", []):
-                    code = (
+                    code_raw = (
                         item.get("warehouse_code")
                         or item.get("product_code")
                         or item.get("code", "")
                     )
+                    codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
                     locations = [
-                        self.location_from_code(c.strip())
-                        for c in str(code).split(";")
-                        if c.strip()
+                        self.location_from_code(code)
+                        for code in codes
                     ]
-                    location = "; ".join(l for l in locations if l)
-                    lines.append(
-                        f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
+                    location_text = "; ".join(l for l in locations if l)
+                    quantity = item.get("quantity")
+                    items.append(
+                        {
+                            "name": item.get("name"),
+                            "quantity": quantity,
+                            "code": code_raw,
+                            "location": location_text,
+                        }
                     )
-            widget.insert(tk.END, "\n".join(lines))
+                    lines.append(
+                        f" - {item.get('name')} x{quantity} [{code_raw}] {location_text}"
+                    )
+
+                rendered_orders.append(
+                    {
+                        "title": title,
+                        "status": status,
+                        "customer": customer_name,
+                        "created": created,
+                        "items": items,
+                    }
+                )
+
+            if hasattr(widget, "render_orders"):
+                widget.render_orders(rendered_orders)
+            elif hasattr(widget, "delete"):
+                widget.delete("1.0", tk.END)
+                widget.insert(tk.END, "\n".join(lines))
         except (requests.RequestException, RuntimeError) as e:
             logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
