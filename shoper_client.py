@@ -10,10 +10,8 @@ class ShoperClient:
 
     def __init__(self, base_url=None, token=None, client_id=None):
         env_url = os.getenv("SHOPER_API_URL", "").strip()
-        self.base_url = (base_url or env_url).rstrip("/")
-        # Ensure the URL points to the REST endpoint
-        if self.base_url and not self.base_url.endswith("/webapi/rest"):
-            self.base_url = f"{self.base_url}/webapi/rest"
+        raw_url = (base_url or env_url).strip()
+        self.base_url = self._normalize_base_url(raw_url)
         env_token = os.getenv("SHOPER_API_TOKEN", "").strip()
         env_client_id = os.getenv("SHOPER_CLIENT_ID", "").strip()
         self.client_id = (client_id or env_client_id).strip() or None
@@ -235,3 +233,40 @@ class ShoperClient:
         self.token = access_token
         self._token_expires_at = time.time() + max(expires, 60.0)
         self.session.headers.update({"Authorization": f"Bearer {self.token}"})
+
+    @staticmethod
+    def _normalize_base_url(url: str) -> str:
+        """Return a URL that always points to ``/webapi/rest``.
+
+        Users frequently copy the ``/webapi`` panel address instead of the REST
+        entry point.  The API, however, requires requests to be sent to the
+        ``/webapi/rest`` sub-path.  To make configuration more forgiving we
+        detect such cases and automatically rewrite the URL so that subsequent
+        calls hit the correct endpoint regardless of whether the user provided
+        ``https://shop/webapi`` or ``https://shop``.
+        """
+
+        if not url:
+            return ""
+
+        stripped = url.rstrip("/")
+        if not stripped:
+            return ""
+
+        from urllib.parse import urlsplit, urlunsplit
+
+        parts = urlsplit(stripped)
+        path_parts = [segment for segment in parts.path.split("/") if segment]
+
+        # Remove any trailing ``rest``/``webapi`` components so we can append a
+        # single ``webapi/rest`` pair regardless of what the user supplied.
+        while path_parts and path_parts[-1] == "rest":
+            path_parts.pop()
+        if path_parts and path_parts[-1] == "webapi":
+            path_parts.pop()
+
+        normalized_path = "/" + "/".join(path_parts + ["webapi", "rest"])
+
+        return urlunsplit(
+            parts._replace(path=normalized_path, query="", fragment="")
+        )
