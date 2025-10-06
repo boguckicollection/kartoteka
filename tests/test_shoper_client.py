@@ -84,6 +84,7 @@ def test_client_endpoints(monkeypatch):
     orders_call = captured["get_calls"][1]
     assert orders_call[0] == "orders"
     assert orders_call[1]["params"]["with"] == "products,delivery_address,billing_address"
+    assert orders_call[1]["params"]["limit"] == 20
 
 
 def test_import_csv_polls_until_complete(tmp_path, monkeypatch):
@@ -151,6 +152,7 @@ def test_list_orders_respects_existing_with(monkeypatch):
 
     assert captured["endpoint"] == "orders"
     assert captured["params"]["with"] == "products,payment"
+    assert captured["params"]["limit"] == 20
 
 
 def test_list_orders_normalises_status_filters(monkeypatch):
@@ -170,6 +172,23 @@ def test_list_orders_normalises_status_filters(monkeypatch):
     assert "filters[status]" not in captured_params
 
 
+def test_list_orders_caps_limit(monkeypatch):
+    client = ShoperClient(base_url="https://shop", token="tok")
+
+    captured_params = {}
+
+    def fake_get(endpoint, **kwargs):
+        captured_params.update(kwargs.get("params", {}))
+        return {}
+
+    monkeypatch.setattr(client, "get", fake_get)
+
+    client.list_orders(page=3, per_page=100)
+
+    assert captured_params["page"] == 3
+    assert captured_params["limit"] == 50
+
+
 def test_get_orders_accepts_iterable_status(monkeypatch):
     client = ShoperClient(base_url="https://shop", token="tok")
 
@@ -184,6 +203,7 @@ def test_get_orders_accepts_iterable_status(monkeypatch):
     client.get_orders(status={"new", "processing"})
 
     assert captured_params["filters[status][in]"] in {"new,processing", "processing,new"}
+    assert captured_params["limit"] == 20
 
 
 def test_client_credentials_auth(monkeypatch):
