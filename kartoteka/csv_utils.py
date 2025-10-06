@@ -200,6 +200,89 @@ def build_product_code(
     return f"PKM-{abbr}-{num}{variant_code}{ball}"
 
 
+def mark_warehouse_codes_as_sold(codes, *, path: str | None = None) -> int:
+    """Mark cards associated with ``codes`` as sold in the warehouse CSV.
+
+    The helper understands grouped entries where multiple warehouse codes are
+    stored in a single CSV row.  When such a row contains both sold and unsold
+    codes the function keeps the unsold codes together and duplicates the row
+    with the sold flag set for each sold code.  This mirrors how the magazyn
+    view groups cards while ensuring sold entries are removed from future
+    exports.
+
+    Parameters
+    ----------
+    codes:
+        Iterable with warehouse codes to mark as sold.  Empty or falsy entries
+        are ignored.
+    path:
+        Optional explicit path to the CSV file.  When omitted the configured
+        :data:`WAREHOUSE_CSV` is used.
+
+    Returns
+    -------
+    int
+        Number of codes that were successfully marked as sold.
+    """
+
+    codes_to_mark = [c.strip() for c in (codes or []) if str(c).strip()]
+    if not codes_to_mark:
+        return 0
+
+    csv_path = path or WAREHOUSE_CSV
+    if not csv_path:
+        return 0
+
+    try:
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = list(reader)
+            fieldnames = reader.fieldnames or WAREHOUSE_FIELDNAMES
+    except FileNotFoundError:
+        return 0
+
+    sold_codes: set[str] = set()
+    updated_rows: list[dict[str, str]] = []
+
+    for row in rows:
+        raw_codes = str(row.get("warehouse_code") or "")
+        split_codes = [c.strip() for c in raw_codes.split(";") if c.strip()]
+        matches = [c for c in split_codes if c in codes_to_mark]
+
+        if not matches:
+            updated_rows.append(row)
+            continue
+
+        remaining = [c for c in split_codes if c not in matches]
+        if remaining:
+            unsold_row = dict(row)
+            unsold_row["warehouse_code"] = ";".join(remaining)
+            # ensure unsold row does not inherit a sold flag
+            if str(unsold_row.get("sold") or "").lower() in {"1", "true", "yes"}:
+                unsold_row["sold"] = ""
+            updated_rows.append(unsold_row)
+
+        for code in matches:
+            sold_row = dict(row)
+            sold_row["warehouse_code"] = code
+            sold_row["sold"] = "1"
+            updated_rows.append(sold_row)
+            sold_codes.add(code)
+
+    if not sold_codes:
+        return 0
+
+    if "sold" not in fieldnames:
+        fieldnames = list(fieldnames) + ["sold"]
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        writer.writerows(updated_rows)
+
+    return len(sold_codes)
+
+
 def find_duplicates(
     name: str, number: str, set_name: str, variant: str | None = None
 ):

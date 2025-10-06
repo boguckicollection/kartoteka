@@ -70,11 +70,37 @@ class ShoperClient:
             params["sort"] = sort
         return self.get("products", params=params)
 
-    def list_orders(self, filters=None, page=1, per_page=20):
-        """Return a list of orders filtered by status or other fields."""
+    def list_orders(
+        self,
+        filters=None,
+        page=1,
+        per_page=20,
+        include_products=True,
+    ):
+        """Return a list of orders filtered by status or other fields.
+
+        Parameters
+        ----------
+        filters:
+            Optional mapping of query parameters supported by the API.
+        page / per_page:
+            Pagination arguments forwarded to the API.
+        include_products:
+            When ``True`` (the default) the request automatically expands the
+            response with product data so that the caller has immediate access
+            to ordered items without issuing follow-up requests.
+        """
+
         params = {"page": page, "per-page": per_page}
         if filters:
             params.update(filters)
+        if include_products:
+            includes = params.get("with")
+            if not includes:
+                includes = "products,delivery_address,billing_address"
+            elif isinstance(includes, (list, tuple, set)):
+                includes = ",".join(str(part) for part in includes if part)
+            params["with"] = includes
         return self.get("orders", params=params)
 
     def get_order(self, order_id):
