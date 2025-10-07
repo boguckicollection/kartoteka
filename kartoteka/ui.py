@@ -4236,11 +4236,28 @@ class CardEditorApp:
             if widget is None:
                 return
             status_filters = {"filters[status.type]": [1, 2, 3, 4]}
+            logger.info(
+                "Requesting Shoper orders with filters: %s",
+                status_filters,
+            )
             orders = self.shoper_client.list_orders(status_filters)
             orders_list_raw = orders.get("list", orders)
             if isinstance(orders_list_raw, Mapping):
                 orders_list_raw = orders_list_raw.get("list", [])
             orders_list = [o for o in orders_list_raw if o]
+            if orders_list:
+                order_ids = [
+                    order.get("order_id") or order.get("id")
+                    for order in orders_list
+                    if isinstance(order, Mapping)
+                ]
+                logger.info(
+                    "Received %d Shoper orders, sample ids: %s",
+                    len(orders_list),
+                    order_ids[:5],
+                )
+            else:
+                logger.info("Received 0 Shoper orders")
             self.pending_orders = orders_list
             choose_nearest_locations(orders_list, self.output_data)
 
