@@ -883,7 +883,6 @@ CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
 MAX_CARD_THUMB_SIZE = 160
 MAG_CARD_GAP = 3  # spacing between card frames in magazine view
-MAG_CARDS_PER_PAGE = 20  # number of cards displayed per magazyn page
 GRID_COLUMNS = STANDARD_BOX_COLUMNS  # number of columns per storage box
 WAREHOUSE_GRID_COLUMNS = 5  # number of columns in the warehouse grid
 # BOX_COLUMN_CAPACITY, BOX_COUNT, SPECIAL_BOX_NUMBER and SPECIAL_BOX_CAPACITY
@@ -4918,6 +4917,17 @@ class CardEditorApp:
         self.mag_placeholder_photo = _create_image(placeholder_img)
 
         # reset containers
+        for frame in getattr(self, "_mag_frame_pool", []):
+            if frame is None:
+                continue
+            destroy = getattr(frame, "destroy", None)
+            if callable(destroy):
+                try:
+                    destroy()
+                except Exception:
+                    pass
+        self._mag_frame_pool: list[Optional[ctk.CTkFrame]] = []
+
         self.mag_card_rows = []
         self.mag_card_images = []
         self.mag_card_image_labels = []
@@ -4995,6 +5005,7 @@ class CardEditorApp:
                 self._mag_image_paths.append(combined.get("image") or "")
                 self.mag_card_image_labels.append(None)
 
+        self._mag_frame_pool = [None] * len(self.mag_card_rows)
         self._mag_prev_thumb = 0
         try:
             self._mag_csv_mtime = os.path.getmtime(csv_path)
@@ -5113,17 +5124,8 @@ class CardEditorApp:
         self.mag_labels = []
         self.mag_box_order = []
 
-        per_page = getattr(self, "mag_cards_per_page", MAG_CARDS_PER_PAGE)
-        try:
-            per_page = int(per_page)
-        except (TypeError, ValueError):
-            per_page = MAG_CARDS_PER_PAGE
-        if per_page <= 0:
-            per_page = MAG_CARDS_PER_PAGE
-        self.mag_cards_per_page = per_page
-        self.mag_page = 0
-        self.mag_total_pages = 1
         self._mag_filtered_total = 0
+        self._mag_canvas_bind_id = None
 
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
@@ -5374,99 +5376,174 @@ class CardEditorApp:
 
                 indices.sort(key=_quantity, reverse=True)
 
-            per_page = getattr(self, "mag_cards_per_page", MAG_CARDS_PER_PAGE)
-            try:
-                per_page = int(per_page)
-            except (TypeError, ValueError):
-                per_page = MAG_CARDS_PER_PAGE
-            if per_page <= 0:
-                per_page = MAG_CARDS_PER_PAGE
-
-            # ``era`` used to be optional in magazyn exports.  Showing every card
-            # at once when the column is missing would previously disable
-            # pagination and instantiate hundreds of widgets, which could hang
-            # or crash the UI.  Keep the configured page size instead so large
-            # inventories remain responsive.
             total_cards = len(indices)
             self._mag_filtered_total = total_cards
-            total_pages = max(1, math.ceil(total_cards / per_page)) if total_cards else 1
-            current_page = getattr(self, "mag_page", 0)
-            if current_page < 0:
-                current_page = 0
-            if current_page >= total_pages:
-                current_page = max(total_pages - 1, 0)
-            if total_cards == 0:
-                current_page = 0
-            self.mag_page = current_page
-            self.mag_total_pages = total_pages
-
-            start = current_page * per_page
-            end = start + per_page
-            page_indices = indices[start:end]
+            self._mag_visible_indices = list(indices)
 
             unbind = getattr(self.mag_list_frame, "unbind", None)
             if callable(unbind) and getattr(self, "_mag_bind_id", None):
                 unbind("<Configure>", self._mag_bind_id)
                 self._mag_bind_id = None
+            canvas_obj = getattr(self.mag_list_frame, "_parent_canvas", None)
+            canvas_unbind = getattr(canvas_obj, "unbind", None)
+            if callable(canvas_unbind) and getattr(self, "_mag_canvas_bind_id", None):
+                try:
+                    canvas_unbind("<Configure>", self._mag_canvas_bind_id)
+                except Exception:
+                    pass
+                self._mag_canvas_bind_id = None
             root_unbind = getattr(current_root, "unbind", None)
             if callable(root_unbind) and getattr(self, "_root_mag_bind_id", None):
                 root_unbind("<Configure>", self._root_mag_bind_id)
                 self._root_mag_bind_id = None
 
             frames = getattr(self, "mag_card_frames", [])
-            self.mag_card_frames = []
             for frame in frames:
-                try:
-                    frame.destroy()
-                except Exception:
-                    pass
+                forget = getattr(frame, "grid_forget", None)
+                if callable(forget):
+                    try:
+                        forget()
+                    except Exception:
+                        pass
+            self.mag_card_frames = []
+            self.mag_card_labels = []
+            self.mag_sold_labels = []
+
             labels = getattr(self, "mag_card_image_labels", [])
             for i in range(len(labels)):
                 labels[i] = None
-            self.mag_card_labels = []
-            self.mag_sold_labels = []
-            displayed = set(page_indices)
-            self._mag_visible_indices = list(page_indices)
 
-            for idx in page_indices:
+            pool = getattr(self, "_mag_frame_pool", [])
+            if len(pool) < len(self.mag_card_rows):
+                pool.extend([None] * (len(self.mag_card_rows) - len(pool)))
+
+            def _widget_exists(widget: object) -> bool:
+                if widget is None:
+                    return False
+                exists_fn = getattr(widget, "winfo_exists", None)
+                if callable(exists_fn):
+                    try:
+                        return bool(exists_fn())
+                    except Exception:
+                        return False
+                return True
+
+            displayed: set[int] = set()
+
+            for idx in indices:
                 row = self.mag_card_rows[idx]
+                frame = pool[idx] if idx < len(pool) else None
+                if not _widget_exists(frame) or getattr(frame, "master", None) is not list_frame:
+                    if _widget_exists(frame):
+                        destroy = getattr(frame, "destroy", None)
+                        if callable(destroy):
+                            try:
+                                destroy()
+                            except Exception:
+                                pass
+                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                    if hasattr(frame, "grid_columnconfigure"):
+                        frame.grid_columnconfigure(0, weight=1)
+                    img_label = ctk.CTkLabel(frame, image=self.mag_card_images[idx], text="")
+                    img_label.grid(row=0, column=0, sticky="n")
+                    if hasattr(ctk, "CTkFont"):
+                        unsold_font: Any = ctk.CTkFont(size=20)
+                    else:
+                        unsold_font = ("TkDefaultFont", 20)
+                    label = ctk.CTkLabel(
+                        frame,
+                        text="",
+                        text_color=TEXT_COLOR,
+                        width=CARD_THUMB_SIZE,
+                        wraplength=CARD_THUMB_SIZE,
+                        justify="center",
+                        font=unsold_font,
+                    )
+                    label.grid(row=1, column=0, sticky="new")
+                    frame._mag_unsold_font = unsold_font  # type: ignore[attr-defined]
+                    frame._mag_sold_font = None  # type: ignore[attr-defined]
+                    frame._mag_image_label = img_label  # type: ignore[attr-defined]
+                    frame._mag_name_label = label  # type: ignore[attr-defined]
+                    frame._mag_badge_label = None  # type: ignore[attr-defined]
+                    pool[idx] = frame
+                else:
+                    img_label = getattr(frame, "_mag_image_label", None)
+                    if not _widget_exists(img_label):
+                        img_label = ctk.CTkLabel(frame, image=self.mag_card_images[idx], text="")
+                        img_label.grid(row=0, column=0, sticky="n")
+                        frame._mag_image_label = img_label  # type: ignore[attr-defined]
+                    label = getattr(frame, "_mag_name_label", None)
+                    if not _widget_exists(label):
+                        unsold_font = getattr(frame, "_mag_unsold_font", None)
+                        if unsold_font is None:
+                            if hasattr(ctk, "CTkFont"):
+                                unsold_font = ctk.CTkFont(size=20)
+                            else:
+                                unsold_font = ("TkDefaultFont", 20)
+                            frame._mag_unsold_font = unsold_font  # type: ignore[attr-defined]
+                        label = ctk.CTkLabel(
+                            frame,
+                            text="",
+                            text_color=TEXT_COLOR,
+                            width=CARD_THUMB_SIZE,
+                            wraplength=CARD_THUMB_SIZE,
+                            justify="center",
+                            font=unsold_font,
+                        )
+                        label.grid(row=1, column=0, sticky="new")
+                        frame._mag_name_label = label  # type: ignore[attr-defined]
+                    else:
+                        unsold_font = getattr(frame, "_mag_unsold_font", None)
+
+                img_label = getattr(frame, "_mag_image_label", None)
+                label = getattr(frame, "_mag_name_label", None)
+                if not (_widget_exists(img_label) and _widget_exists(label)):
+                    continue
+
                 photo = self.mag_card_images[idx]
-                frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
-                col_conf = getattr(frame, "grid_columnconfigure", None)
-                if callable(col_conf):
-                    col_conf(0, weight=1)
+                if hasattr(img_label, "configure"):
+                    img_label.configure(image=photo)
+                else:
+                    img_label.image = photo  # type: ignore[attr-defined]
+                self.mag_card_image_labels[idx] = img_label
+
                 is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
                 text = row.get("name", "")
-                color = TEXT_COLOR
-                font = None
                 if is_sold:
                     text = f"[SOLD] {text}"
-                    color = SOLD_COLOR
-                    if hasattr(ctk, "CTkFont"):
-                        font = ctk.CTkFont(size=20, overstrike=True)
+                    sold_font = getattr(frame, "_mag_sold_font", None)
+                    if sold_font is None:
+                        if hasattr(ctk, "CTkFont"):
+                            sold_font = ctk.CTkFont(size=20, overstrike=True)
+                        else:
+                            sold_font = ("TkDefaultFont", 20, "overstrike")
+                        frame._mag_sold_font = sold_font  # type: ignore[attr-defined]
+                    label.configure(text=text, text_color=SOLD_COLOR, font=sold_font)
+                    self.mag_sold_labels.append(label)
+                else:
+                    unsold_font = getattr(frame, "_mag_unsold_font", None)
+                    if unsold_font is not None:
+                        label.configure(text=text, text_color=TEXT_COLOR, font=unsold_font)
                     else:
-                        font = ("TkDefaultFont", 20, "overstrike")
-
-                img_label = ctk.CTkLabel(frame, image=photo, text="")
-                grid = getattr(img_label, "grid", None)
-                if callable(grid):
-                    grid(row=0, column=0, sticky="n")
-                self.mag_card_image_labels[idx] = img_label
-                ensure = getattr(self, "_ensure_mag_image", None)
-                if callable(ensure):
-                    ensure(idx)
+                        label.configure(text=text, text_color=TEXT_COLOR)
+                    self.mag_card_labels.append(label)
 
                 count = int(row.get("_count", 1))
+                badge = getattr(frame, "_mag_badge_label", None)
                 if count > 1:
-                    badge = ctk.CTkLabel(
-                        frame,
-                        text=str(count),
-                        fg_color="#FF0000",
-                        text_color="white",
-                        width=20,
-                        height=20,
-                        corner_radius=10,
-                    )
+                    if not _widget_exists(badge):
+                        badge = ctk.CTkLabel(
+                            frame,
+                            text=str(count),
+                            fg_color="#FF0000",
+                            text_color="white",
+                            width=20,
+                            height=20,
+                            corner_radius=10,
+                        )
+                        frame._mag_badge_label = badge  # type: ignore[attr-defined]
+                    else:
+                        badge.configure(text=str(count))
                     place = getattr(badge, "place", None)
                     if callable(place):
                         place(in_=img_label, relx=1.0, rely=0.0, anchor="ne")
@@ -5479,22 +5556,18 @@ class CardEditorApp:
                             grid_badge(row=0, column=0, sticky="ne")
                         else:
                             badge.pack()
+                elif _widget_exists(badge):
+                    forget_badge = getattr(badge, "place_forget", None)
+                    if callable(forget_badge):
+                        forget_badge()
+                    else:
+                        grid_forget = getattr(badge, "grid_forget", None)
+                        if callable(grid_forget):
+                            grid_forget()
 
-                label_kwargs = {
-                    "text": text,
-                    "text_color": color,
-                    "width": CARD_THUMB_SIZE,
-                    "wraplength": CARD_THUMB_SIZE,
-                    "justify": "center",
-                }
-                if font is not None:
-                    label_kwargs["font"] = font
-                label = ctk.CTkLabel(frame, **label_kwargs)
-                grid = getattr(label, "grid", None)
-                if callable(grid):
-                    grid(row=1, column=0, sticky="new")
-
-                self.mag_card_frames.append(frame)
+                ensure = getattr(self, "_ensure_mag_image", None)
+                if callable(ensure):
+                    ensure(idx)
 
                 for widget in (img_label, label):
                     widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
@@ -5503,10 +5576,13 @@ class CardEditorApp:
                         lambda e, r=row: self.show_card_details(r),
                     )
 
-                if is_sold:
-                    self.mag_sold_labels.append(label)
-                else:
-                    self.mag_card_labels.append(label)
+                self.mag_card_frames.append(frame)
+                displayed.add(idx)
+
+            try:
+                _relayout_mag_cards()
+            except Exception:
+                pass
 
             for i in range(len(self.mag_card_image_labels)):
                 if i not in displayed:
@@ -5539,96 +5615,9 @@ class CardEditorApp:
             if callable(root_bind):
                 self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
 
-            pagination_frame = getattr(self, "_mag_pagination_frame", None)
-            need_pagination = self.mag_total_pages > 1 and total_cards > 0
-            if need_pagination:
-                if pagination_frame is not None:
-                    pack = getattr(pagination_frame, "pack", None)
-                    if callable(pack):
-                        pack(pady=5)
-                if not hasattr(self, "mag_prev_button"):
-                    prev_btn = self.create_button(
-                        pagination_frame,
-                        text="Poprzednia",
-                        command=_prev_page,
-                        fg_color=NAV_BUTTON_COLOR,
-                        width=120,
-                        height=40,
-                    )
-                    if hasattr(prev_btn, "pack"):
-                        prev_btn.pack(side="left", padx=5)
-                    self.mag_prev_button = prev_btn
-                if not hasattr(self, "mag_next_button"):
-                    next_btn = self.create_button(
-                        pagination_frame,
-                        text="Następna",
-                        command=_next_page,
-                        fg_color=NAV_BUTTON_COLOR,
-                        width=120,
-                        height=40,
-                    )
-                    if hasattr(next_btn, "pack"):
-                        next_btn.pack(side="left", padx=5)
-                    self.mag_next_button = next_btn
-            else:
-                if hasattr(self, "mag_prev_button"):
-                    prev_btn = self.mag_prev_button
-                    destroy = getattr(prev_btn, "destroy", None)
-                    if callable(destroy):
-                        try:
-                            destroy()
-                        except Exception:
-                            pass
-                    delattr(self, "mag_prev_button")
-                if hasattr(self, "mag_next_button"):
-                    next_btn = self.mag_next_button
-                    destroy = getattr(next_btn, "destroy", None)
-                    if callable(destroy):
-                        try:
-                            destroy()
-                        except Exception:
-                            pass
-                    delattr(self, "mag_next_button")
-                if pagination_frame is not None:
-                    forget = getattr(pagination_frame, "pack_forget", None)
-                    if callable(forget):
-                        forget()
-
-            prev_btn = getattr(self, "mag_prev_button", None)
-            next_btn = getattr(self, "mag_next_button", None)
-            prev_state = "normal" if self.mag_page > 0 else "disabled"
-            next_state = (
-                "normal"
-                if self.mag_page < self.mag_total_pages - 1 and total_cards > 0
-                else "disabled"
-            )
-            for btn, state in ((prev_btn, prev_state), (next_btn, next_state)):
-                if btn is None:
-                    continue
-                configure = getattr(btn, "configure", None)
-                if callable(configure):
-                    configure(state=state)
-                else:
-                    btn.state = state
-
-        pagination_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
-
-        def _prev_page():
-            if getattr(self, "mag_page", 0) > 0:
-                self.mag_page -= 1
-                _update_mag_list()
-
-        def _next_page():
-            if getattr(self, "mag_page", 0) < getattr(self, "mag_total_pages", 1) - 1:
-                self.mag_page += 1
-                _update_mag_list()
-
-        self._mag_pagination_frame = pagination_frame
-
         self._update_mag_list = _update_mag_list
 
         def _reset_and_update():
-            self.mag_page = 0
             _update_mag_list()
 
         if hasattr(search_entry, "bind"):
@@ -5658,6 +5647,14 @@ class CardEditorApp:
                 unbind = getattr(mag_frame, "unbind", None)
                 if callable(unbind) and getattr(self, "_mag_bind_id", None):
                     unbind("<Configure>", self._mag_bind_id)
+                canvas = getattr(mag_frame, "_parent_canvas", None)
+                canvas_unbind = getattr(canvas, "unbind", None)
+                if callable(canvas_unbind) and getattr(self, "_mag_canvas_bind_id", None):
+                    try:
+                        canvas_unbind("<Configure>", self._mag_canvas_bind_id)
+                    except Exception:
+                        pass
+            self._mag_canvas_bind_id = None
             if getattr(self, "_root_mag_bind_id", None):
                 root_unbind = getattr(current_root, "unbind", None)
                 if callable(root_unbind):
