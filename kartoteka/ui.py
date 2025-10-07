@@ -5382,9 +5382,11 @@ class CardEditorApp:
             if per_page <= 0:
                 per_page = MAG_CARDS_PER_PAGE
 
-            if not any("era" in row for row in self.mag_card_rows):
-                per_page = max(per_page, len(indices))
-
+            # ``era`` used to be optional in magazyn exports.  Showing every card
+            # at once when the column is missing would previously disable
+            # pagination and instantiate hundreds of widgets, which could hang
+            # or crash the UI.  Keep the configured page size instead so large
+            # inventories remain responsive.
             total_cards = len(indices)
             self._mag_filtered_total = total_cards
             total_pages = max(1, math.ceil(total_cards / per_page)) if total_cards else 1
