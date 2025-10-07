@@ -50,3 +50,20 @@ The module defines shared constants such as the number of regular boxes
 details for the overflow box (`SPECIAL_BOX_NUMBER`, `SPECIAL_BOX_CAPACITY`).
 Both `storage.py` and `ui.py` import these values so any changes to the
 physical warehouse setup only need to be made in a single place.
+
+## Inspecting Shoper order statuses
+
+To verify what the Shoper API returns without any GUI filters, export your
+credentials and run the helper script:
+
+```bash
+export SHOPER_API_URL="https://twoj-sklep"
+export SHOPER_API_TOKEN="sekretny-token"
+python inspect_shoper_orders.py --per-page 5
+```
+
+The output lists each order with the textual status and the numeric
+`status.type` value used by the API. You can pass additional filters via the
+`--filter` option, for example
+`--filter filters[status.type]=2` to restrict the query to a specific type. Use
+`--raw` if you prefer the unmodified JSON response.
