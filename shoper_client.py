@@ -1,8 +1,12 @@
+import logging
 import os
 import time
 from typing import Optional
 
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 
 class ShoperClient:
@@ -67,6 +71,13 @@ class ShoperClient:
                 if exc.response is not None and exc.response.status_code == 404:
                     return {}
                 raise RuntimeError(f"API request failed: {exc}") from exc
+
+            logger.info(
+                "Shoper API %s %s succeeded with status %s",
+                method.upper(),
+                url,
+                resp.status_code,
+            )
 
             if resp.text:
                 return resp.json()
