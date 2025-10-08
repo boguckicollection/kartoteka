@@ -2710,6 +2710,12 @@ class CardEditorApp:
         self.orders_output = orders_output
         if hasattr(orders_output, "set_order_handler"):
             orders_output.set_order_handler(self.show_order_details)
+        # Trigger an initial refresh so the list is populated immediately using
+        # the same code path (and error handling) as the manual refresh button.
+        if hasattr(self.root, "after_idle"):
+            self.root.after_idle(lambda: self.show_orders(self.orders_output))
+        else:
+            self.show_orders(self.orders_output)
 
         buttons_frame = ctk.CTkFrame(orders_tab, fg_color=BG_COLOR, corner_radius=12)
         buttons_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
