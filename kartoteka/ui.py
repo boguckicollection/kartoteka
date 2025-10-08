@@ -158,7 +158,7 @@ def _format_order_total(order: Mapping[str, Any] | None) -> str:
         .upper()
     )
 
-    for key in ("summary", "total", "amount", "order_value", "payment"):
+    for key in ("sum", "summary", "total", "amount", "order_value", "payment"):
         if key in order:
             result = _extract_numeric(order[key])
             if result is not None:
@@ -4234,7 +4234,7 @@ class CardEditorApp:
                 widget = getattr(self, "orders_output", None)
             if widget is None:
                 return
-            status_filters = {"filters[status.type]": [1, 2, 3, 4]}
+            status_filters = {"status_id[in]": "1,2,3,4"}
             logger.info(
                 "Requesting Shoper orders with filters: %s",
                 status_filters,
@@ -4278,19 +4278,32 @@ class CardEditorApp:
                 if not status_type and isinstance(order.get("status"), Mapping):
                     status_type = order["status"].get("type")
                 customer_name = ""
-                customer = order.get("customer")
-                if isinstance(customer, Mapping):
+                # 1. Spróbuj pobrać dane z adresu rozliczeniowego (zgodnie z dokumentacją API)
+                billing_address = order.get("billing_address")
+                if isinstance(billing_address, Mapping):
                     customer_name = " ".join(
-                        part
-                        for part in (
-                            customer.get("firstname")
-                            or customer.get("first_name"),
-                            customer.get("lastname") or customer.get("last_name"),
-                        )
-                        if part
+                        part for part in (billing_address.get("firstname"), billing_address.get("lastname")) if part
                     ).strip()
-                elif isinstance(customer, str):
-                    customer_name = customer.strip()
+
+                # 2. Jeśli się nie uda, spróbuj z obiektu 'user'
+                if not customer_name:
+                    user = order.get("user")
+                    if isinstance(user, Mapping):
+                        customer_name = " ".join(
+                            part
+                            for part in (
+                                user.get("firstname") or user.get("first_name"),
+                                user.get("lastname") or user.get("last_name"),
+                            )
+                            if part
+                        ).strip()
+
+                # 3. W ostateczności, spróbuj pola 'customer'
+                if not customer_name:
+                    customer = order.get("customer")
+                    if isinstance(customer, str):
+                        customer_name = customer.strip()
+
 
                 created = (
                     order.get("order_date")
@@ -4364,211 +4377,143 @@ class CardEditorApp:
         if not entry:
             return
 
-        if isinstance(entry, Mapping):
-            order = entry.get("data")
-        else:
-            order = None
+        order = entry.get("data", {}) if isinstance(entry, Mapping) else {}
 
-        if not isinstance(order, Mapping):
-            order = entry if isinstance(entry, Mapping) else {}
-
-        title = entry.get("title") if isinstance(entry, Mapping) else None
-        if not title:
-            oid = order.get("order_id") or order.get("id")
-            title = f"Zamówienie #{oid}" if oid else "Zamówienie"
-
-        status = entry.get("status") if isinstance(entry, Mapping) else None
-        if not status:
-            status = (
-                order.get("status_label")
-                or order.get("status_name")
-                or order.get("status")
-                or order.get("order_status")
-            )
-
-        status_type = entry.get("status_type") if isinstance(entry, Mapping) else None
-        if not status_type and isinstance(order.get("status"), Mapping):
-            status_type = order["status"].get("type")
-
-        customer = entry.get("customer") if isinstance(entry, Mapping) else None
-        if not customer:
-            raw_customer = order.get("customer")
-            if isinstance(raw_customer, Mapping):
-                customer = " ".join(
-                    part
-                    for part in (
-                        raw_customer.get("firstname")
-                        or raw_customer.get("first_name"),
-                        raw_customer.get("lastname")
-                        or raw_customer.get("last_name"),
-                    )
-                    if part
-                ).strip()
-            elif isinstance(raw_customer, str):
-                customer = raw_customer.strip()
-
-        created = entry.get("created") if isinstance(entry, Mapping) else None
-        if not created:
-            created = (
-                order.get("order_date")
-                or order.get("created_at")
-                or order.get("date_add")
-                or order.get("date")
-            )
-
-        total = entry.get("total") if isinstance(entry, Mapping) else None
-        if not total:
-            total = _format_order_total(order)
-
-        items = []
-        if isinstance(entry, Mapping):
-            items = list(entry.get("items") or [])
-        if not items:
-            for product in order.get("products", []):
-                code_raw = (
-                    product.get("warehouse_code")
-                    or product.get("product_code")
-                    or product.get("code", "")
-                )
-                codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
-                location_text = "; ".join(
-                    l for l in (self.location_from_code(code) for code in codes) if l
-                )
-                items.append(
-                    {
-                        "name": product.get("name"),
-                        "quantity": _coerce_quantity(product.get("quantity")),
-                        "code": code_raw,
-                        "location": location_text,
-                    }
-                )
-
-        code_map = {}
-        if isinstance(entry, Mapping):
-            code_map.update(entry.get("_code_map") or {})
-        if not code_map:
-            for product in order.get("products", []):
-                product_code = csv_utils.infer_product_code(product)
-                raw_codes = (
-                    product.get("warehouse_code")
-                    or product.get("product_code")
-                    or product.get("code", "")
-                )
-                for code in str(raw_codes).split(";"):
-                    code = code.strip()
-                    if code and product_code:
-                        code_map[code] = product_code
+        oid = order.get("order_id") or order.get("id")
+        title = f"Szczegóły zamówienia #{oid}" if oid else "Szczegóły zamówienia"
 
         top = ctk.CTkToplevel(self.root)
-        if hasattr(top, "transient"):
-            top.transient(self.root)
-        if hasattr(top, "grab_set"):
-            top.grab_set()
-        if hasattr(top, "lift"):
-            top.lift()
-        if hasattr(top, "focus_force"):
-            top.focus_force()
-        if hasattr(top, "protocol"):
-            top.protocol("WM_DELETE_WINDOW", top.destroy)
-        if hasattr(top, "geometry"):
-            top.geometry("720x520")
-
+        top.transient(self.root)
+        top.grab_set()
+        top.lift()
+        top.focus_force()
+        top.protocol("WM_DELETE_WINDOW", top.destroy)
+        top.geometry("800x600")
         top.title(title)
+        top.configure(fg_color=BG_COLOR)
 
-        header = ctk.CTkFrame(top, fg_color=BG_COLOR)
-        header.pack(fill="x", padx=10, pady=(10, 0))
+        # --- Nagłówek ---
+        header = ctk.CTkFrame(top, fg_color=BG_COLOR, corner_radius=0)
+        header.pack(fill="x", padx=20, pady=(20, 10))
+        header.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
             header,
             text=title,
             text_color=TEXT_COLOR,
-            font=ctk.CTkFont(size=20, weight="bold"),
-            anchor="w",
-        ).pack(anchor="w", padx=10, pady=(5, 2))
+            font=ctk.CTkFont(size=24, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
-        meta_lines = []
-        if status:
-            meta_lines.append(f"Status: {status}")
-        if status_type:
-            meta_lines.append(f"Typ statusu: {status_type}")
-        if customer:
-            meta_lines.append(f"Klient: {customer}")
-        if created:
-            meta_lines.append(f"Data: {created}")
-        if total:
-            meta_lines.append(f"Wartość: {total}")
+        # --- Dane zamówienia (czytelniejszy układ) ---
+        meta_info = {
+            "Klient:": entry.get("customer"),
+            "Data:": entry.get("created"),
+            "Status:": entry.get("status"),
+            "Wartość:": entry.get("total"),
+        }
 
-        if meta_lines:
-            ctk.CTkLabel(
-                header,
-                text="\n".join(meta_lines),
-                text_color=TEXT_COLOR,
-                font=ctk.CTkFont(size=14),
-                anchor="w",
-                justify="left",
-            ).pack(anchor="w", padx=10, pady=(0, 5))
+        row_idx = 1
+        for label, value in meta_info.items():
+            if value:
+                ctk.CTkLabel(
+                    header,
+                    text=label,
+                    text_color="#AAAAAA",
+                    font=ctk.CTkFont(size=16),
+                ).grid(row=row_idx, column=0, sticky="w", padx=(0, 15))
 
+                ctk.CTkLabel(
+                    header,
+                    text=str(value),
+                    text_color=TEXT_COLOR,
+                    font=ctk.CTkFont(size=16, weight="bold"),
+                ).grid(row=row_idx, column=1, sticky="w")
+                row_idx += 1
+
+        # --- Lista produktów ---
         items_frame = ctk.CTkScrollableFrame(top, fg_color=LIGHT_BG_COLOR)
-        items_frame.pack(expand=True, fill="both", padx=10, pady=10)
+        items_frame.pack(expand=True, fill="both", padx=20, pady=10)
 
         selection_vars: dict[str, Any] = {}
         code_to_product: dict[str, str] = {}
+        items = entry.get("items", [])
 
-        for item in items:
-            item_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=12)
-            item_frame.pack(fill="x", expand=True, padx=10, pady=6)
-
-            name = item.get("name") or "-"
-            quantity = _coerce_quantity(item.get("quantity"))
-            code_raw = item.get("code") or ""
-            codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
-            location_text = item.get("location")
-
+        if not items:
             ctk.CTkLabel(
-                item_frame,
-                text=f"{name} x{quantity}",
-                text_color=TEXT_COLOR,
-                font=ctk.CTkFont(size=16, weight="bold"),
-                anchor="w",
-            ).pack(anchor="w", padx=12, pady=(10, 4))
+                items_frame,
+                text="W tym zamówieniu nie znaleziono produktów.",
+                font=ctk.CTkFont(size=16),
+            ).pack(pady=20)
+        else:
+            for item in items:
+                item_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=12)
+                item_frame.pack(fill="x", expand=True, padx=10, pady=6)
 
-            if not codes:
+                full_name = item.get("name") or "-"
+                quantity = _coerce_quantity(item.get("quantity"))
+
+                # Próba rozdzielenia nazwy i numeru karty
+                card_name, card_number = full_name, ""
+                match = re.search(r"(.+?)\s+([\w\d-]+/\w*\d+)$", full_name)
+                if match:
+                    card_name, card_number = match.groups()
+
                 ctk.CTkLabel(
                     item_frame,
-                    text="Brak przypisanych kodów magazynowych",
+                    text=f"{card_name.strip()} (x{quantity})",
                     text_color=TEXT_COLOR,
-                    font=ctk.CTkFont(size=13),
+                    font=ctk.CTkFont(size=18, weight="bold"),
                     anchor="w",
-                ).pack(anchor="w", padx=12, pady=(0, 10))
-                continue
+                ).pack(anchor="w", padx=15, pady=(10, 0))
 
-            checkbox_container = ctk.CTkFrame(item_frame, fg_color=BG_COLOR)
-            checkbox_container.pack(fill="x", padx=12, pady=(0, 10))
+                if card_number:
+                    ctk.CTkLabel(
+                        item_frame,
+                        text=f"Numer: {card_number}",
+                        text_color="#BBBBBB",
+                        font=ctk.CTkFont(size=14),
+                        anchor="w",
+                    ).pack(anchor="w", padx=15, pady=(0, 5))
 
-            for idx, code in enumerate(codes):
-                var = _create_bool_var(idx < quantity or quantity <= 0)
-                product_code = code_map.get(code)
-                if product_code:
-                    code_to_product[code] = product_code
-                desc_parts = [code]
-                if location_text:
-                    desc_parts.append(location_text)
-                else:
+                code_raw = item.get("code") or ""
+                codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
+
+                if not codes:
+                    ctk.CTkLabel(
+                        item_frame,
+                        text="Brak przypisanych kodów magazynowych",
+                        text_color="#FF8A80",
+                        font=ctk.CTkFont(size=14),
+                        anchor="w",
+                    ).pack(anchor="w", padx=15, pady=(0, 10))
+                    continue
+
+                checkbox_container = ctk.CTkFrame(item_frame, fg_color="transparent")
+                checkbox_container.pack(fill="x", padx=15, pady=(0, 10))
+
+                for idx, code in enumerate(codes):
+                    var = _create_bool_var(True) # Domyślnie zaznaczamy wszystkie
+                    product_code = (entry.get("_code_map") or {}).get(code)
+                    if product_code:
+                        code_to_product[code] = product_code
+
                     loc = self.location_from_code(code)
-                    if loc:
-                        desc_parts.append(loc)
-                checkbox_text = " – ".join(desc_parts)
-                checkbox = ctk.CTkCheckBox(
-                    checkbox_container,
-                    text=checkbox_text,
-                    variable=var,
-                    text_color=TEXT_COLOR,
-                )
-                checkbox.pack(anchor="w", pady=2)
-                selection_vars[code] = var
+                    checkbox_text = f"{code}  -  {loc}"
 
-        buttons = ctk.CTkFrame(top, fg_color=BG_COLOR)
-        buttons.pack(fill="x", padx=10, pady=(0, 10))
+                    checkbox = ctk.CTkCheckBox(
+                        checkbox_container,
+                        text=checkbox_text,
+                        variable=var,
+                        text_color=TEXT_COLOR,
+                        font=ctk.CTkFont(size=14)
+                    )
+                    checkbox.pack(anchor="w", pady=3)
+                    selection_vars[code] = var
+
+        # --- Przyciski akcji ---
+        buttons = ctk.CTkFrame(top, fg_color="transparent")
+        buttons.pack(fill="x", padx=20, pady=(10, 20))
+        buttons.grid_columnconfigure((0, 1, 2), weight=1)
 
         def _mark_selected() -> None:
             selected = [code for code, var in selection_vars.items() if code and bool(var.get())]
@@ -4576,42 +4521,28 @@ class CardEditorApp:
                 messagebox.showwarning("Zamówienia", "Wybierz karty do oznaczenia jako sprzedane")
                 return
             self.complete_order(order, selected_codes=selected, code_product_map=code_to_product)
-            if hasattr(top, "grab_release"):
-                try:
-                    top.grab_release()
-                except tk.TclError:
-                    pass
             top.destroy()
-
-        def _print_details() -> None:
-            self.print_order_items(title, customer, created, total, items)
 
         self.create_button(
             buttons,
             text="Oznacz jako sprzedane",
             command=_mark_selected,
             fg_color=SAVE_BUTTON_COLOR,
-            width=200,
-            height=48,
-        ).pack(side="left", padx=8, pady=8)
+        ).grid(row=0, column=0, padx=4, pady=8, sticky="ew")
 
         self.create_button(
             buttons,
             text="Drukuj listę",
-            command=_print_details,
+            command=lambda: self.print_order_items(title, entry.get("customer"), entry.get("created"), entry.get("total"), items),
             fg_color=FETCH_BUTTON_COLOR,
-            width=160,
-            height=48,
-        ).pack(side="left", padx=8, pady=8)
+        ).grid(row=0, column=1, padx=4, pady=8, sticky="ew")
 
         self.create_button(
             buttons,
             text="Zamknij",
             command=top.destroy,
             fg_color=NAV_BUTTON_COLOR,
-            width=140,
-            height=48,
-        ).pack(side="right", padx=8, pady=8)
+        ).grid(row=0, column=2, padx=4, pady=8, sticky="ew")
 
     def complete_order(
         self,
@@ -4619,54 +4550,37 @@ class CardEditorApp:
         selected_codes: Iterable[str] | None = None,
         code_product_map: Mapping[str, str] | None = None,
     ):
-        """Mark warehouse codes from ``order`` as sold.
+        """Mark warehouse codes from ``order`` as sold and update stats."""
 
-        After updating the CSV the inventory statistics are recalculated and
-        the warehouse view is refreshed.
-        """
+        if not isinstance(order, Mapping):
+            return
 
-        mapping: dict[str, str] = {}
-        for item in order.get("products", []) if isinstance(order, Mapping) else []:
-            raw_codes = (
-                item.get("warehouse_code")
-                or item.get("product_code")
-                or item.get("code", "")
-            )
-            product_code = csv_utils.infer_product_code(item)
-            for code in str(raw_codes).split(";"):
-                code = code.strip()
-                if code:
-                    mapping.setdefault(code, product_code)
-
-        if code_product_map:
-            for code, product_code in code_product_map.items():
-                if code and product_code:
-                    mapping[code] = product_code
-
-        if selected_codes is not None:
-            codes_to_mark = {c.strip() for c in selected_codes if str(c).strip()}
-        else:
-            codes_to_mark = set(mapping)
-
+        codes_to_mark = {c.strip() for c in selected_codes if str(c).strip()}
         if not codes_to_mark:
             return
 
-        marked = csv_utils.mark_warehouse_codes_as_sold(codes_to_mark)
-        if not marked:
+        # Oznacz kody jako sprzedane w pliku magazynu
+        marked_count = csv_utils.mark_warehouse_codes_as_sold(codes_to_mark)
+        if not marked_count:
+            messagebox.showwarning("Błąd", "Nie udało się oznaczyć żadnej karty jako sprzedanej.")
             return
 
+        # Zmniejsz stany magazynowe w pliku sklepu
         product_counts: Counter[str] = Counter()
-        for code in codes_to_mark:
-            product = mapping.get(code)
-            if product:
-                product_counts[product] += 1
+        if code_product_map:
+            for code in codes_to_mark:
+                product = code_product_map.get(code)
+                if product:
+                    product_counts[product] += 1
 
         if product_counts:
             csv_utils.decrement_store_stock(product_counts)
 
+        # Odśwież statystyki i widok magazynu
         if hasattr(self, "update_inventory_stats"):
             try:
-                self.update_inventory_stats()
+                # Wymuś przeliczenie statystyk na nowo
+                self.update_inventory_stats(force=True)
             except Exception:
                 logger.exception("Failed to update inventory stats")
 
@@ -4676,19 +4590,34 @@ class CardEditorApp:
             except Exception:
                 logger.exception("Failed to refresh magazyn window")
 
-        order_id = order.get("order_id") if isinstance(order, Mapping) else None
-        order_id = order_id or (order.get("id") if isinstance(order, Mapping) else None)
+        # Usuń zrealizowane zamówienie z bieżącej listy
+        order_id = order.get("order_id") or order.get("id")
         pending = getattr(self, "pending_orders", None)
         if order_id and isinstance(pending, list):
             self.pending_orders = [
                 o for o in pending if (o.get("order_id") or o.get("id")) != order_id
             ]
 
+        # Odśwież listę zamówień w interfejsie
         if hasattr(self, "orders_output") and getattr(self, "orders_output", None):
             try:
                 self.show_orders(self.orders_output)
-            except Exception:  # pragma: no cover - defensive logging
+            except Exception:
                 logger.exception("Failed to refresh orders view after completion")
+
+        # Pokaż komunikat z podsumowaniem dla użytkownika
+        order_sum_str = str(order.get("sum", "0")).replace(",",".")
+        try:
+            order_value = float(order_sum_str)
+        except (ValueError, TypeError):
+            order_value = 0.0
+
+        messagebox.showinfo(
+            "Operacja zakończona",
+            f"Oznaczono {marked_count} kart jako sprzedane.\n"
+            f"Wartość zamówienia: {order_value:.2f} PLN.\n\n"
+            "Statystyki zostały zaktualizowane."
+        )
 
     def confirm_order(self):
         """Confirm the first pending order and mark codes as sold."""
