@@ -137,7 +137,7 @@ class ShoperClient:
         if include_products:
             includes = params.get("with")
             if not includes:
-                includes = "products,delivery_address,billing_address"
+                includes = "products,delivery_address,billing_address,status,user"
             elif isinstance(includes, (list, tuple, set)):
                 includes = ",".join(str(part) for part in includes if part)
             params["with"] = includes
