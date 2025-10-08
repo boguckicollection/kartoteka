@@ -4233,6 +4233,88 @@ class CardEditorApp:
             payload["images"] = card["image1"]
         return payload
 
+    def _extract_order_products(self, order: Mapping[str, Any] | None) -> list[Mapping[str, Any]]:
+        """Return a flat list of product mappings from ``order``."""
+
+        if not isinstance(order, Mapping):
+            return []
+
+        def _coerce_products(value: Any) -> list[Mapping[str, Any]]:
+            if not value:
+                return []
+            if isinstance(value, Mapping):
+                for key in ("list", "items", "data", "values"):
+                    if key in value:
+                        nested = _coerce_products(value[key])
+                        if nested:
+                            return nested
+                results: list[Mapping[str, Any]] = []
+                if any(
+                    key in value
+                    for key in ("name", "product_id", "quantity", "warehouse_code", "product_code")
+                ):
+                    results.append(value)
+                for subvalue in value.values():
+                    if isinstance(subvalue, (Mapping, list, tuple, set)):
+                        results.extend(_coerce_products(subvalue))
+                return [item for item in results if isinstance(item, Mapping)]
+            if isinstance(value, (list, tuple, set)):
+                collected: list[Mapping[str, Any]] = []
+                for item in value:
+                    collected.extend(_coerce_products(item))
+                return collected
+            return []
+
+        for container_key in ("products", "order_products", "items", "orderItems"):
+            raw = order.get(container_key)
+            if not raw:
+                continue
+            products = _coerce_products(raw)
+            if products:
+                return products
+        return []
+
+    def _prepare_order_items(
+        self, order: Mapping[str, Any] | None
+    ) -> tuple[list[dict[str, Any]], dict[str, str], int]:
+        """Normalise order data into UI-friendly item structures."""
+
+        items: list[dict[str, Any]] = []
+        code_map: dict[str, str] = {}
+        total_quantity = 0
+
+        for item in self._extract_order_products(order):
+            if not isinstance(item, Mapping):
+                continue
+
+            code_raw = (
+                item.get("warehouse_code")
+                or item.get("product_code")
+                or item.get("code", "")
+            )
+            if isinstance(code_raw, (list, tuple, set)):
+                code_display = ";".join(str(c).strip() for c in code_raw if str(c).strip())
+            else:
+                code_display = str(code_raw or "")
+            codes = [c.strip() for c in code_display.split(";") if c.strip()]
+            locations = [self.location_from_code(code) for code in codes]
+            location_text = "; ".join(l for l in locations if l)
+            quantity = _coerce_quantity(item.get("quantity"))
+            total_quantity += quantity
+            product_code = csv_utils.infer_product_code(item)
+            for code in codes:
+                code_map[code] = product_code
+            items.append(
+                {
+                    "name": item.get("name"),
+                    "quantity": quantity,
+                    "code": code_display,
+                    "location": location_text,
+                }
+            )
+
+        return items, code_map, total_quantity
+
     def show_orders(self, widget=None):
         """Display new orders with storage location hints."""
         try:
@@ -4319,38 +4401,16 @@ class CardEditorApp:
                 )
                 total_value = _format_order_total(order)
 
-                items: list[dict[str, Any]] = []
+                items, code_map, total_quantity = self._prepare_order_items(order)
                 lines.append(title)
-
-                total_quantity = 0
-                code_map: dict[str, str] = {}
-                for item in order.get("products", []):
-                    code_raw = (
-                        item.get("warehouse_code")
-                        or item.get("product_code")
-                        or item.get("code", "")
-                    )
-                    codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
-                    locations = [
-                        self.location_from_code(code)
-                        for code in codes
-                    ]
-                    location_text = "; ".join(l for l in locations if l)
-                    quantity = _coerce_quantity(item.get("quantity"))
-                    total_quantity += quantity
-                    product_code = csv_utils.infer_product_code(item)
-                    for code in codes:
-                        code_map[code] = product_code
-                    items.append(
-                        {
-                            "name": item.get("name"),
-                            "quantity": quantity,
-                            "code": code_raw,
-                            "location": location_text,
-                        }
-                    )
+                for product in items:
                     lines.append(
-                        f" - {item.get('name')} x{quantity} [{code_raw}] {location_text}"
+                        " - {name} x{quantity} [{code}] {location}".format(
+                            name=product.get("name"),
+                            quantity=product.get("quantity"),
+                            code=product.get("code", ""),
+                            location=product.get("location", ""),
+                        )
                     )
 
                 rendered_orders.append(
@@ -4441,8 +4501,29 @@ class CardEditorApp:
         items_frame.pack(expand=True, fill="both", padx=20, pady=10)
 
         selection_vars: dict[str, Any] = {}
-        code_to_product: dict[str, str] = {}
-        items = entry.get("items", [])
+        items = entry.get("items") or []
+        code_map_source: Mapping[str, str] | None = (
+            entry.get("_code_map") if isinstance(entry, Mapping) else {}
+        )
+
+        if not items and oid:
+            try:
+                full_order = self.shoper_client.get_order(oid)
+            except Exception:
+                logger.exception("Failed to fetch order %s details", oid)
+            else:
+                if isinstance(full_order, Mapping):
+                    fetched_items, fetched_code_map, _ = self._prepare_order_items(full_order)
+                    if fetched_items:
+                        order = full_order
+                        items = fetched_items
+                        if isinstance(entry, dict):
+                            entry["data"] = full_order
+                            entry["items"] = fetched_items
+                            entry["_code_map"] = fetched_code_map
+                        code_map_source = fetched_code_map
+
+        code_to_product: dict[str, str] = dict(code_map_source or {})
 
         if not items:
             ctk.CTkLabel(
@@ -4499,7 +4580,7 @@ class CardEditorApp:
 
                 for idx, code in enumerate(codes):
                     var = _create_bool_var(True) # Domyślnie zaznaczamy wszystkie
-                    product_code = (entry.get("_code_map") or {}).get(code)
+                    product_code = code_to_product.get(code)
                     if product_code:
                         code_to_product[code] = product_code
 
