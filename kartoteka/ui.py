@@ -4410,6 +4410,47 @@ class CardEditorApp:
             logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
 
+    @staticmethod
+    def _candidate_product_codes(item: Mapping[str, Any] | None) -> list[str]:
+        """Return potential product codes for ``item`` preserving priority."""
+
+        if not isinstance(item, Mapping):
+            return []
+
+        candidates: list[str] = []
+        for key in ("code", "product_code", "producer_code"):
+            value = str(item.get(key) or "").strip()
+            if value and value not in candidates:
+                candidates.append(value)
+
+        inferred = csv_utils.infer_product_code(item)
+        if inferred:
+            normalized = str(inferred).strip()
+            if normalized and normalized not in candidates:
+                candidates.append(normalized)
+
+        return candidates
+
+    @staticmethod
+    def _parse_warehouse_codes(value: Any) -> list[str]:
+        """Split ``value`` into a list of unique warehouse codes."""
+
+        if not value:
+            return []
+
+        if isinstance(value, (list, tuple, set)):
+            raw_codes = value
+        else:
+            raw_codes = str(value).split(";")
+
+        cleaned: list[str] = []
+        for raw in raw_codes:
+            code = str(raw).strip()
+            if code and code not in cleaned:
+                cleaned.append(code)
+
+        return cleaned
+
     def show_order_details(self, entry: Mapping[str, Any] | None):
         """Display order details with a grid of selectable card thumbnails and diagnostic logging."""
         if not entry:
@@ -4450,6 +4491,7 @@ class CardEditorApp:
         items_frame.pack(expand=True, fill="both", padx=20, pady=10)
 
         selection_vars = {}
+        warehouse_map: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
         items = order.get("products", [])
 
         # --- LOGIKA DIAGNOSTYCZNA ---
@@ -4477,14 +4519,32 @@ class CardEditorApp:
                 shoper_code = item.get("code")
                 name = item.get("name", "Brak nazwy")
                 quantity = _coerce_quantity(item.get('quantity'))
-                
+
                 print(f"\n-> Przetwarzanie produktu: '{name}'")
                 print(f"   - Kod z API Shoper: '{shoper_code}'")
 
                 # Upewniamy się, że porównujemy czyste kody (bez spacji itp.)
                 clean_shoper_code = str(shoper_code).strip() if shoper_code else None
-                image_path = product_code_to_image.get(clean_shoper_code)
-                
+                product_codes = self._candidate_product_codes(item)
+                warehouse_codes = self._parse_warehouse_codes(item.get("warehouse_code"))
+
+                for code in product_codes:
+                    bucket = warehouse_map[code]
+                    if warehouse_codes:
+                        existing = {entry.get("warehouse_code") for entry in bucket}
+                        for warehouse_code in warehouse_codes:
+                            if warehouse_code not in existing:
+                                bucket.append({"warehouse_code": warehouse_code})
+                                existing.add(warehouse_code)
+                    elif not bucket:
+                        warehouse_map.setdefault(code, [])
+
+                image_path = None
+                for lookup_code in product_codes:
+                    image_path = product_code_to_image.get(lookup_code)
+                    if image_path:
+                        break
+
                 if image_path:
                     print(f"   - ZNALEZIONO DOPASOWANIE! Link do obrazka: {image_path}")
                 else:
@@ -4494,8 +4554,15 @@ class CardEditorApp:
                     else:
                         print(f"   - Błąd: Kod '{clean_shoper_code}' nie został znaleziony jako klucz w danych z pliku CSV.")
 
+                if product_codes:
+                    print(f"   - Rozpoznane kody produktu: {product_codes}")
+                if warehouse_codes:
+                    print(f"   - Kody magazynowe: {warehouse_codes}")
+                else:
+                    print("   - Brak powiązanych kodów magazynowych.")
+
                 card_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=8)
-                
+
                 thumb_label = ctk.CTkLabel(card_frame, text="?", width=120, height=168, fg_color=FIELD_BG_COLOR, corner_radius=6)
                 thumb_label.pack(padx=10, pady=(10, 5))
                 if image_path:
@@ -4509,14 +4576,17 @@ class CardEditorApp:
                         logger.warning(f"Błąd ładowania miniaturki dla {shoper_code}: {e}")
 
                 ctk.CTkLabel(card_frame, text=name, wraplength=120, font=ctk.CTkFont(size=12)).pack(padx=10, pady=(0, 5))
-                
+
                 var = tk.BooleanVar(value=True)
                 chk = ctk.CTkCheckBox(card_frame, text=f"x{quantity}", variable=var, font=ctk.CTkFont(size=14, weight="bold"))
                 chk.pack(pady=(0, 10))
-                
+
+                selection_data = {"var": var, "quantity": quantity, "lookup_keys": product_codes}
                 if clean_shoper_code:
-                    selection_vars[clean_shoper_code] = {"var": var, "quantity": quantity}
-                
+                    selection_vars[clean_shoper_code] = selection_data
+                elif product_codes:
+                    selection_vars[product_codes[0]] = selection_data
+
                 row, col = divmod(i, 4)
                 card_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
                 items_frame.grid_columnconfigure(col, weight=1)
@@ -4524,7 +4594,7 @@ class CardEditorApp:
         # ... (reszta kodu - przyciski - bez zmian) ...
         buttons = ctk.CTkFrame(top, fg_color="transparent")
         buttons.pack(fill="x", padx=20, pady=(10, 20))
-        buttons.grid_columnconfigure((0, 1), weight=1)
+        buttons.grid_columnconfigure((0, 1, 2), weight=1)
 
         def _mark_selected():
             products_to_sell = { code: data['quantity'] for code, data in selection_vars.items() if data['var'].get() }
@@ -4534,8 +4604,59 @@ class CardEditorApp:
             self.complete_order(order, products_to_sell=products_to_sell)
             top.destroy()
 
+        def _print_list():
+            any_unselected = any(not data["var"].get() for data in selection_vars.values())
+            selected_codes: set[str] = set()
+            for key, data in selection_vars.items():
+                if not data["var"].get():
+                    continue
+                lookups = data.get("lookup_keys", []) or []
+                for lookup in lookups:
+                    if lookup:
+                        selected_codes.add(lookup)
+                if not lookups and key:
+                    selected_codes.add(key)
+
+            entry_for_print: Mapping[str, Any] | None = entry
+            map_for_print: Mapping[str, list[dict[str, str]]] = warehouse_map
+
+            if any_unselected and selected_codes:
+                filtered_items: list[Mapping[str, Any]] = []
+                for item in items:
+                    for candidate in self._candidate_product_codes(item):
+                        if candidate and candidate in selected_codes:
+                            filtered_items.append(item)
+                            break
+
+                if not filtered_items:
+                    messagebox.showwarning("Drukowanie", "Brak zaznaczonych pozycji do wydruku.")
+                    return
+
+                order_copy = dict(order)
+                order_copy["products"] = filtered_items
+                entry_for_print = dict(entry)
+                entry_for_print["data"] = order_copy
+
+                filtered_map: dict[str, list[dict[str, str]]] = {}
+                for item in filtered_items:
+                    for candidate in self._candidate_product_codes(item):
+                        if not candidate:
+                            continue
+                        if candidate in warehouse_map:
+                            filtered_map[candidate] = warehouse_map[candidate]
+                        else:
+                            filtered_map.setdefault(candidate, [])
+                map_for_print = filtered_map or warehouse_map
+
+            try:
+                self.print_order_items(entry_for_print, product_code_to_image, map_for_print)
+            except Exception as exc:
+                logger.exception("Failed to generate print preview: %s", exc)
+                messagebox.showerror("Drukowanie", "Nie udało się przygotować listy do wydruku.")
+
         self.create_button(buttons, text="Oznacz jako sprzedane", command=_mark_selected, fg_color=SAVE_BUTTON_COLOR).grid(row=0, column=0, padx=4, pady=8, sticky="ew")
-        self.create_button(buttons, text="Zamknij", command=top.destroy, fg_color=NAV_BUTTON_COLOR).grid(row=0, column=1, padx=4, pady=8, sticky="ew")
+        self.create_button(buttons, text="Drukuj listę", command=_print_list, fg_color=SAVE_BUTTON_COLOR).grid(row=0, column=1, padx=4, pady=8, sticky="ew")
+        self.create_button(buttons, text="Zamknij", command=top.destroy, fg_color=NAV_BUTTON_COLOR).grid(row=0, column=2, padx=4, pady=8, sticky="ew")
 
     def complete_order(
         self,
@@ -4616,9 +4737,14 @@ class CardEditorApp:
             name = item.get("name") or "Brak nazwy"
             quantity = _coerce_quantity(item.get('quantity'))
             total_quantity += quantity
-            product_code = item.get("code")
+            product_codes = self._candidate_product_codes(item)
+            display_code = product_codes[0] if product_codes else ""
 
-            image_path = image_map.get(product_code)
+            image_path = None
+            for code in product_codes:
+                image_path = image_map.get(code)
+                if image_path:
+                    break
             img_tag = '<div style="width:80px; height:112px; border:1px solid #ccc; text-align:center; display:flex; align-items:center; justify-content:center; background:#f0f0f0; margin-right:20px; border-radius:4px;">?</div>'
             if image_path and os.path.exists(image_path):
                 try:
@@ -4630,13 +4756,20 @@ class CardEditorApp:
                     logger.warning(f"Could not embed image {image_path}: {e}")
 
             # Znajdź kody magazynowe do pobrania
-            codes_to_pick = warehouse_map.get(product_code, [])[:quantity]
+            codes_to_pick: list[Mapping[str, Any]] = []
+            for code in product_codes:
+                options = warehouse_map.get(code)
+                if options:
+                    codes_to_pick = list(options)[:quantity]
+                    break
 
             html_parts.append("<div class='item'>")
             html_parts.append(img_tag)
             html_parts.append("<div class='item-info'>")
             html_parts.append(f"<div class='item-name'>{html.escape(name)} (x{quantity})</div>")
-            html_parts.append(f"<div class='item-details'><b>Kod produktu:</b> {html.escape(product_code or '')}</div>")
+            html_parts.append(
+                f"<div class='item-details'><b>Kod produktu:</b> {html.escape(display_code or '')}</div>"
+            )
             if codes_to_pick:
                 for code in codes_to_pick:
                     location = self.location_from_code(code.get('warehouse_code', ''))
