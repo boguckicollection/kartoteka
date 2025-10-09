@@ -232,7 +232,9 @@ def decrement_store_stock(
     """Decrease stock values in the store CSV based on ``quantities``.
 
     Each key in ``quantities`` represents a ``product_code`` and its value the
-    number of copies to deduct.  Rows reaching zero stock are removed entirely.
+    number of copies to deduct.  Rows that reach zero availability remain in
+    the file with their ``availability`` (and ``stock`` when present) set to
+    ``"0"``.
 
     Returns the total number of stock units deducted across all products.
     """
@@ -268,8 +270,11 @@ def decrement_store_stock(
     except FileNotFoundError:
         return 0
 
+    fieldnames = list(fieldnames)
+    if "availability" not in fieldnames:
+        fieldnames.append("availability")
     if "stock" not in fieldnames:
-        fieldnames = list(fieldnames) + ["stock"]
+        fieldnames.append("stock")
 
     updated_rows: list[dict[str, str]] = []
     deducted_total = 0
@@ -281,22 +286,25 @@ def decrement_store_stock(
             updated_rows.append(row)
             continue
 
+        availability_raw = row.get("availability")
+        if availability_raw in (None, ""):
+            availability_raw = row.get("stock")
+
         try:
-            stock = int(str(row.get("stock") or "0"))
+            availability = int(str(availability_raw or "0"))
         except ValueError:
-            stock = 0
+            availability = 0
 
-        if stock <= 0:
-            continue
-
-        deducted = min(stock, qty)
-        remaining = stock - deducted
+        deducted = min(availability, qty)
+        remaining = availability - deducted
         deducted_total += deducted
 
-        if remaining > 0:
-            updated = dict(row)
-            updated["stock"] = str(remaining)
-            updated_rows.append(updated)
+        updated = dict(row)
+        remaining_str = str(max(remaining, 0))
+        updated["availability"] = remaining_str
+        if "stock" in fieldnames:
+            updated["stock"] = remaining_str
+        updated_rows.append(updated)
 
     if deducted_total == 0:
         return 0
