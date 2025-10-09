@@ -1,18 +1,14 @@
 import csv
-from pathlib import Path
-import sys
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import kartoteka.csv_utils as csv_utils
 
 
-def test_decrement_store_stock_updates_availability(tmp_path):
+def test_decrement_store_stock_updates_rows(tmp_path):
     csv_path = tmp_path / "store.csv"
     csv_path.write_text(
-        "product_code;name;availability;stock\n"
-        "PKM-SET-1C;Card A;1;1\n"
-        "PKM-SET-2C;Card B;3;3\n",
+        "product_code;name;stock\n"
+        "PKM-SET-1C;Card A;1\n"
+        "PKM-SET-2C;Card B;3\n",
         encoding="utf-8",
     )
 
