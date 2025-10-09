@@ -8,21 +8,26 @@ import os
 import csv
 import json
 import requests
+import urllib3
 import base64
 import mimetypes
 import re
-import copy
-import asyncio
 import datetime
 import time
-from collections import defaultdict
+import math
+import asyncio
+import platform
+import shutil
+import subprocess
+import tempfile
+from collections import Counter, defaultdict
 from dotenv import load_dotenv, set_key
 import unicodedata
 from itertools import combinations
 import html
 import difflib
 import sys
-from typing import Iterable, Optional
+from typing import Any, Iterable, Mapping, Optional, Awaitable
 from types import SimpleNamespace
 from pydantic import BaseModel
 import pytesseract
@@ -50,9 +55,119 @@ from . import csv_utils, storage, stats_utils
 import threading
 from urllib.parse import urlencode, urlparse
 import io
+import array
 import webbrowser
 import logging
 from gettext import gettext as _
+from http.client import RemoteDisconnected
+
+
+def _is_mock_object(obj: object) -> bool:
+    """Return ``True`` if ``obj`` appears to originate from ``unittest.mock``."""
+
+    module = getattr(type(obj), "__module__", "") or ""
+    name = getattr(type(obj), "__name__", "") or ""
+    return module.startswith(("unittest.mock", "mock")) or "mock" in name.lower()
+
+
+def _create_bool_var(value: bool = False):
+    try:
+        return tk.BooleanVar(value=value)
+    except (tk.TclError, RuntimeError):
+        class _Var:
+            def __init__(self, default: bool):
+                self._value = bool(default)
+
+            def get(self) -> bool:
+                return self._value
+
+            def set(self, new_value: bool) -> None:
+                self._value = bool(new_value)
+
+        return _Var(value)
+
+
+def _coerce_quantity(value: Any) -> int:
+    if value is None:
+        return 0
+    try:
+        if isinstance(value, str):
+            cleaned = value.replace(" ", "").replace(",", ".")
+            return max(0, int(float(cleaned)))
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _extract_numeric(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        match = re.findall(r"-?\d+[\.,]?\d*", text.replace(" ", ""))
+        if not match:
+            return None
+        try:
+            return float(match[-1].replace(",", "."))
+        except ValueError:
+            return None
+    if isinstance(value, Mapping):
+        for key in (
+            "gross",
+            "total_gross",
+            "brutto",
+            "value",
+            "amount",
+            "total",
+            "with_tax",
+            "to_pay",
+        ):
+            if key in value:
+                result = _extract_numeric(value[key])
+                if result is not None:
+                    return result
+        for subvalue in value.values():
+            result = _extract_numeric(subvalue)
+            if result is not None:
+                return result
+        return None
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            result = _extract_numeric(item)
+            if result is not None:
+                return result
+    return None
+
+
+def _format_order_total(order: Mapping[str, Any] | None) -> str:
+    if not isinstance(order, Mapping):
+        return ""
+
+    currency = (
+        str(
+            order.get("currency")
+            or order.get("order_currency")
+            or order.get("summary", {}).get("currency")
+            or "PLN"
+        )
+        .strip()
+        .upper()
+    )
+
+    for key in ("sum", "summary", "total", "amount", "order_value", "payment"):
+        if key in order:
+            result = _extract_numeric(order[key])
+            if result is not None:
+                return f"{result:.2f} {currency or 'PLN'}"
+
+    result = _extract_numeric(order)
+    if result is None:
+        return ""
+    return f"{result:.2f} {currency or 'PLN'}"
 try:  # pragma: no cover - optional dependency
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -98,6 +213,7 @@ ENV_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 load_dotenv(ENV_FILE)
 
 logger = logging.getLogger(__name__)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/upload/images")
 SCANS_DIR = os.getenv("SCANS_DIR", "scans")
@@ -107,6 +223,7 @@ RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
 SHOPER_API_URL = os.getenv("SHOPER_API_URL", "").strip()
 SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN", "").strip()
+SHOPER_CLIENT_ID = os.getenv("SHOPER_CLIENT_ID", "").strip()
 WEBDAV_URL = os.getenv("WEBDAV_URL")
 WEBDAV_USER = os.getenv("WEBDAV_USER")
 WEBDAV_PASSWORD = os.getenv("WEBDAV_PASSWORD")
@@ -125,6 +242,157 @@ HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
 HASH_MATCH_THRESHOLD = 5  # maximum allowed fingerprint distance
 HASH_SIZE = (32, 32)
 PSA_ICON_URL = "https://www.pngkey.com/png/full/231-2310791_psa-grading-standards-professional-sports-authenticator.png"
+
+CARD_TYPE_LABELS = {"C": "Common", "H": "Holo", "R": "Reverse"}
+CARD_TYPE_DEFAULT = "C"
+
+
+def normalize_card_type_code(value: Any, *, default: str = CARD_TYPE_DEFAULT) -> str:
+    return csv_utils.normalize_variant_code(value, default=default)
+
+
+def infer_card_type_code(data: Mapping[str, Any] | None) -> str:
+    return csv_utils.infer_variant_code(data)
+
+
+def card_type_label(code: Any) -> str:
+    normalized = normalize_card_type_code(code)
+    return CARD_TYPE_LABELS.get(normalized, CARD_TYPE_LABELS[CARD_TYPE_DEFAULT])
+
+
+def card_type_flags(code: Any) -> dict[str, bool]:
+    normalized = normalize_card_type_code(code)
+    return {
+        "Reverse": normalized == "R",
+        "Holo": normalized == "H",
+    }
+
+
+class OrdersListView(ctk.CTkScrollableFrame):
+    """Scrollable list view tailored for displaying Shoper orders."""
+
+    def __init__(self, master, **kwargs):
+        kwargs.setdefault("fg_color", LIGHT_BG_COLOR)
+        super().__init__(master, **kwargs)
+        self._order_cards: list[tk.Widget] = []
+        self._empty_label: ctk.CTkLabel | None = None
+        self._title_font = ctk.CTkFont(size=16, weight="bold")
+        self._meta_font = ctk.CTkFont(size=13)
+        self._item_font = ctk.CTkFont(size=14)
+        self._order_payloads: list[dict[str, Any]] = []
+        self._on_select = None
+
+    def _clear_placeholder(self) -> None:
+        if self._empty_label is not None:
+            self._empty_label.destroy()
+            self._empty_label = None
+
+    def set_order_handler(self, callback) -> None:
+        """Register ``callback`` invoked when an order card is clicked."""
+
+        self._on_select = callback
+
+    def _handle_select(self, order: dict) -> None:
+        if self._on_select is None:
+            return
+        try:
+            self._on_select(order)
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Failed to handle order selection")
+
+    def clear_orders(self) -> None:
+        """Remove all rendered order cards from the view."""
+
+        self._clear_placeholder()
+        for card in self._order_cards:
+            try:
+                card.destroy()
+            except Exception:
+                logger.exception("Failed to destroy order card widget")
+        self._order_cards.clear()
+        self._order_payloads.clear()
+
+    def render_orders(self, orders: list[dict[str, Any]]) -> None:
+        """Render ``orders`` inside the scrollable frame."""
+
+        self.clear_orders()
+        if not orders:
+            self._empty_label = ctk.CTkLabel(
+                self,
+                text="Brak zamówień do wyświetlenia",
+                text_color=TEXT_COLOR,
+                font=self._item_font,
+            )
+            self._empty_label.pack(pady=20)
+            return
+
+        for entry in orders:
+            card = ctk.CTkFrame(self, fg_color=BG_COLOR, corner_radius=12)
+            card.pack(fill="x", expand=True, padx=12, pady=8)
+            self._order_cards.append(card)
+            self._order_payloads.append(entry)
+            payload = entry
+
+            title = entry.get("title") or "Zamówienie"
+            ctk.CTkLabel(
+                card,
+                text=title,
+                text_color=TEXT_COLOR,
+                font=self._title_font,
+                anchor="w",
+                justify="left",
+            ).pack(anchor="w", padx=16, pady=(12, 4))
+
+            meta_parts: list[str] = []
+            status = entry.get("status")
+            if isinstance(status, dict): # Pobieramy nazwę z obiektu status
+                status_name = status.get('name')
+                if status_name:
+                    meta_parts.append(f"Status: {status_name}")
+            elif status:
+                meta_parts.append(f"Status: {status}")
+
+            customer = entry.get("customer")
+            if customer:
+                meta_parts.append(f"Klient: {customer}")
+
+            created = entry.get("created")
+            if created:
+                # Formatujemy datę do czytelniejszej postaci
+                try:
+                    date_obj = datetime.datetime.fromisoformat(created)
+                    meta_parts.append(f"Data: {date_obj.strftime('%Y-%m-%d %H:%M')}")
+                except (ValueError, TypeError):
+                    meta_parts.append(f"Data: {created}")
+
+            total_value = entry.get("total")
+            if total_value:
+                meta_parts.append(f"Wartość: {total_value}")
+
+            quantity = entry.get("quantity")
+            if quantity not in (None, ""):
+                meta_parts.append(f"Liczba sztuk: {quantity}")
+
+            if meta_parts:
+                ctk.CTkLabel(
+                    card,
+                    text="  •  ".join(meta_parts),
+                    text_color="#DDDDDD",
+                    font=self._meta_font,
+                    anchor="w",
+                    justify="left",
+                ).pack(anchor="w", padx=16, pady=(0, 10))
+
+            def _bind_clicks(widget):
+                bind = getattr(widget, "bind", None)
+                if callable(bind):
+                    bind("<Button-1>", lambda _e, data=payload: self._handle_select(data))
+                children = getattr(widget, "winfo_children", None)
+                if callable(children):
+                    for child in children():
+                        _bind_clicks(child)
+
+            _bind_clicks(card)
 
 # toggle automatic fingerprint lookup via environment variable
 AUTO_HASH_LOOKUP = os.getenv("AUTO_HASH_LOOKUP", "1") not in {"0", "false", "False"}
@@ -150,8 +418,140 @@ _LOGO_HASHES: dict[str, tuple[imagehash.ImageHash, imagehash.ImageHash, imagehas
 _IMAGE_CACHE_TTL = 300  # seconds
 _IMAGE_CACHE: dict[str, tuple[Optional[bytes], float]] = {}
 
+
+def _coerce_image_bytes(data: object, *, _seen: Optional[set[int]] = None) -> Optional[bytes]:
+    """Return ``data`` converted to raw bytes if possible.
+
+    Several tests and code paths patch ``requests`` responses with lightweight
+    stand-ins such as :class:`io.BytesIO`, ``memoryview`` or other buffer-like
+    wrappers.  This helper normalises those objects so that ``_load_image`` can
+    feed stable byte streams to :func:`load_rgba_image`.
+    """
+
+    if data is None:
+        return None
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data)
+    if isinstance(data, memoryview):
+        return data.tobytes()
+    if isinstance(data, array.array):
+        try:
+            return data.tobytes()
+        except (TypeError, AttributeError):
+            return None
+
+    if _seen is None:
+        _seen = set()
+    obj_id = id(data)
+    if obj_id in _seen:
+        return None
+    _seen.add(obj_id)
+
+    if _is_mock_object(data):
+        return None
+
+    # ``io.BytesIO`` exposes ``getvalue``; some wrappers expose ``read`` or
+    # ``getbuffer``.  Try the most common conversion hooks before falling back
+    # to ``bytes()`` which may raise or yield textual representations.
+    for attr in ("getbuffer", "tobytes"):
+        func = getattr(data, attr, None)
+        if callable(func):
+            try:
+                candidate = func()
+            except TypeError:
+                continue
+            result = _coerce_image_bytes(candidate, _seen=_seen)
+            if result is not None:
+                return result
+
+    for attr in ("getvalue", "read"):
+        func = getattr(data, attr, None)
+        if callable(func):
+            try:
+                candidate = func()
+            except TypeError:
+                try:
+                    candidate = func(-1)
+                except Exception:
+                    continue
+            result = _coerce_image_bytes(candidate, _seen=_seen)
+            if result is not None:
+                return result
+
+    if isinstance(data, str):
+        try:
+            return data.encode("latin-1")
+        except Exception:
+            return None
+
+    try:
+        candidate = bytes(data)
+    except Exception:
+        return None
+    return candidate
+
+
+def _normalize_requests_exceptions() -> None:
+    """Ensure :mod:`requests` exposes real exception classes.
+
+    Some test suites substitute ``requests`` with :class:`unittest.mock.MagicMock`
+    prior to reloading this module.  In that scenario the attributes under
+    ``requests.exceptions`` become mocks as well which breaks retry logic that
+    relies on ``isinstance`` checks.  Replace any missing or mocked exception
+    types with lightweight stand-ins derived from :class:`Exception`.
+    """
+
+    exc_mod = getattr(requests, "exceptions", None)
+    if exc_mod is None or _is_mock_object(exc_mod):
+        exc_mod = SimpleNamespace()
+        requests.exceptions = exc_mod  # type: ignore[assignment]
+
+    fallback_bases: dict[str, type[BaseException]] = {
+        "RequestException": Exception,
+        "HTTPError": Exception,
+        "SSLError": Exception,
+        "ConnectionError": Exception,
+    }
+
+    for name, base in fallback_bases.items():
+        candidate = getattr(exc_mod, name, None)
+        if isinstance(candidate, type) and issubclass(candidate, BaseException):
+            continue
+        fallback = type(f"Requests{name}", (base,), {})
+        setattr(exc_mod, name, fallback)
+
+    # Ensure top-level aliases (``requests.RequestException`` etc.) exist.
+    for attr, exc_name in (
+        ("RequestException", "RequestException"),
+        ("HTTPError", "HTTPError"),
+        ("ConnectionError", "ConnectionError"),
+    ):
+        candidate = getattr(requests, attr, None)
+        resolved = getattr(exc_mod, exc_name)
+        if isinstance(candidate, type) and issubclass(candidate, BaseException):
+            continue
+        setattr(requests, attr, resolved)
+
+
+_normalize_requests_exceptions()
+
 # cache for resized thumbnails keyed by source path/URL
 _THUMB_CACHE: dict[str, Image.Image] = {}
+
+_REMOTE_IMAGE_HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+
+def _download_remote_image(url: str, *, verify: bool) -> bytes:
+    """Return raw image bytes fetched from ``url``."""
+
+    response = requests.get(
+        url,
+        timeout=5,
+        headers=_REMOTE_IMAGE_HEADERS,
+        verify=verify,
+    )
+    response.raise_for_status()
+    return response.content
 
 
 def draw_box_usage(canvas: "tk.Canvas", box_num: int, occupancy: dict[int, int]) -> float:
@@ -261,41 +661,56 @@ def _load_image(path: str) -> Optional[Image.Image]:
             else:
                 # expire stale entry
                 _IMAGE_CACHE.pop(path, None)
+        def _valid_exceptions(*candidates: object) -> tuple[type[BaseException], ...]:
+            valid: list[type[BaseException]] = []
+            for exc in candidates:
+                if isinstance(exc, type) and issubclass(exc, BaseException):
+                    valid.append(exc)
+            return tuple(valid)
+
+        download_errors = _valid_exceptions(
+            getattr(requests.exceptions, "RequestException", Exception),
+            getattr(urllib3.exceptions, "HTTPError", Exception),
+            RemoteDisconnected,
+        )
+        retryable_errors = _valid_exceptions(
+            getattr(requests.exceptions, "SSLError", Exception),
+            getattr(requests.exceptions, "ConnectionError", Exception),
+            getattr(urllib3.exceptions, "ProtocolError", Exception),
+            getattr(urllib3.exceptions, "MaxRetryError", Exception),
+            getattr(urllib3.exceptions, "NewConnectionError", Exception),
+            RemoteDisconnected,
+        )
+
+        def _cache_failure() -> None:
+            _IMAGE_CACHE[path] = (None, time.time() - _IMAGE_CACHE_TTL - 1)
+
         try:
-            resp = requests.get(path, timeout=5)
-            resp.raise_for_status()
-            data = resp.content
-            _IMAGE_CACHE[path] = (data, time.time())
-            img = load_rgba_image(io.BytesIO(data))
-            if img is not None:
-                return img
-            return None
-        except requests.exceptions.SSLError as exc:
-            logger.warning("SSL error while downloading image %s: %s", path, exc)
-            retry_path = path
-            if path.startswith("https://"):
-                retry_path = "http://" + path[len("https://"):]
+            data = _download_remote_image(path, verify=True)
+        except retryable_errors:
             try:
-                resp = requests.get(retry_path, timeout=5, verify=False)
-                resp.raise_for_status()
-                data = resp.content
-                _IMAGE_CACHE[path] = (data, time.time())
-                img = load_rgba_image(io.BytesIO(data))
-                if img is not None:
-                    return img
+                data = _download_remote_image(path, verify=False)
+            except download_errors as exc:
+                logger.warning("Failed to download image %s: %s", path, exc)
+                _cache_failure()
                 return None
-            except requests.RequestException as exc2:
-                logger.warning(
-                    "Failed to download image %s after SSL retry: %s",
-                    retry_path,
-                    exc2,
-                )
-                _IMAGE_CACHE[path] = (None, time.time())
-                return None
-        except requests.RequestException as exc:
+        except download_errors as exc:
             logger.warning("Failed to download image %s: %s", path, exc)
-            _IMAGE_CACHE[path] = (None, time.time())
+            _cache_failure()
             return None
+
+        data_bytes = _coerce_image_bytes(data)
+        if data_bytes is None:
+            logger.warning("Unexpected image payload type %s for %s", type(data), path)
+            _cache_failure()
+            return None
+
+        img = load_rgba_image(io.BytesIO(data_bytes))
+        if img is not None:
+            _IMAGE_CACHE[path] = (data_bytes, time.time())
+            return img
+        _cache_failure()
+        return None
 
     return None
 
@@ -406,6 +821,7 @@ except ValueError:
 BG_COLOR = "#3A3A3A"
 # lighter variant for subtle section backgrounds
 LIGHT_BG_COLOR = "#4A4A4A"
+FIELD_BG_COLOR = "#5A5A5A"  # even lighter for input fields
 ACCENT_COLOR = "#666666"
 HOVER_COLOR = "#525252"
 TEXT_COLOR = "#FFFFFF"
@@ -419,6 +835,11 @@ MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
 AUCTION_BUTTON_COLOR = "#E74C3C"  # red
 STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
+# shared colors for common actions
+SAVE_BUTTON_COLOR = SCAN_BUTTON_COLOR
+FETCH_BUTTON_COLOR = PRICE_BUTTON_COLOR
+NAV_BUTTON_COLOR = ACCENT_COLOR
+
 # color highlighting current price labels
 CURRENT_PRICE_COLOR = "#FFD700"
 
@@ -429,7 +850,7 @@ SOLD_COLOR = os.getenv("SOLD_COLOR", "#888888")
 
 # Layout constants to simplify future adjustments
 BOX_THUMB_SIZE = 128  # square thumbnail size for warehouse boxes in pixels
-BOX100_X_INSET = int(BOX_THUMB_SIZE * 235 / 600)
+BOX100_X_INSET = int(BOX_THUMB_SIZE * 175 / 600)
 BOX100_Y_INSET = int(BOX_THUMB_SIZE * 50 / 600)
 CARD_THUMB_SIZE = 160  # larger card thumbnails in the warehouse list
 # Maximum allowed size for card thumbnails; used to cap dynamic calculations
@@ -479,6 +900,7 @@ def norm_header(name: str) -> str:
 
 def sanitize_number(value: str) -> str:
     """Remove leading zeros from a number string.
+
     Returns
     -------
     str
@@ -491,36 +913,141 @@ def sanitize_number(value: str) -> str:
 
 
 
-"""Placeholder data structures for set information.
+# Wczytanie danych setów
+def reload_sets():
+    """Load set definitions from the JSON files."""
+    global tcg_sets_eng_by_era, tcg_sets_eng_map, tcg_sets_eng, tcg_sets_eng_code_map
+    global tcg_sets_jp_by_era, tcg_sets_jp_map, tcg_sets_jp, tcg_sets_jp_code_map
+    global tcg_sets_eng_abbr_map, tcg_sets_eng_abbr_name_map
+    global tcg_sets_jp_abbr_map, tcg_sets_jp_abbr_name_map
+    global tcg_sets_name_to_abbr, tcg_sets_jp_name_to_abbr
+    global SET_TO_ERA
 
-The application previously loaded extensive set metadata from JSON files. This
-data is no longer bundled with the project, so the following mappings remain
-empty and act only as compatibility placeholders.
-"""
+    tcg_sets_eng_code_map = globals().get("tcg_sets_eng_code_map", {})
+    tcg_sets_jp_code_map = globals().get("tcg_sets_jp_code_map", {})
+    tcg_sets_eng_abbr_map = globals().get("tcg_sets_eng_abbr_map", {})
+    tcg_sets_eng_abbr_name_map = globals().get("tcg_sets_eng_abbr_name_map", {})
+    tcg_sets_jp_abbr_map = globals().get("tcg_sets_jp_abbr_map", {})
+    tcg_sets_jp_abbr_name_map = globals().get("tcg_sets_jp_abbr_name_map", {})
+    tcg_sets_name_to_abbr = globals().get("tcg_sets_name_to_abbr", {})
+    tcg_sets_jp_name_to_abbr = globals().get("tcg_sets_jp_name_to_abbr", {})
+    SET_TO_ERA = {}
 
-tcg_sets_eng_by_era: dict = {}
-tcg_sets_eng_map: dict = {}
-tcg_sets_eng: list = []
-tcg_sets_eng_code_map: dict = {}
-tcg_sets_jp_by_era: dict = {}
-tcg_sets_jp_map: dict = {}
-tcg_sets_jp: list = []
-tcg_sets_jp_code_map: dict = {}
-tcg_sets_eng_abbr_map: dict = {}
-tcg_sets_eng_abbr_name_map: dict = {}
-tcg_sets_jp_abbr_map: dict = {}
-tcg_sets_jp_abbr_name_map: dict = {}
-tcg_sets_name_to_abbr: dict = {}
-tcg_sets_jp_name_to_abbr: dict = {}
-SET_TO_ERA: dict = {}
+    try:
+        with open("tcg_sets.json", encoding="utf-8") as f:
+            tcg_sets_eng_by_era = json.load(f)
+    except FileNotFoundError:
+        tcg_sets_eng_by_era = {}
+    tcg_sets_eng_map = {
+        item["name"]: item["code"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+    }
+    tcg_sets_eng_code_map = {
+        item["code"]: item["name"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+    }
+    tcg_sets_eng_abbr_map = {
+        item["abbr"]: item["code"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
+    tcg_sets_eng_abbr_name_map = {
+        item["abbr"]: item["name"]
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
+    tcg_sets_name_to_abbr = {
+        item["name"]: item.get("abbr", "")
+        for sets in tcg_sets_eng_by_era.values()
+        for item in sets
+    }
+    tcg_sets_eng = [
+        item["name"] for sets in tcg_sets_eng_by_era.values() for item in sets
+    ]
+    for era, sets in tcg_sets_eng_by_era.items():
+        for item in sets:
+            SET_TO_ERA[item["code"].lower()] = era
+            SET_TO_ERA[item["name"].lower()] = era
+            if "abbr" in item:
+                SET_TO_ERA[item["abbr"].lower()] = era
 
-OPENAI_ERAS: list[str] = []
-OPENAI_SETS: list[str] = []
+    try:
+        with open("tcg_sets_jp.json", encoding="utf-8") as f:
+            tcg_sets_jp_by_era = json.load(f)
+    except FileNotFoundError:
+        tcg_sets_jp_by_era = {}
+    tcg_sets_jp_map = {
+        item["name"]: item["code"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+    }
+    tcg_sets_jp_code_map = {
+        item["code"]: item["name"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+    }
+    tcg_sets_jp_abbr_map = {
+        item["abbr"]: item["code"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
+    tcg_sets_jp_abbr_name_map = {
+        item["abbr"]: item["name"]
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+        if "abbr" in item
+    }
+    tcg_sets_jp_name_to_abbr = {
+        item["name"]: item.get("abbr", "")
+        for sets in tcg_sets_jp_by_era.values()
+        for item in sets
+    }
+    tcg_sets_jp = [
+        item["name"] for sets in tcg_sets_jp_by_era.values() for item in sets
+    ]
+    for era, sets in tcg_sets_jp_by_era.items():
+        for item in sets:
+            SET_TO_ERA[item["code"].lower()] = era
+            SET_TO_ERA[item["name"].lower()] = era
+            if "abbr" in item:
+                SET_TO_ERA[item["abbr"].lower()] = era
+
+
+reload_sets()
+
+# Allowed eras and set codes used for logo operations
+ALLOWED_ERAS = {
+    "Scarlet & Violet",
+    "Sword & Shield",
+    "Sun & Moon",
+    "XY",
+    "Black & White",
+}
+
 ALLOWED_SET_CODES: set[str] = set()
 
 
 def refresh_logo_cache() -> bool:
-    """Reload logo hashes from :data:`SET_LOGO_DIR`."""
+    """Regenerate ``ALLOWED_SET_CODES`` and reload logo hashes.
+
+    Returns
+    -------
+    bool
+        ``True`` when logo hashes were loaded successfully.
+    """
+
+    global ALLOWED_SET_CODES
+    ALLOWED_SET_CODES = {
+        item["code"]
+        for era, sets in tcg_sets_eng_by_era.items()
+        if era in ALLOWED_ERAS
+        for item in sets
+    }
     success = load_logo_hashes()
     if not success:
         messagebox.showwarning(
@@ -534,18 +1061,81 @@ refresh_logo_cache()
 
 
 def get_set_code(name: str) -> str:
+    """Return the API code for a set name or abbreviation if available."""
+    if not name:
+        return ""
+    search = name.strip()
+    # remove trailing language or other short alphabetic suffixes like "EN", "JP"
+    search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
+    search = search.strip().lower()
+    for mapping in (
+        tcg_sets_eng_map,
+        tcg_sets_jp_map,
+        tcg_sets_eng_abbr_map,
+        tcg_sets_jp_abbr_map,
+    ):
+        for key, code in mapping.items():
+            if key.lower() == search:
+                return code
+    return name
+
+
+def get_set_name(code: str) -> str:
+    """Return the display name for a set code or abbreviation if available."""
+    if not code:
+        return ""
+    search = code.strip().lower()
+    for mapping in (
+        tcg_sets_eng_code_map,
+        tcg_sets_jp_code_map,
+        tcg_sets_eng_abbr_name_map,
+        tcg_sets_jp_abbr_name_map,
+    ):
+        for key, name in mapping.items():
+            if key.lower() == search:
+                return name
+    logger.warning(
+        "Nie znaleziono nazwy dla setu '%s'. Weryfikacja ręczna wymagana.",
+        code,
+    )
+    return code
 
 
 def get_set_abbr(name: str) -> str:
-    """Return the set abbreviation if available."""
+    """Return the abbreviation for a set name if available.
+
+    Parameters
+    ----------
+    name:
+        Display name or abbreviation of the set.
+
+    Returns
+    -------
+    str
+        Matching abbreviation or an empty string when not found.
+    """
+
+    if not name:
+        return ""
+    search = name.strip()
+    # remove trailing language or other short alphabetic suffixes like "EN", "JP"
+    search = re.sub(r"[-_\s]+[a-z]{1,2}$", "", search, flags=re.IGNORECASE)
+    lowered = search.lower()
+    for mapping in (tcg_sets_name_to_abbr, tcg_sets_jp_name_to_abbr):
+        for key, abbr in mapping.items():
+            if key.lower() == lowered or (abbr and abbr.lower() == lowered):
+                return abbr or ""
     return ""
 
 
 def get_set_era(code_or_name: str) -> str:
-    """Return the era as provided."""
-    return (code_or_name or "").strip()
-
-
+    """Return the era name for a given set code or display name."""
+    if not code_or_name:
+        return ""
+    search = code_or_name.strip()
+    search = re.sub(r"[-_\s]+[a-z]{1,3}$", "", search, flags=re.IGNORECASE)
+    search = search.strip().lower()
+    return SET_TO_ERA.get(search, "")
 
 def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     """Return possible set codes and names for the given card info.
@@ -961,6 +1551,7 @@ def identify_set_by_hash(
     symbol_hash = str(crop_hashes[0])
     for best_code, diff in results[:4]:
         logger.debug("Hash %s -> %s (%s)", symbol_hash, best_code, diff)
+    return [(code, get_set_name(code), diff) for code, diff in results[:4]]
 
 
 def extract_set_code_ocr(
@@ -1050,9 +1641,7 @@ class CardInfo(BaseModel):
 
 
 # ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
-def extract_card_info_openai(
-    path: str, available_sets: Iterable[str] | None = None
-) -> tuple[str, str, str, str, str, str, str]:
+def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, str]:
     """Recognize card name, number, set, and its format using OpenAI Vision.
 
     Returns a tuple ``(name, number, total, era_name, set_name, set_code, set_format)``.
@@ -1066,6 +1655,7 @@ def extract_card_info_openai(
             try:
                 r = requests.get(path, timeout=10)
                 r.raise_for_status()
+                mime = r.headers.get("Content-Type") or mimetypes.guess_type(path)[0] or "image/jpeg"
                 encoded = base64.b64encode(r.content).decode("utf-8")
             except requests.RequestException as e:
                 logger.warning("extract_card_info_openai failed to fetch image: %s", e)
@@ -1085,6 +1675,18 @@ def extract_card_info_openai(
             return "", "", "", "", "", "", ""
         client = openai.OpenAI(api_key=api_key)
 
+        PROMPT = (
+            "You must return a JSON object with the Pokémon card's English name, "
+            "card number in the form NNN/NNN, English set name, era name, and whether "
+            "the set is written as text or shown as a symbol. The response must strictly "
+            'match {"name":"", "number":"", "set_name":"", "era_name":"", "set_format":""}.'
+        )
+
+        try:
+            resp = client.responses.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                response_format={"type": "json_object"},
+                input=[
                     {
                         "role": "user",
                         "content": [
@@ -1093,7 +1695,10 @@ def extract_card_info_openai(
                         ],
                     }
                 ],
-
+                max_output_tokens=150,
+            )
+            raw = getattr(resp, "output_text", "")
+            raw = raw.strip().strip("`")
             if raw.startswith("json"):
                 raw = raw[len("json") :].lstrip()
             match = re.search(r"{.*}", raw, re.DOTALL)
@@ -1104,6 +1709,44 @@ def extract_card_info_openai(
                     "extract_card_info_openai got empty response from OpenAI: %r",
                     resp,
                 )
+                return "", "", "", "", "", "", ""
+            try:
+                data_dict = json.loads(raw)
+            except json.JSONDecodeError:
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                return "", "", "", "", "", "", ""
+        except TypeError:
+            resp = client.responses.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": PROMPT},
+                            {"type": "input_image", "image_url": data_url},
+                        ],
+                    }
+                ],
+                max_output_tokens=150,
+            )
+            raw = getattr(resp, "output_text", "")
+            raw = raw.strip().strip("`")
+            if raw.startswith("json"):
+                raw = raw[len("json") :].lstrip()
+            match = re.search(r"{.*}", raw, re.DOTALL)
+            if match:
+                raw = match.group(0)
+            if not raw:
+                logger.error(
+                    "extract_card_info_openai got empty response from OpenAI: %r",
+                    resp,
+                )
+                return "", "", "", "", "", "", ""
+            try:
+                data_dict = json.loads(raw)
+            except json.JSONDecodeError:
+                logger.error("OpenAI returned non-JSON: %r", raw)
+                return "", "", "", "", "", "", ""
 
         data = data_dict
 
@@ -1118,17 +1761,19 @@ def extract_card_info_openai(
 
         name = data.get("name") or ""
         set_name = data.get("set_name") or ""
-        set_code = data.get("set_code") or ""
         set_format = data.get("set_format") or ""
+        set_code = ""
+        if set_name:
+            set_code = get_set_code(set_name)
+            mapped = get_set_name(set_code)
+            if mapped:
+                set_name = mapped
         era_name = data.get("era_name") or ""
-        if not set_name and not set_code:
-            logger.warning("OpenAI Vision did not return set information")
-        if not era_name:
-            logger.warning("OpenAI Vision did not return era information")
         return name, number, total, era_name, set_name, set_code, set_format
     except Exception as e:
         logger.warning("extract_card_info_openai failed: %s", e)
         return "", "", "", "", "", "", ""
+
 # ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
 def analyze_card_image(
     path: str,
@@ -1175,20 +1820,10 @@ def analyze_card_image(
     set_format = ""
     era_name = ""
 
-    step = 1
-
-    def log_step(message: str) -> None:
-        nonlocal step
-        print(f"[INFO] Step {step}: {message}")
-        step += 1
-
-    hash_candidates: list[str] = []
-    ocr_results: dict[tuple[int, int, int, int], list[str]] = {}
-
     try:
         # --- PRIORITY 1: Local hash lookup for the set symbol ---
         if local_path:
-            log_step("Matching set symbol via hash...")
+            print("[INFO] Step 1: Matching set symbol via hash...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
@@ -1203,17 +1838,15 @@ def analyze_card_image(
                             logger.exception("preview callback failed")
                     potential = identify_set_by_hash(local_path, candidate)
                     if potential:
-                        hash_candidates.extend(name for _, name, _ in potential)
                         code, name_match, diff = potential[0]
                         if diff <= HASH_DIFF_THRESHOLD:
                             rect = candidate
                             set_code = code
                             set_name = name_match
-                            if not era_name:
-                                logger.warning("Hash lookup did not provide era information")
                             print(
-                                f"[SUCCESS] Local hash analysis found a match: {set_name}"
+                                f"[SUCCESS] Local hash analysis found a match: {name_match}"
                             )
+                            era_name = get_set_era(set_code) or get_set_era(set_name)
                             result = {
                                 "name": name,
                                 "number": number,
@@ -1230,29 +1863,12 @@ def analyze_card_image(
             except (OSError, UnidentifiedImageError, ValueError) as e:
                 logger.warning("Hash lookup failed: %s", e)
 
-        set_candidates: set[str] = set(hash_candidates)
-        if local_path:
-            try:
-                if not rects:
-                    rects = [(0, 0, 0, 0)]
-                for candidate in rects:
-                    codes = extract_set_code_ocr(local_path, candidate, debug)
-                    ocr_results[candidate] = codes
-                    for code in codes:
-                        set_candidates.add(code)
-            except Exception as e:
-                logger.warning("OCR candidate collection failed: %s", e)
-
-        available_sets = sorted(set_candidates) if set_candidates else None
-
         # --- PRIORITY 2: OpenAI Vision ---
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
-            log_step("Analyzing with OpenAI Vision...")
+            print("[INFO] Step 2: Analyzing with OpenAI Vision...")
             try:
-                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(
-                    path, available_sets
-                )
+                name, number, total, era_name, set_name, set_code, set_format = extract_card_info_openai(path)
 
                 if translate_name and name and not name.isascii():
                     name = translate_to_english(name)
@@ -1261,7 +1877,7 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}"
                     )
-                    era = era_name or ""
+                    era = era_name or get_set_era(set_code) or get_set_era(set_name)
                     result = {
                         "name": name,
                         "number": number,
@@ -1287,18 +1903,9 @@ def analyze_card_image(
         else:
             print("[WARN] No OpenAI API key. Skipping to OCR.")
 
-        if local_path and (not name or not number):
-            ocr_name, ocr_number, ocr_total = extract_name_number_ocr(local_path)
-            if not name:
-                name = ocr_name
-            if not number:
-                number = ocr_number
-            if not total:
-                total = ocr_total
-
         # --- PRIORITY 3: TCGGO API Lookup (if name and number are known) ---
         if name and number:
-            log_step("Looking up sets via TCGGO API...")
+            print("[INFO] Step 3: Looking up sets via TCGGO API...")
             try:
                 api_sets = lookup_sets_from_api(name, number, total or None)
                 if len(api_sets) == 1:
@@ -1306,8 +1913,7 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] TCGGO API found a single match: {api_set_name}"
                     )
-                    era = ""
-                    logger.warning("TCGGO API did not return era information")
+                    era = get_set_era(set_code) or get_set_era(api_set_name)
                     result = {
                         "name": name,
                         "number": number,
@@ -1328,8 +1934,7 @@ def analyze_card_image(
                         "[INFO] TCGGO API found multiple matches. "
                         f"Selecting first result: {selected_name}"
                     )
-                    era = ""
-                    logger.warning("TCGGO API did not return era information")
+                    era = get_set_era(set_code) or get_set_era(selected_name)
                     result = {
                         "name": name,
                         "number": number,
@@ -1349,7 +1954,7 @@ def analyze_card_image(
 
         # --- PRIORITY 4: OCR fallback ---
         if local_path:
-            log_step("Performing OCR fallback...")
+            print("[INFO] Step 4: Performing OCR fallback...")
             try:
                 if not rects:
                     rects = [(0, 0, 0, 0)]
@@ -1362,46 +1967,36 @@ def analyze_card_image(
                             preview_cb(candidate, preview_image)
                         except Exception as exc:
                             logger.exception("preview callback failed")
-                    ocr_codes = ocr_results.get(candidate)
-                    if ocr_codes is None:
-                        ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
+                    ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
                     for code in ocr_codes:
-                        rect = candidate
-                        set_code = code
-                        set_name = code
-                        print(f"[SUCCESS] OCR recognized set code: {set_name}")
-                        break
-                    era = era_name
-                    if not era:
-                        logger.warning("OCR did not provide era information")
-                    if set_name:
-                        result = {
-                            "name": name,
-                            "number": number,
-                            "total": total,
-                            "set": set_name,
-                            "set_code": set_code,
-                            "orientation": orientation,
-                            "set_format": set_format,
-                            "era": era,
-                        }
-                        if debug and rect:
-                            result["rect"] = rect
-                        return result
-                    if set_code:
-                        print(f"[WARN] OCR produced set code without name: {set_code}")
-                        set_name = ""
-                        set_code = ""
+                        name_lookup = get_set_name(code)
+                        if name_lookup and name_lookup != code:
+                            rect = candidate
+                            set_code = code
+                            set_name = name_lookup
+                            print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
+                            era = get_set_era(set_code) or get_set_era(set_name)
+                            result = {
+                                "name": name,
+                                "number": number,
+                                "total": total,
+                                "set": set_name,
+                                "set_code": set_code,
+                                "orientation": orientation,
+                                "set_format": set_format,
+                                "era": era,
+                            }
+                            if debug and rect:
+                                result["rect"] = rect
+                            return result
+                        else:
+                            print(f"[WARN] OCR produced unknown set code: {code}")
             except Exception:
                 logger.exception("OCR analysis failed")
 
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
-        if not set_name and not set_code:
-            logger.warning("No source provided set information")
-        if not era_name:
-            logger.warning("No source provided era information")
-        era = era_name
+        era = era_name or get_set_era(set_code) or get_set_era(set_name)
         result = {
             "name": name,
             "number": number,
@@ -1459,7 +2054,7 @@ class CardEditorApp:
         self.price_db = self.load_price_db()
         self.folder_name = ""
         self.folder_path = ""
-
+        self.sets_file = "tcg_sets.json"
         self.progress_var = tk.StringVar(value="0/0 (0%)")
         self.start_box_var = tk.StringVar(value="1")
         self.start_col_var = tk.StringVar(value="1")
@@ -1472,6 +2067,24 @@ class CardEditorApp:
         self.magazyn_frame = None
         self.location_frame = None
         self.auction_frame = None
+        self.auction_preview_window = None
+        self.auction_preview_tree = None
+        self.auction_preview_next_var = None
+        self.auction_preview_image_label = None
+        self.auction_preview_photo = None
+        self.auction_preview_name_var = tk.StringVar(value="")
+        self.auction_preview_price_var = tk.StringVar(value="Cena: -")
+        self.auction_preview_start_var = tk.StringVar(value="")
+        self.auction_preview_time_var = tk.StringVar(value="30")
+        self.auction_preview_step_var = tk.StringVar(value="")
+        self.auction_preview_timer_var = tk.StringVar(value="0 s")
+        self.auction_preview_leader_var = tk.StringVar(value="-")
+        self.auction_preview_amount_var = tk.StringVar(value="-")
+        self._auction_preview_selected_index: Optional[int] = None
+        self._auction_preview_updating = False
+        self._auction_preview_trace_ids: list[tuple[tk.Variable, str]] = []
+        self.auction_run_window = None
+        self.bot = None
         self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
         self.mag_percent_labels: dict[tuple[int, int], ctk.CTkLabel] = {}
         self.mag_labels: list[ctk.CTkLabel] = []
@@ -1946,15 +2559,26 @@ class CardEditorApp:
         ctk.CTkEntry(folder_frame, textvariable=self.scan_folder_var, width=300).grid(
             row=0, column=1, padx=5
         )
-        self.create_button(folder_frame, text="Wybierz", command=self.select_scan_folder).grid(row=0, column=2, padx=5)
+        self.create_button(
+            folder_frame,
+            text="Wybierz",
+            command=self.select_scan_folder,
+            fg_color=FETCH_BUTTON_COLOR,
+        ).grid(row=0, column=2, padx=5)
 
         button_frame = ctk.CTkFrame(frame)
         button_frame.pack(pady=5)
         self.create_button(
-            button_frame, text="Dalej", command=self.start_browse_scans
+            button_frame,
+            text="Dalej",
+            command=self.start_browse_scans,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=0, column=0, padx=5, pady=5)
         self.create_button(
-            button_frame, text="Powrót", command=self.back_to_welcome
+            button_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=0, column=1, padx=5, pady=5)
 
     def select_scan_folder(self):
@@ -2043,33 +2667,56 @@ class CardEditorApp:
         orders_tab = self.shoper_tabs.tab("Zamówienia")
 
         orders_tab.columnconfigure(0, weight=1)
-        orders_tab.rowconfigure(0, weight=1)
+        orders_tab.rowconfigure(1, weight=1)
 
-        orders_output = tk.Text(
+        ctk.CTkLabel(
             orders_tab,
-            height=10,
-            bg=self.root.cget("background"),
-            fg="white",
-        )
-        orders_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+            text="Lista zamówień",
+            text_color=TEXT_COLOR,
+            font=ctk.CTkFont(size=18, weight="bold"),
+            anchor="w",
+            justify="left",
+        ).grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
+
+        orders_output = OrdersListView(orders_tab)
+        orders_output.grid(row=1, column=0, sticky="nsew", padx=10, pady=(10, 5))
         self.orders_output = orders_output
+        if hasattr(orders_output, "set_order_handler"):
+            orders_output.set_order_handler(self.show_order_details)
+        # Trigger an initial refresh so the list is populated immediately using
+        # the same code path (and error handling) as the manual refresh button.
+        if hasattr(self.root, "after_idle"):
+            self.root.after_idle(lambda: self.show_orders(self.orders_output))
+        else:
+            self.show_orders(self.orders_output)
+
+        buttons_frame = ctk.CTkFrame(orders_tab, fg_color=BG_COLOR, corner_radius=12)
+        buttons_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
+        buttons_frame.grid_columnconfigure((0, 1), weight=1, uniform="orders_buttons")
 
         self.create_button(
-            orders_tab,
-            text="Zamówienia",
+            buttons_frame,
+            text="Odśwież zamówienia",
             command=self.show_orders,
-        ).grid(row=1, column=0, pady=5)
+            fg_color=FETCH_BUTTON_COLOR,
+            width=220,
+            height=55,
+        ).grid(row=0, column=0, padx=10, pady=12, sticky="ew")
 
         self.create_button(
-            orders_tab,
+            buttons_frame,
             text="Potwierdź zamówienie",
             command=self.confirm_order,
-        ).grid(row=2, column=0, pady=5)
+            fg_color=SAVE_BUTTON_COLOR,
+            width=220,
+            height=55,
+        ).grid(row=0, column=1, padx=10, pady=12, sticky="ew")
 
         self.create_button(
             self.shoper_frame,
             text="Powrót",
             command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=2, column=0, pady=5)
 
     def push_product(self, widget):
@@ -2093,11 +2740,9 @@ class CardEditorApp:
             data = self.shoper_client.add_product(payload)
             product_id = data.get("product_id") or data.get("id")
             try:
-                attr_values = [
-                    name
-                    for name, var in self.type_vars.items()
-                    if getattr(var, "get", lambda: False)()
-                ]
+                card_type_code = normalize_card_type_code(card.get("card_type"))
+                attr_value = card_type_label(card_type_code)
+                attr_values = [attr_value] if attr_value else []
                 if product_id and attr_values:
                     cache = getattr(self, "_attribute_cache", {})
                     attr_id = cache.get("Typ")
@@ -2153,11 +2798,19 @@ class CardEditorApp:
             self.location_frame = None
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
+        if getattr(self, "auction_run_window", None):
+            try:
+                self.auction_run_window.close()
+            except Exception:
+                pass
+            finally:
+                self.auction_run_window = None
         if getattr(self, "statistics_frame", None):
             self.statistics_frame.destroy()
             self.statistics_frame = None
         try:
             import bot
+            self.bot = bot
             if not getattr(bot, "_thread_started", False):
                 threading.Thread(target=bot.run_bot, daemon=True).start()
                 bot._thread_started = True
@@ -2337,11 +2990,17 @@ class CardEditorApp:
                 self.statistics_chart.get_tk_widget().destroy()
                 self.statistics_chart = None
 
-        ctk.CTkButton(filter_frame, text="Odśwież", command=_update).pack(
-            side="left", padx=5
-        )
+        ctk.CTkButton(
+            filter_frame,
+            text="Odśwież",
+            command=_update,
+            fg_color=FETCH_BUTTON_COLOR,
+        ).pack(side="left", padx=5)
         self.create_button(
-            self.statistics_frame, text="Powrót", command=self.back_to_welcome
+            self.statistics_frame,
+            text="Powrót",
+            command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(pady=5)
         _update()
 
@@ -2354,78 +3013,121 @@ class CardEditorApp:
         self.auction_image_label.pack(pady=5)
         self.auction_photo = None
 
+        self.selected_card_name_var = tk.StringVar(value="")
+        tk.Label(
+            left_panel,
+            textvariable=self.selected_card_name_var,
+            bg=self.root.cget("background"),
+            fg="white",
+            font=("Segoe UI", 16, "bold"),
+        ).pack(anchor="w", pady=(0, 2))
+
+        self.selected_card_price_var = tk.StringVar(value="Aktualna cena: -")
+        tk.Label(
+            left_panel,
+            textvariable=self.selected_card_price_var,
+            bg=self.root.cget("background"),
+            fg="white",
+            font=("Segoe UI", 16, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
+
+        form = tk.Frame(left_panel, bg=self.root.cget("background"))
+        form.pack(pady=5, anchor="w")
+
+        labels = ["Cena start", "Kwota przebicia", "Czas [s]"]
+        vars = []
+        for lbl in labels:
+            tk.Label(form, text=lbl, bg=self.root.cget("background"), fg="white").pack(anchor="w")
+            var = tk.StringVar()
+            ctk.CTkEntry(form, textvariable=var, width=100).pack(anchor="w", pady=2)
+            vars.append(var)
 
         self.current_price_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=self.current_price_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
-
-        tk.Label(left_panel, text="Prowadzi:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        self.leader_var = tk.StringVar()
-        tk.Label(left_panel, textvariable=self.leader_var, bg=self.root.cget("background"), fg="white").pack(anchor="w")
-
-        tk.Label(left_panel, text="Pozostały czas:", bg=self.root.cget("background"), fg="white").pack(anchor="w")
-        self.remaining_time_var = tk.StringVar()
 
         win = tk.Frame(container, bg=self.root.cget("background"))
         win.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-
-        form = tk.Frame(win, bg=self.root.cget("background"))
-        form.pack(pady=5)
-
-        labels = ["Nazwa karty", "Numer", "Cena start", "Kwota przebicia", "Czas [s]"]
-        vars = []
-        for i, lbl in enumerate(labels):
-
-            var = tk.StringVar()
-            ctk.CTkEntry(form, textvariable=var, width=100).grid(row=1, column=i, padx=2)
-            vars.append(var)
         style = ttk.Style(win)
         style.configure(
             "Auction.Treeview",
             background=BG_COLOR,
             fieldbackground=BG_COLOR,
             foreground=TEXT_COLOR,
+            font=("Segoe UI", 14),
         )
         style.map("Auction.Treeview", background=[("selected", HOVER_COLOR)])
         style.configure(
             "Auction.Treeview.Heading",
-            background=ACCENT_COLOR,
+            background=NAV_BUTTON_COLOR,
             foreground=TEXT_COLOR,
+            font=("Segoe UI", 14, "bold"),
         )
         style.map(
             "Auction.Treeview.Heading",
-            background=[("active", HOVER_COLOR)]
+            background=[("active", HOVER_COLOR), ("pressed", HOVER_COLOR)],
+            foreground=[("active", TEXT_COLOR), ("pressed", TEXT_COLOR)],
         )
+
+        def sort_tree(tree, col, reverse):
+            sort_flags = getattr(tree, "_sort_reverse", {})
+            actual_reverse = sort_flags.get(col, reverse)
+
+            def parse_value(value):
+                if value is None:
+                    return (1, "")
+                if isinstance(value, str):
+                    stripped = value.strip()
+                else:
+                    stripped = value
+                if isinstance(stripped, str):
+                    try:
+                        number = float(stripped.replace(",", "."))
+                    except ValueError:
+                        return (1, stripped.lower())
+                    else:
+                        return (0, number)
+                return (0, stripped)
+
+            items = list(tree.get_children(""))
+            items.sort(key=lambda item: parse_value(tree.set(item, col)), reverse=actual_reverse)
+            for index, item in enumerate(items):
+                tree.move(item, "", index)
+
+            sort_flags[col] = not actual_reverse
+            setattr(tree, "_sort_reverse", sort_flags)
 
         tree = ttk.Treeview(
             win,
             columns=("name", "price", "warehouse_code"),
             show="headings",
-            height=8,
+            height=15,
             style="Auction.Treeview",
         )
-        for col, txt in [
-            ("name", "Karta"),
-            ("price", "Cena"),
-            ("warehouse_code", "Kod magazynu"),
+        tree._sort_reverse = {}
+        for col, txt, width in [
+            ("name", "Karta", 200),
+            ("price", "Cena", 80),
+            ("warehouse_code", "Kod magazynu", 120),
         ]:
-            tree.heading(col, text=txt)
-        tree.pack(expand=True, fill="both", padx=10, pady=10)
+            if col in {"name", "price"}:
+                tree.heading(col, text=txt, command=lambda c=col: sort_tree(tree, c, False))
+            else:
+                tree.heading(col, text=txt)
+            tree.column(col, width=width, stretch=True)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
 
         self.info_var = tk.StringVar()
-
         tk.Label(
-
             win,
             textvariable=self.info_var,
             bg=self.root.cget("background"),
             fg="white",
+            font=("Segoe UI", 16, "bold"),
         ).pack(pady=2)
 
         status_frame = tk.Frame(win, bg=self.root.cget("background"))
         status_frame.pack(pady=2)
 
         tk.Label(
-
             status_frame,
             text="Aktualna cena:",
             bg=self.root.cget("background"),
@@ -2436,35 +3138,22 @@ class CardEditorApp:
             textvariable=self.current_price_var,
             bg=self.root.cget("background"),
             fg=CURRENT_PRICE_COLOR,
+            font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=1, padx=2, sticky="w")
 
-        tk.Label(
-            status_frame,
-            text="Pozostały czas:",
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=2, padx=2, sticky="e")
-        tk.Label(
-            status_frame,
-            textvariable=self.remaining_time_var,
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=3, padx=2, sticky="w")
-
-        tk.Label(
-            status_frame,
-            text="Prowadzi:",
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=4, padx=2, sticky="e")
-        tk.Label(
-            status_frame,
-            textvariable=self.leader_var,
-            bg=self.root.cget("background"),
-            fg="white",
-        ).grid(row=0, column=5, padx=2, sticky="w")
-
-        def refresh_tree():
+        def refresh_tree(select_index: Optional[int] = None):
+            try:
+                current_selection = tree.selection()
+            except tk.TclError:
+                current_selection = ()
+            current_index: Optional[int] = None
+            if current_selection:
+                try:
+                    current_index = tree.index(current_selection[0])
+                except tk.TclError:
+                    current_index = None
+            if select_index is not None:
+                current_index = select_index
             for r in tree.get_children():
                 tree.delete(r)
             for row in self.auction_queue:
@@ -2487,31 +3176,30 @@ class CardEditorApp:
                     self.info_var.set(f"Następna karta: {nazwa}")
             else:
                 self.info_var.set("Brak kart w kolejce")
-            if not tree.selection():
-                items = tree.get_children()
-                if items:
-                    tree.selection_set(items[0])
+                name_var = getattr(self, "selected_card_name_var", None)
+                if name_var is not None:
+                    name_var.set("")
+                price_var = getattr(self, "selected_card_price_var", None)
+                if price_var is not None:
+                    price_var.set("Aktualna cena: -")
+            items = tree.get_children()
+            target_index: Optional[int] = current_index
+            if not items:
+                try:
+                    tree.selection_remove(tree.selection())
+                except tk.TclError:
+                    pass
+                target_index = None
+            else:
+                if target_index is None or not (0 <= target_index < len(items)):
+                    target_index = 0
+                try:
+                    tree.selection_set(items[target_index])
+                    tree.focus(items[target_index])
+                except tk.TclError:
+                    pass
             show_selected()
-
-        def find_scan(name: str, num: str) -> Optional[str]:
-            name = name.strip().lower().replace(" ", "_")
-            num = num.strip().lower().replace("/", "-")
-            candidates = [
-                f"{name}_{num}",
-                f"{name}-{num}",
-                f"{name} {num}",
-                num,
-            ]
-            exts = [".jpg", ".png", ".jpeg"]
-            base_dir = SCANS_DIR
-            for root_dir, _d, files in os.walk(base_dir):
-                lower = {f.lower(): f for f in files}
-                for cand in candidates:
-                    for ext in exts:
-                        fname = cand + ext
-                        if fname in lower:
-                            return os.path.join(root_dir, lower[fname])
-            return None
+            self.refresh_auction_preview(select_index=target_index)
 
         def load_image(path: Optional[str]):
             if not path:
@@ -2528,7 +3216,7 @@ class CardEditorApp:
                         return
                 if img is None:
                     return
-                img.thumbnail((200, 280))
+                img.thumbnail((400, 560))
                 photo = _create_image(img)
                 self.auction_photo = photo
                 self.auction_image_label.configure(image=photo)
@@ -2536,170 +3224,772 @@ class CardEditorApp:
                 logger.warning("Failed to load auction image %s: %s", path, exc)
 
         def show_selected(event=None):
+            name_var = getattr(self, "selected_card_name_var", None)
+            if name_var is not None:
+                name_var.set("")
+            price_var = getattr(self, "selected_card_price_var", None)
+            if price_var is not None:
+                price_var.set("Aktualna cena: -")
+            self._current_auction_row = None
             sel = tree.selection()
             if not sel:
                 return
             idx = tree.index(sel[0])
             if 0 <= idx < len(self.auction_queue):
                 row = self.auction_queue[idx]
-                path = row.get("images 1") or find_scan(
+                self._current_auction_row = row
+                if name_var is not None:
+                    name = (row.get("name") or row.get("nazwa_karty") or row.get("nazwa") or "").strip()
+                    number = (
+                        row.get("numer_karty")
+                        or row.get("number")
+                        or row.get("numer")
+                        or ""
+                    ).strip()
+                    display = name
+                    if number:
+                        display = f"{display} ({number})" if display else number
+                    name_var.set(display)
+                if price_var is not None:
+                    price_value = (
+                        row.get("price")
+                        or row.get("cena_początkowa")
+                        or row.get("cena")
+                        or row.get("start_price")
+                    )
+                    if price_value not in (None, ""):
+                        price_var.set(f"Aktualna cena: {price_value}")
+                    else:
+                        price_var.set("Aktualna cena: -")
+                path = row.get("images 1") or self._guess_scan_path(
                     row.get("nazwa_karty", ""), row.get("numer_karty", "")
                 )
                 load_image(path)
 
         def add_row():
-            name, num, start, step, czas = [v.get().strip() for v in vars]
-            if not name or not num:
-                messagebox.showerror("Błąd", "Podaj nazwę i numer karty")
-                return
+            start, step, czas = [v.get().strip() for v in vars]
+            selected = getattr(self, "_current_auction_row", None)
+
+            def _entry_value(key: str) -> str:
+                entries = getattr(self, "entries", None)
+                if isinstance(entries, dict):
+                    widget = entries.get(key)
+                    if widget is not None:
+                        getter = getattr(widget, "get", None)
+                        if callable(getter):
+                            try:
+                                return str(getter()).strip()
+                            except Exception:
+                                return ""
+                return ""
+
+            name = ""
+            number = ""
+            base_price = ""
+            if isinstance(selected, dict):
+                name = (
+                    str(
+                        selected.get("nazwa_karty")
+                        or selected.get("name")
+                        or selected.get("nazwa")
+                        or ""
+                    ).strip()
+                )
+                number = (
+                    str(
+                        selected.get("numer_karty")
+                        or selected.get("number")
+                        or selected.get("numer")
+                        or ""
+                    ).strip()
+                )
+                base_price = str(
+                    selected.get("price")
+                    or selected.get("cena")
+                    or selected.get("cena_początkowa")
+                    or ""
+                ).strip()
+            if not name:
+                name = _entry_value("nazwa") or _entry_value("name")
+            if not number:
+                number = _entry_value("numer") or _entry_value("number")
+            if not base_price:
+                base_price = _entry_value("cena") or _entry_value("price")
+
+            start_price = start or base_price or "0"
+            price_value = base_price or start_price
             row = {
                 "nazwa_karty": name,
-                "numer_karty": num,
+                "numer_karty": number,
                 "opis": "",
-                "cena_początkowa": start or "0",
+                "cena_początkowa": start_price,
                 "kwota_przebicia": step or "1",
-                "czas_trwania": czas or "60",
+                "czas_trwania": czas or "30",
+                "price": price_value,
             }
+            if isinstance(selected, dict):
+                for key in ("warehouse_code", "images 1"):
+                    value = selected.get(key)
+                    if value:
+                        row[key] = value
             self.auction_queue.append(row)
             for v in vars:
                 v.set("")
-            refresh_tree()
-
-        def remove_selected():
-            sel = tree.selection()
-            for item_id in reversed(sel):
-                idx = tree.index(item_id)
-                tree.delete(item_id)
-                if 0 <= idx < len(self.auction_queue):
-                    self.auction_queue.pop(idx)
-            refresh_tree()
+            refresh_tree(select_index=len(self.auction_queue) - 1)
 
         def import_selected():
-            rows = []
-            treeview = getattr(self, "inventory_tree", None)
-            if treeview and str(treeview.winfo_exists()) == "1":
-                codes = [treeview.item(i, "values")[0] for i in treeview.selection()]
-                if codes:
-                    try:
-                        rows = self.read_inventory_rows(codes, csv_utils.WAREHOUSE_CSV)
-                    except (OSError, csv.Error, UnicodeDecodeError) as exc:
-                        logger.exception("Failed to read inventory rows")
-                        messagebox.showerror("Błąd", str(exc))
-                        return
+            previous_count = len(self.auction_queue)
+            rows = self.load_auction_list()
             if not rows:
-                path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
-                if not path:
-                    return
-                try:
-                    rows = self.read_inventory_rows([], path)
-                except (OSError, csv.Error, UnicodeDecodeError) as exc:
-                    logger.exception("Failed to read inventory rows")
-                    messagebox.showerror("Błąd", str(exc))
-                    return
-            self.auction_queue.extend(rows)
+                return
             refresh_tree()
+            if getattr(self, "auction_frame", None):
+                try:
+                    self.auction_frame.destroy()
+                except tk.TclError:
+                    pass
+                self.auction_frame = None
+            if self.auction_queue:
+                initial_index = min(previous_count, len(self.auction_queue) - 1)
+            else:
+                initial_index = None
+            self.open_auction_preview_window(self.auction_queue, initial_index)
+            self.open_auction_run_window()
 
-        def save_queue():
-            fieldnames = [
-                "nazwa_karty",
-                "numer_karty",
-                "opis",
-                "cena_początkowa",
-                "kwota_przebicia",
-                "czas_trwania",
-            ]
-            with open("aukcje.csv", "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in self.auction_queue:
-                    writer.writerow(row)
-            try:
-                import bot
-
-                bot.aukcje_kolejka.clear()
-                for r in self.auction_queue:
-                    aukcja = bot.Aukcja(
-                        r.get("nazwa_karty"),
-                        r.get("numer_karty"),
-                        r.get("opis"),
-                        r.get("cena_początkowa"),
-                        r.get("kwota_przebicia"),
-                        r.get("czas_trwania"),
-                    )
-                    bot.aukcje_kolejka.append(aukcja)
-            except Exception:
-                logger.exception("Failed to update bot auction queue")
-            messagebox.showinfo("Aukcje", "Kolejka zapisana do aukcje.csv")
-
-        btn_frame = tk.Frame(win, bg=self.root.cget("background"))
-        btn_frame.pack(pady=5)
-        self.create_button(btn_frame, text="Dodaj", command=add_row).pack(
-            side="left", padx=5
-        )
+        button_bar = tk.Frame(win, bg=self.root.cget("background"))
+        button_bar.pack(pady=10)
         self.create_button(
-            btn_frame, text="Wczytaj zaznaczone", command=import_selected
+            button_bar,
+            text="Dodaj",
+            command=add_row,
+            fg_color=SAVE_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            btn_frame, text="Usuń zaznaczone", command=remove_selected
-        ).pack(side="left", padx=5)
-        self.create_button(btn_frame, text="Zapisz", command=save_queue).pack(
-            side="left", padx=5
-        )
-
-
-        control_frame = tk.Frame(win, bg=self.root.cget("background"))
-        control_frame.pack(pady=5)
-
-        def start_auction():
-            try:
-                import bot
-                asyncio.run_coroutine_threadsafe(
-                    bot.start_next_auction(), bot.bot.loop
-                )
-            except Exception as e:
-                logger.exception("Failed to start auction")
-                messagebox.showerror("Błąd", str(e))
-
-        def next_card():
-            start_auction()
-
-        pause_btn = self.create_button(control_frame, text="⏸ Pauza")
-        pause_btn.pack(side="left", padx=5)
-
-        def reload_queue():
-            try:
-                self._load_auction_queue()
-                refresh_tree()
-            except (OSError, csv.Error, UnicodeDecodeError, ValueError) as exc:
-                logger.exception("Failed to reload auction queue")
-                messagebox.showerror("Błąd", str(exc))
-
-        def toggle_pause():
-            try:
-                import bot
-                bot.paused = not bot.paused
-                pause_btn.configure(text="▶ Wznów" if bot.paused else "⏸ Pauza")
-            except (ImportError, AttributeError) as e:
-                logger.exception("Failed to toggle pause")
-                messagebox.showerror("Błąd", str(e))
-
-        self.create_button(
-            control_frame, text="Start aukcji", command=start_auction
+            button_bar,
+            text="Wczytaj listę",
+            command=import_selected,
+            fg_color=FETCH_BUTTON_COLOR,
         ).pack(side="left", padx=5)
         self.create_button(
-            control_frame, text="Następna karta", command=next_card
-        ).pack(side="left", padx=5)
-        pause_btn.configure(command=toggle_pause)
-        self.create_button(
-            control_frame, text="Wczytaj ponownie", command=reload_queue
-        ).pack(side="left", padx=5)
-        self.create_button(
-            control_frame, text="Powrót do menu", command=self.back_to_welcome
+            button_bar,
+            text="Powrót do menu",
+            command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         tree.bind("<<TreeviewSelect>>", show_selected)
 
         return refresh_tree
+
+    def load_auction_list(self) -> Optional[list[dict]]:
+        """Prompt for auction rows and append them to ``self.auction_queue``."""
+
+        rows: list[dict] = []
+        treeview = getattr(self, "inventory_tree", None)
+        if treeview is not None:
+            try:
+                exists = str(treeview.winfo_exists()) == "1"
+            except tk.TclError:
+                exists = False
+            else:
+                if exists:
+                    try:
+                        selection = treeview.selection()
+                        codes = [treeview.item(i, "values")[0] for i in selection]
+                    except tk.TclError:
+                        codes = []
+                    if codes:
+                        try:
+                            rows = self.read_inventory_rows(
+                                codes, csv_utils.WAREHOUSE_CSV
+                            )
+                        except (OSError, csv.Error, UnicodeDecodeError) as exc:
+                            logger.exception("Failed to read inventory rows")
+                            messagebox.showerror("Błąd", str(exc))
+                            return None
+        if not rows:
+            path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+            if not path:
+                return None
+            try:
+                rows = self.read_inventory_rows([], path)
+            except (OSError, csv.Error, UnicodeDecodeError) as exc:
+                logger.exception("Failed to read inventory rows")
+                messagebox.showerror("Błąd", str(exc))
+                return None
+        if not rows:
+            return None
+        self.auction_queue.extend(rows)
+        self.refresh_auction_preview()
+        return rows
+
+    def open_auction_preview_window(
+        self,
+        cards: Optional[Iterable[dict]] = None,
+        initial_index: Optional[int] = None,
+    ):
+        """Open the auction preview window with queue details and controls."""
+
+        existing = getattr(self, "auction_preview_window", None)
+        if existing:
+            try:
+                if str(existing.winfo_exists()) == "1":
+                    existing.destroy()
+            except tk.TclError:
+                pass
+        self._clear_auction_preview_traces()
+        self.auction_preview_window = None
+        self.auction_preview_tree = None
+        self.auction_preview_next_var = None
+        self.auction_preview_image_label = None
+        self.auction_preview_photo = None
+        self._auction_preview_selected_index = None
+
+        top = ctk.CTkToplevel(self.root)
+        top.title("Podgląd licytacji")
+        try:
+            top.configure(fg_color=BG_COLOR)
+        except tk.TclError:
+            pass
+        try:
+            top.minsize(520, 360)
+        except tk.TclError:
+            pass
+        if hasattr(top, "transient"):
+            top.transient(self.root)
+        if hasattr(top, "lift"):
+            top.lift()
+        self.auction_preview_window = top
+
+        container = ctk.CTkFrame(top, fg_color=BG_COLOR)
+        container.pack(expand=True, fill="both", padx=10, pady=10)
+        container.grid_columnconfigure(0, weight=1)
+        container.grid_columnconfigure(1, weight=1)
+        container.grid_rowconfigure(2, weight=1)
+
+        ctk.CTkLabel(
+            container,
+            text="Podgląd kolejki licytacji",
+            font=("Segoe UI", 28, "bold"),
+            text_color=TEXT_COLOR,
+        ).grid(row=0, column=0, columnspan=2, pady=(0, 10))
+
+        next_var = tk.StringVar()
+        self.auction_preview_next_var = next_var
+        ctk.CTkLabel(
+            container,
+            textvariable=next_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20),
+        ).grid(row=1, column=0, columnspan=2, pady=(0, 10))
+
+        main_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        main_frame.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        main_frame.grid_columnconfigure(0, weight=3)
+        main_frame.grid_columnconfigure(1, weight=2)
+        main_frame.grid_rowconfigure(0, weight=1)
+
+        style = ttk.Style(top)
+        style.configure(
+            "AuctionPreview.Treeview",
+            background=BG_COLOR,
+            fieldbackground=BG_COLOR,
+            foreground=TEXT_COLOR,
+            font=("Segoe UI", 14),
+        )
+        style.map("AuctionPreview.Treeview", background=[("selected", HOVER_COLOR)])
+        style.configure(
+            "AuctionPreview.Treeview.Heading",
+            background=NAV_BUTTON_COLOR,
+            foreground=TEXT_COLOR,
+            font=("Segoe UI", 14, "bold"),
+        )
+        style.map(
+            "AuctionPreview.Treeview.Heading",
+            background=[("active", HOVER_COLOR), ("pressed", HOVER_COLOR)],
+            foreground=[("active", TEXT_COLOR), ("pressed", TEXT_COLOR)],
+        )
+
+        list_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        list_frame.grid_rowconfigure(0, weight=1)
+        list_frame.grid_columnconfigure(0, weight=1)
+
+        tree = ttk.Treeview(
+            list_frame,
+            columns=("name", "number", "start", "step", "time"),
+            show="headings",
+            style="AuctionPreview.Treeview",
+        )
+        headings = [
+            ("name", "Karta", "w", 280),
+            ("number", "Numer", "center", 120),
+            ("start", "Cena startowa", "center", 120),
+            ("step", "Minimalne przebicie", "center", 150),
+            ("time", "Czas [s]", "center", 90),
+        ]
+        for column, text, anchor, width in headings:
+            tree.heading(column, text=text)
+            tree.column(column, anchor=anchor, width=width, stretch=False)
+        tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=tree.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.bind("<<TreeviewSelect>>", self._handle_auction_preview_select)
+        self.auction_preview_tree = tree
+
+        preview_frame = ctk.CTkFrame(main_frame, fg_color=BG_COLOR)
+        preview_frame.grid(row=0, column=1, sticky="nsew")
+        preview_frame.grid_columnconfigure(0, weight=1)
+
+        self.auction_preview_image_label = ctk.CTkLabel(
+            preview_frame,
+            text="Brak podglądu",
+            text_color=TEXT_COLOR,
+        )
+        self.auction_preview_image_label.grid(row=0, column=0, pady=(0, 8))
+
+        ctk.CTkLabel(
+            preview_frame,
+            textvariable=self.auction_preview_name_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        ).grid(row=1, column=0, sticky="w", pady=(0, 4))
+
+        ctk.CTkLabel(
+            preview_frame,
+            textvariable=self.auction_preview_price_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 18),
+        ).grid(row=2, column=0, sticky="w")
+
+        form_frame = ctk.CTkFrame(preview_frame, fg_color=BG_COLOR)
+        form_frame.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        form_frame.grid_columnconfigure(1, weight=1)
+
+        self._clear_auction_preview_traces()
+        fields = [
+            ("Cena startowa", self.auction_preview_start_var, "start"),
+            ("Czas licytacji [s]", self.auction_preview_time_var, "time"),
+            ("Minimalna kwota przebicia", self.auction_preview_step_var, "step"),
+        ]
+        for row_idx, (label, var, field_key) in enumerate(fields):
+            ctk.CTkLabel(
+                form_frame,
+                text=label,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16),
+            ).grid(row=row_idx, column=0, sticky="w", padx=(0, 8), pady=4)
+            entry = ctk.CTkEntry(form_frame, textvariable=var, width=140)
+            entry.grid(row=row_idx, column=1, sticky="ew", pady=4)
+            trace_id = var.trace_add(
+                "write",
+                lambda *_args, key=field_key: self._on_preview_field_change(key),
+            )
+            self._auction_preview_trace_ids.append((var, trace_id))
+
+        info_frame = ctk.CTkFrame(preview_frame, fg_color=BG_COLOR)
+        info_frame.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        info_frame.grid_columnconfigure(1, weight=1)
+        info_labels = [
+            ("Pozostały czas", self.auction_preview_timer_var),
+            ("Prowadzi", self.auction_preview_leader_var),
+            ("Aktualna kwota", self.auction_preview_amount_var),
+        ]
+        for row_idx, (label, var) in enumerate(info_labels):
+            ctk.CTkLabel(
+                info_frame,
+                text=f"{label}:",
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16),
+            ).grid(row=row_idx, column=0, sticky="w", pady=2)
+            ctk.CTkLabel(
+                info_frame,
+                textvariable=var,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16, "bold"),
+            ).grid(row=row_idx, column=1, sticky="w", pady=2)
+
+        buttons_frame = ctk.CTkFrame(preview_frame, fg_color=BG_COLOR)
+        buttons_frame.grid(row=5, column=0, sticky="ew", pady=(12, 0))
+        button_specs = [
+            ("Start licytacji", "start_auction", SAVE_BUTTON_COLOR),
+            ("Następna karta", "next_card", FETCH_BUTTON_COLOR),
+            ("Zakończ", "finish", NAV_BUTTON_COLOR),
+        ]
+        for text, action, color in button_specs:
+            ctk.CTkButton(
+                buttons_frame,
+                text=text,
+                fg_color=color,
+                command=lambda act=action: self._call_auction_action(act),
+            ).pack(side="left", expand=True, fill="x", padx=4)
+
+        def on_close():
+            self._clear_auction_preview_traces()
+            self.auction_preview_window = None
+            self.auction_preview_tree = None
+            self.auction_preview_next_var = None
+            self.auction_preview_image_label = None
+            self.auction_preview_photo = None
+            self._auction_preview_selected_index = None
+            try:
+                if str(top.winfo_exists()) == "1":
+                    top.destroy()
+            except tk.TclError:
+                pass
+
+        if hasattr(top, "protocol"):
+            top.protocol("WM_DELETE_WINDOW", on_close)
+
+        focus_index = initial_index
+        if cards is not None:
+            cards_list = list(cards)
+            if focus_index is None and cards_list:
+                first_card = cards_list[0]
+                try:
+                    focus_index = self.auction_queue.index(first_card)
+                except ValueError:
+                    focus_index = 0
+        if focus_index is None and self.auction_queue:
+            focus_index = 0
+
+        self.refresh_auction_preview(select_index=focus_index)
+
+    def open_auction_run_window(self):
+        """Open or refresh the auction control window."""
+
+        bot_module = getattr(self, "bot", None)
+        if bot_module is None:
+            try:
+                import bot as bot_module  # type: ignore[import]
+            except Exception as exc:
+                logger.exception("Failed to import bot module")
+                messagebox.showerror("Błąd", str(exc))
+                return
+            self.bot = bot_module
+
+        existing = getattr(self, "auction_run_window", None)
+        if existing is not None:
+            try:
+                existing.close()
+            except Exception:
+                pass
+
+        try:
+            self.auction_run_window = AuctionRunWindow(self)
+        except Exception:
+            logger.exception("Failed to open auction run window")
+            messagebox.showerror(
+                "Błąd",
+                "Nie udało się otworzyć okna sterowania aukcją.",
+            )
+    def refresh_auction_preview(self, select_index: Optional[int] = None) -> None:
+        """Refresh data shown in the auction preview window if it exists."""
+
+        tree = getattr(self, "auction_preview_tree", None)
+        window = getattr(self, "auction_preview_window", None)
+        if not tree or not window:
+            return
+        try:
+            exists = str(window.winfo_exists()) == "1"
+        except tk.TclError:
+            exists = False
+        if not exists:
+            self.auction_preview_tree = None
+            self.auction_preview_window = None
+            self.auction_preview_next_var = None
+            self.auction_preview_image_label = None
+            self.auction_preview_photo = None
+            self._auction_preview_selected_index = None
+            return
+
+        if select_index is None:
+            try:
+                current_selection = tree.selection()
+            except tk.TclError:
+                current_selection = ()
+            if current_selection:
+                try:
+                    select_index = tree.index(current_selection[0])
+                except tk.TclError:
+                    select_index = None
+
+        for item_id in tree.get_children():
+            tree.delete(item_id)
+
+        for row in self.auction_queue:
+            values = (
+                row.get("nazwa_karty") or row.get("name") or "",
+                row.get("numer_karty") or row.get("number") or "",
+                row.get("cena_początkowa") or row.get("price") or "",
+                row.get("kwota_przebicia") or row.get("przebicie") or "",
+                row.get("czas_trwania") or row.get("czas") or "",
+            )
+            tree.insert(
+                "",
+                "end",
+                values=tuple(
+                    str(value) if value is not None else "" for value in values
+                ),
+            )
+
+        next_var = getattr(self, "auction_preview_next_var", None)
+        if next_var is not None:
+            if self.auction_queue:
+                nxt = self.auction_queue[0]
+                name = str(nxt.get("nazwa_karty") or nxt.get("name") or "").strip()
+                number = str(nxt.get("numer_karty") or nxt.get("number") or "").strip()
+                if name and number:
+                    text = f"Następna karta: {name} ({number})"
+                elif name:
+                    text = f"Następna karta: {name}"
+                else:
+                    text = "Następna karta: -"
+            else:
+                text = "Brak kart w kolejce"
+            next_var.set(text)
+
+        items = tree.get_children()
+        if not items:
+            try:
+                tree.selection_remove(tree.selection())
+            except tk.TclError:
+                pass
+            self._update_auction_preview_selection(None)
+            return
+
+        if select_index is None:
+            select_index = 0
+        select_index = max(0, min(select_index, len(items) - 1))
+        item_id = items[select_index]
+        try:
+            tree.selection_set(item_id)
+            tree.focus(item_id)
+            tree.see(item_id)
+        except tk.TclError:
+            pass
+        self._update_auction_preview_selection(select_index)
+
+    def _clear_auction_preview_traces(self) -> None:
+        for var, trace_id in list(getattr(self, "_auction_preview_trace_ids", [])):
+            try:
+                var.trace_remove("write", trace_id)
+            except tk.TclError:
+                pass
+        self._auction_preview_trace_ids = []
+
+    def _handle_auction_preview_select(self, event=None) -> None:
+        del event
+        tree = getattr(self, "auction_preview_tree", None)
+        if not tree:
+            return
+        try:
+            selection = tree.selection()
+        except tk.TclError:
+            selection = ()
+        if not selection:
+            self._update_auction_preview_selection(None)
+            return
+        try:
+            index = tree.index(selection[0])
+        except tk.TclError:
+            index = None
+        self._update_auction_preview_selection(index)
+
+    def _update_auction_preview_selection(self, index: Optional[int]) -> None:
+        if index is None or not (0 <= index < len(self.auction_queue)):
+            self._auction_preview_selected_index = None
+            self._clear_auction_preview_details()
+            return
+        row = self.auction_queue[index]
+        self._auction_preview_selected_index = index
+        self._auction_preview_updating = True
+        try:
+            name = (row.get("nazwa_karty") or row.get("name") or row.get("nazwa") or "").strip()
+            number = (
+                row.get("numer_karty")
+                or row.get("number")
+                or row.get("numer")
+                or ""
+            ).strip()
+            display = name
+            if number:
+                display = f"{display} ({number})" if display else number
+            self.auction_preview_name_var.set(display)
+
+            start_value = row.get("cena_początkowa") or row.get("price") or row.get("cena") or "0"
+            step_value = row.get("kwota_przebicia") or row.get("przebicie") or "1"
+            time_value = row.get("czas_trwania") or row.get("czas") or "30"
+
+            self.auction_preview_price_var.set(
+                f"Cena: {self._format_preview_price(start_value)}"
+            )
+            self.auction_preview_start_var.set(str(start_value) if start_value is not None else "")
+            self.auction_preview_step_var.set(str(step_value) if step_value is not None else "")
+            self.auction_preview_time_var.set(str(time_value) if time_value is not None else "30")
+        finally:
+            self._auction_preview_updating = False
+
+        self._update_preview_image(row)
+        self.auction_preview_amount_var.set(self._format_preview_price(start_value))
+        time_text = str(row.get("czas_trwania") or row.get("czas") or "30").strip()
+        if time_text:
+            self.auction_preview_timer_var.set(f"{time_text} s")
+        else:
+            self.auction_preview_timer_var.set("0 s")
+        leader = row.get("zwyciezca") or row.get("leader") or "-"
+        leader_text = str(leader).strip() or "-"
+        self.auction_preview_leader_var.set(leader_text)
+
+    def _clear_auction_preview_details(self) -> None:
+        self._auction_preview_updating = True
+        try:
+            self.auction_preview_name_var.set("")
+            self.auction_preview_price_var.set("Cena: -")
+            self.auction_preview_start_var.set("")
+            self.auction_preview_time_var.set("30")
+            self.auction_preview_step_var.set("")
+            self.auction_preview_timer_var.set("0 s")
+            self.auction_preview_leader_var.set("-")
+            self.auction_preview_amount_var.set("-")
+        finally:
+            self._auction_preview_updating = False
+        label = getattr(self, "auction_preview_image_label", None)
+        if label is not None:
+            try:
+                label.configure(image=None, text="Brak podglądu")
+            except tk.TclError:
+                pass
+        self.auction_preview_photo = None
+
+    def _format_preview_price(self, value: object) -> str:
+        if value in (None, "", "-"):
+            return "-"
+        text = str(value).strip()
+        if not text:
+            return "-"
+        try:
+            number = float(text.replace(",", "."))
+        except ValueError:
+            return text
+        else:
+            return f"{number:.2f} PLN"
+
+    def _compute_preview_remaining_seconds(self, data: dict) -> Optional[int]:
+        start_str = data.get("start_time")
+        duration = data.get("czas")
+        if not start_str or duration in (None, ""):
+            return None
+        try:
+            start = datetime.datetime.fromisoformat(str(start_str).rstrip("Z"))
+            duration_int = int(duration)
+        except (ValueError, TypeError):
+            return None
+        end = start + datetime.timedelta(seconds=duration_int)
+        remaining = int((end - datetime.datetime.utcnow()).total_seconds())
+        return max(remaining, 0)
+
+    def _resolve_preview_image_source(self, row: Optional[dict]) -> Optional[str]:
+        if not row:
+            return None
+        for key in ("images 1", "image", "obraz_url", "local_image"):
+            value = row.get(key)
+            if value:
+                return str(value)
+        name = row.get("nazwa_karty") or row.get("name") or row.get("nazwa") or ""
+        number = row.get("numer_karty") or row.get("number") or row.get("numer") or ""
+        return self._guess_scan_path(str(name), str(number))
+
+    def _update_preview_image(self, row: Optional[dict]) -> None:
+        label = getattr(self, "auction_preview_image_label", None)
+        if label is None:
+            return
+        source = self._resolve_preview_image_source(row)
+        if not source:
+            try:
+                label.configure(image=None, text="Brak podglądu")
+            except tk.TclError:
+                pass
+            self.auction_preview_photo = None
+            return
+        img = _get_thumbnail(source, (260, 360))
+        if img is None:
+            try:
+                label.configure(image=None, text="Brak podglądu")
+            except tk.TclError:
+                pass
+            self.auction_preview_photo = None
+            return
+        self.auction_preview_photo = _create_image(img)
+        try:
+            label.configure(image=self.auction_preview_photo, text="")
+        except tk.TclError:
+            pass
+
+    def _on_preview_field_change(self, field: str) -> None:
+        if self._auction_preview_updating:
+            return
+        index = self._auction_preview_selected_index
+        if index is None or not (0 <= index < len(self.auction_queue)):
+            return
+        row = self.auction_queue[index]
+        if field == "start":
+            value = self.auction_preview_start_var.get().strip()
+            if not value:
+                value = "0"
+            row["cena_początkowa"] = value
+            row["price"] = value
+            row["cena"] = value
+        elif field == "time":
+            value = self.auction_preview_time_var.get().strip() or "30"
+            self.auction_preview_time_var.set(value)
+            row["czas_trwania"] = value
+            row["czas"] = value
+        elif field == "step":
+            value = self.auction_preview_step_var.get().strip() or "1"
+            self.auction_preview_step_var.set(value)
+            row["kwota_przebicia"] = value
+            row["przebicie"] = value
+        self.refresh_auction_preview(select_index=index)
+
+    def _call_auction_action(self, action: str) -> None:
+        run_window = getattr(self, "auction_run_window", None)
+        if run_window is None:
+            self.open_auction_run_window()
+            run_window = getattr(self, "auction_run_window", None)
+        if run_window is None:
+            return
+        method = getattr(run_window, action, None)
+        if callable(method):
+            try:
+                method()
+            except Exception as exc:
+                logger.exception("Failed to execute auction action %s", action)
+                messagebox.showerror("Błąd", str(exc))
+
+    def _guess_scan_path(self, name: str, number: str) -> Optional[str]:
+        name_norm = str(name).strip().lower().replace(" ", "_")
+        number_norm = str(number).strip().lower().replace("/", "-")
+        if not name_norm and not number_norm:
+            return None
+        candidates = [
+            f"{name_norm}_{number_norm}",
+            f"{name_norm}-{number_norm}",
+            f"{name_norm} {number_norm}",
+            number_norm,
+        ]
+        exts = [".jpg", ".png", ".jpeg"]
+        for root_dir, _dirs, files in os.walk(SCANS_DIR):
+            lower = {f.lower(): f for f in files}
+            for candidate in candidates:
+                if not candidate:
+                    continue
+                for ext in exts:
+                    fname = candidate + ext
+                    if fname in lower:
+                        return os.path.join(root_dir, lower[fname])
+        return None
 
     def _load_auction_queue(self):
         """Load auction queue from inventory CSV into ``self.auction_queue``."""
@@ -2745,7 +4035,7 @@ class CardEditorApp:
                             row["numer_karty"] = ""
                     row["cena_początkowa"] = row.get("price", row.get("cena_początkowa", "0"))
                     row.setdefault("kwota_przebicia", "1")
-                    row.setdefault("czas_trwania", "60")
+                    row.setdefault("czas_trwania", "30")
             else:
                 raise ValueError("Nie rozpoznano formatu pliku CSV")
         for row in rows:
@@ -2794,6 +4084,7 @@ class CardEditorApp:
     def _update_auction_status(self):
         """Update status panel with info from ``aktualna_aukcja.json``."""
         path = os.path.join("templates", "aktualna_aukcja.json")
+        data: Optional[dict] = None
         if os.path.exists(path):
             try:
                 with open(path, encoding="utf-8") as f:
@@ -2803,27 +4094,42 @@ class CardEditorApp:
                     f"Aktualna: {data.get('nazwa')} ({data.get('numer')})"
                 )
 
-                remaining = ""
-                if data.get("start_time"):
-                    try:
-                        start = datetime.datetime.fromisoformat(
-                            data["start_time"].rstrip("Z")
-                        )
-                        end = start + datetime.timedelta(
-                            seconds=int(data.get("czas", 0))
-                        )
-                        rem = int(
-                            (end - datetime.datetime.utcnow()).total_seconds()
-                        )
-                        remaining = f"{max(rem, 0)}s"
-                    except (ValueError, TypeError) as exc:
-                        logger.warning("Failed to parse auction time: %s", exc)
-                        remaining = ""
-
-                winner = data.get("zwyciezca") or "Brak"
                 self.current_price_var.set(str(data.get("ostateczna_cena", "")))
-                self.remaining_time_var.set(remaining)
-                self.leader_var.set(winner)
+                name_var = getattr(self, "selected_card_name_var", None)
+                if name_var is not None:
+                    name = (data.get("nazwa") or "").strip()
+                    number = (data.get("numer") or "").strip()
+                    display = name
+                    if number:
+                        display = f"{display} ({number})" if display else number
+                    name_var.set(display)
+                    preview_name_var = getattr(self, "auction_preview_name_var", None)
+                    if preview_name_var is not None:
+                        preview_name_var.set(display)
+                price_var = getattr(self, "selected_card_price_var", None)
+                if price_var is not None:
+                    price_value = data.get("ostateczna_cena")
+                    if price_value not in (None, ""):
+                        price_var.set(f"Aktualna cena: {price_value}")
+                    else:
+                        price_var.set("Aktualna cena: -")
+                preview_price_var = getattr(self, "auction_preview_price_var", None)
+                if preview_price_var is not None:
+                    preview_price_var.set(
+                        f"Cena: {self._format_preview_price(data.get('ostateczna_cena'))}"
+                    )
+                amount_var = getattr(self, "auction_preview_amount_var", None)
+                if amount_var is not None:
+                    amount_var.set(self._format_preview_price(data.get("ostateczna_cena")))
+                leader_var = getattr(self, "auction_preview_leader_var", None)
+                if leader_var is not None:
+                    leader = (data.get("zwyciezca") or "").strip() or "-"
+                    leader_var.set(leader)
+                timer_var = getattr(self, "auction_preview_timer_var", None)
+                if timer_var is not None:
+                    remaining = self._compute_preview_remaining_seconds(data)
+                    if remaining is not None:
+                        timer_var.set(f"{remaining} s")
                 img_path = data.get("obraz")
                 if img_path:
                     try:
@@ -2837,7 +4143,7 @@ class CardEditorApp:
                             else:
                                 img = None
                         if img is not None:
-                            img.thumbnail((200, 280))
+                            img.thumbnail((400, 560))
                             photo = _create_image(img)
                             self.auction_photo = photo
                             self.auction_image_label.configure(image=photo)
@@ -2845,8 +4151,25 @@ class CardEditorApp:
                         logger.warning("Failed to load current auction image: %s", exc)
             except Exception as exc:
                 logger.exception("Failed to update auction status")
+        run_window = getattr(self, "auction_run_window", None)
+        if run_window is not None:
+            try:
+                run_window.update_from_status(data)
+            except Exception:
+                logger.exception("Failed to update auction run window")
+        if not data:
+            amount_var = getattr(self, "auction_preview_amount_var", None)
+            if amount_var is not None:
+                amount_var.set("-")
+            leader_var = getattr(self, "auction_preview_leader_var", None)
+            if leader_var is not None:
+                leader_var.set("-")
+            timer_var = getattr(self, "auction_preview_timer_var", None)
+            if timer_var is not None:
+                timer_var.set("0 s")
         if self.auction_frame and self.auction_frame.winfo_exists():
             self.auction_frame.after(1000, self._update_auction_status)
+        return data
 
     def _build_shoper_payload(self, card: dict) -> dict:
         """Map internal card data to the structure expected by the API."""
@@ -2883,6 +4206,88 @@ class CardEditorApp:
             payload["images"] = card["image1"]
         return payload
 
+    def _extract_order_products(self, order: Mapping[str, Any] | None) -> list[Mapping[str, Any]]:
+        """Return a flat list of product mappings from ``order``."""
+
+        if not isinstance(order, Mapping):
+            return []
+
+        def _coerce_products(value: Any) -> list[Mapping[str, Any]]:
+            if not value:
+                return []
+            if isinstance(value, Mapping):
+                for key in ("list", "items", "data", "values"):
+                    if key in value:
+                        nested = _coerce_products(value[key])
+                        if nested:
+                            return nested
+                results: list[Mapping[str, Any]] = []
+                if any(
+                    key in value
+                    for key in ("name", "product_id", "quantity", "warehouse_code", "product_code")
+                ):
+                    results.append(value)
+                for subvalue in value.values():
+                    if isinstance(subvalue, (Mapping, list, tuple, set)):
+                        results.extend(_coerce_products(subvalue))
+                return [item for item in results if isinstance(item, Mapping)]
+            if isinstance(value, (list, tuple, set)):
+                collected: list[Mapping[str, Any]] = []
+                for item in value:
+                    collected.extend(_coerce_products(item))
+                return collected
+            return []
+
+        for container_key in ("products", "order_products", "items", "orderItems"):
+            raw = order.get(container_key)
+            if not raw:
+                continue
+            products = _coerce_products(raw)
+            if products:
+                return products
+        return []
+
+    def _prepare_order_items(
+        self, order: Mapping[str, Any] | None
+    ) -> tuple[list[dict[str, Any]], dict[str, str], int]:
+        """Normalise order data into UI-friendly item structures."""
+
+        items: list[dict[str, Any]] = []
+        code_map: dict[str, str] = {}
+        total_quantity = 0
+
+        for item in self._extract_order_products(order):
+            if not isinstance(item, Mapping):
+                continue
+
+            code_raw = (
+                item.get("warehouse_code")
+                or item.get("product_code")
+                or item.get("code", "")
+            )
+            if isinstance(code_raw, (list, tuple, set)):
+                code_display = ";".join(str(c).strip() for c in code_raw if str(c).strip())
+            else:
+                code_display = str(code_raw or "")
+            codes = [c.strip() for c in code_display.split(";") if c.strip()]
+            locations = [self.location_from_code(code) for code in codes]
+            location_text = "; ".join(l for l in locations if l)
+            quantity = _coerce_quantity(item.get("quantity"))
+            total_quantity += quantity
+            product_code = csv_utils.infer_product_code(item)
+            for code in codes:
+                code_map[code] = product_code
+            items.append(
+                {
+                    "name": item.get("name"),
+                    "quantity": quantity,
+                    "code": code_display,
+                    "location": location_text,
+                }
+            )
+
+        return items, code_map, total_quantity
+
     def show_orders(self, widget=None):
         """Display new orders with storage location hints."""
         try:
@@ -2890,88 +4295,279 @@ class CardEditorApp:
                 widget = getattr(self, "orders_output", None)
             if widget is None:
                 return
-            orders = self.shoper_client.list_orders({"filters[status]": "new"})
-            orders_list = orders.get("list", orders)
+            status_filters = {"status_id[in]": "1,2,3,4"}
+            logger.info(
+                "Requesting Shoper orders with filters: %s",
+                status_filters,
+            )
+            orders = self.shoper_client.list_orders(status_filters)
+            orders_list_raw = orders.get("list", orders)
+            if isinstance(orders_list_raw, Mapping):
+                orders_list_raw = orders_list_raw.get("list", [])
+            orders_list = [o for o in orders_list_raw if o]
+            if orders_list:
+                order_ids = [
+                    order.get("order_id") or order.get("id")
+                    for order in orders_list
+                    if isinstance(order, Mapping)
+                ]
+                logger.info(
+                    "Received %d Shoper orders, sample ids: %s",
+                    len(orders_list),
+                    order_ids[:5],
+                )
+            else:
+                logger.info("Received 0 Shoper orders")
             self.pending_orders = orders_list
             choose_nearest_locations(orders_list, self.output_data)
-            widget.delete("1.0", tk.END)
-            lines = []
+
+            rendered_orders: list[dict[str, Any]] = []
+            lines: list[str] = []
+
             for order in orders_list:
                 oid = order.get("order_id") or order.get("id")
-                lines.append(f"Zamówienie #{oid}")
-                for item in order.get("products", []):
-                    code = (
-                        item.get("warehouse_code")
-                        or item.get("product_code")
-                        or item.get("code", "")
-                    )
-                    locations = [
-                        self.location_from_code(c.strip())
-                        for c in str(code).split(";")
-                        if c.strip()
-                    ]
-                    location = "; ".join(l for l in locations if l)
+                title = f"Zamówienie #{oid}" if oid else "Zamówienie"
+                status = (
+                    order.get("status_label")
+                    or order.get("status_name")
+                    or order.get("status")
+                    or order.get("order_status")
+                )
+                status_type = order.get("status_type")
+                if isinstance(status_type, Mapping):
+                    status_type = status_type.get("type") or status_type.get("id")
+                if not status_type and isinstance(order.get("status"), Mapping):
+                    status_type = order["status"].get("type")
+                customer_name = ""
+                # 1. Spróbuj pobrać dane z adresu rozliczeniowego (zgodnie z dokumentacją API)
+                billing_address = order.get("billing_address")
+                if isinstance(billing_address, Mapping):
+                    customer_name = " ".join(
+                        part for part in (billing_address.get("firstname"), billing_address.get("lastname")) if part
+                    ).strip()
+
+                # 2. Jeśli się nie uda, spróbuj z obiektu 'user'
+                if not customer_name:
+                    user = order.get("user")
+                    if isinstance(user, Mapping):
+                        customer_name = " ".join(
+                            part
+                            for part in (
+                                user.get("firstname") or user.get("first_name"),
+                                user.get("lastname") or user.get("last_name"),
+                            )
+                            if part
+                        ).strip()
+
+                # 3. W ostateczności, spróbuj pola 'customer'
+                if not customer_name:
+                    customer = order.get("customer")
+                    if isinstance(customer, str):
+                        customer_name = customer.strip()
+
+
+                created = (
+                    order.get("order_date")
+                    or order.get("created_at")
+                    or order.get("date_add")
+                    or order.get("date")
+                )
+                total_value = _format_order_total(order)
+
+                items, code_map, total_quantity = self._prepare_order_items(order)
+                lines.append(title)
+                for product in items:
                     lines.append(
-                        f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
+                        " - {name} x{quantity} [{code}] {location}".format(
+                            name=product.get("name"),
+                            quantity=product.get("quantity"),
+                            code=product.get("code", ""),
+                            location=product.get("location", ""),
+                        )
                     )
-            widget.insert(tk.END, "\n".join(lines))
-        except requests.RequestException as e:
+
+                rendered_orders.append(
+                    {
+                        "title": title,
+                        "status": status,
+                        "status_type": status_type,
+                        "customer": customer_name,
+                        "created": created,
+                        "total": total_value,
+                        "quantity": total_quantity,
+                        "items": items,
+                        "data": order,
+                        "_code_map": code_map,
+                    }
+                )
+
+            if hasattr(widget, "render_orders"):
+                widget.render_orders(rendered_orders)
+            elif hasattr(widget, "delete"):
+                widget.delete("1.0", tk.END)
+                widget.insert(tk.END, "\n".join(lines))
+        except (requests.RequestException, RuntimeError) as e:
             logger.exception("Failed to list orders")
             messagebox.showerror("Błąd", str(e))
 
-    def complete_order(self, order: dict):
-        """Mark warehouse codes from ``order`` as sold.
-
-        After updating the CSV the inventory statistics are recalculated and
-        the warehouse view is refreshed.
-        """
-
-        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
-        try:
-            with open(csv_path, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                rows = list(reader)
-                fieldnames = reader.fieldnames or []
-        except FileNotFoundError:
+    def show_order_details(self, entry: Mapping[str, Any] | None):
+        """Display order details with a grid of selectable card thumbnails and diagnostic logging."""
+        if not entry:
             return
 
-        if "sold" not in fieldnames:
-            fieldnames.append("sold")
+        order = entry.get("data", {})
+        oid = order.get("order_id") or order.get("id")
+        title = f"Szczegóły zamówienia #{oid}" if oid else "Szczegóły zamówienia"
 
-        codes_to_mark = {
-            c.strip()
-            for item in order.get("products", [])
-            for c in str(
-                item.get("warehouse_code")
-                or item.get("product_code")
-                or item.get("code", "")
-            ).split(";")
-            if c.strip()
+        top = ctk.CTkToplevel(self.root)
+        top.transient(self.root)
+        top.grab_set()
+        top.lift()
+        top.focus_force()
+        top.protocol("WM_DELETE_WINDOW", top.destroy)
+        top.geometry("900x700")
+        top.title(title)
+        top.configure(fg_color=BG_COLOR)
+
+        # --- Nagłówek z danymi zamówienia ---
+        header = ctk.CTkFrame(top, fg_color=BG_COLOR, corner_radius=0)
+        header.pack(fill="x", padx=20, pady=(20, 10))
+        header.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(header, text=title, text_color=TEXT_COLOR, font=ctk.CTkFont(size=24, weight="bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+        status_obj = entry.get("status")
+        status_name = status_obj.get('name') if isinstance(status_obj, dict) else status_obj
+
+        meta_info = { "Klient:": entry.get("customer"), "Data:": entry.get("created"), "Status:": status_name, "Wartość:": entry.get("total") }
+        for i, (label, value) in enumerate(meta_info.items()):
+            if value:
+                ctk.CTkLabel(header, text=label, text_color="#AAAAAA", font=ctk.CTkFont(size=16)).grid(row=i + 1, column=0, sticky="w", padx=(0, 15))
+                ctk.CTkLabel(header, text=str(value), text_color=TEXT_COLOR, font=ctk.CTkFont(size=16, weight="bold")).grid(row=i + 1, column=1, sticky="w")
+
+        # --- Siatka z produktami ---
+        items_frame = ctk.CTkScrollableFrame(top, fg_color=LIGHT_BG_COLOR)
+        items_frame.pack(expand=True, fill="both", padx=20, pady=10)
+
+        selection_vars = {}
+        items = order.get("products", [])
+
+        # --- LOGIKA DIAGNOSTYCZNA ---
+        print("\n--- DIAGNOSTYKA DOPASOWANIA PRODUKTÓW ---")
+        
+        # Krok 1: Sprawdzenie, czy dane z store_export.csv są w ogóle załadowane
+        if not self.store_data:
+            print("[BŁĄD KRYTYCZNY] Dane z pliku store_export.csv (self.store_data) nie zostały załadowane!")
+            ctk.CTkLabel(items_frame, text="BŁĄD: Nie wczytano danych z pliku store_export.csv!", text_color="red").pack()
+            return
+
+        print(f"Załadowano {len(self.store_data)} produktów z store_export.csv.")
+        sample_codes = list(self.store_data.keys())[:3]
+        print(f"Przykładowe kody z wczytanego pliku: {sample_codes}")
+
+        # Mapa: kod produktu -> link do obrazka
+        product_code_to_image = {
+            p_code.strip(): data.get('images 1') for p_code, data in self.store_data.items() if data and data.get('images 1')
         }
 
-        if not codes_to_mark:
+        if not items:
+            ctk.CTkLabel(items_frame, text="Brak produktów w zamówieniu.", font=ctk.CTkFont(size=16)).pack(pady=20)
+        else:
+            for i, item in enumerate(items):
+                shoper_code = item.get("code")
+                name = item.get("name", "Brak nazwy")
+                quantity = _coerce_quantity(item.get('quantity'))
+                
+                print(f"\n-> Przetwarzanie produktu: '{name}'")
+                print(f"   - Kod z API Shoper: '{shoper_code}'")
+
+                # Upewniamy się, że porównujemy czyste kody (bez spacji itp.)
+                clean_shoper_code = str(shoper_code).strip() if shoper_code else None
+                image_path = product_code_to_image.get(clean_shoper_code)
+                
+                if image_path:
+                    print(f"   - ZNALEZIONO DOPASOWANIE! Link do obrazka: {image_path}")
+                else:
+                    print("   - NIE ZNALEZIONO OBRAZKA. Sprawdzam, dlaczego...")
+                    if clean_shoper_code in self.store_data:
+                        print(f"   - Błąd: Kod '{clean_shoper_code}' istnieje w CSV, ale w jego wierszu brakuje linku w kolumnie 'images 1'.")
+                    else:
+                        print(f"   - Błąd: Kod '{clean_shoper_code}' nie został znaleziony jako klucz w danych z pliku CSV.")
+
+                card_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=8)
+                
+                thumb_label = ctk.CTkLabel(card_frame, text="?", width=120, height=168, fg_color=FIELD_BG_COLOR, corner_radius=6)
+                thumb_label.pack(padx=10, pady=(10, 5))
+                if image_path:
+                    try:
+                        img = _get_thumbnail(image_path, (120, 168))
+                        if img:
+                            photo = _create_image(img)
+                            thumb_label.configure(image=photo, text="")
+                            thumb_label.image = photo
+                    except Exception as e:
+                        logger.warning(f"Błąd ładowania miniaturki dla {shoper_code}: {e}")
+
+                ctk.CTkLabel(card_frame, text=name, wraplength=120, font=ctk.CTkFont(size=12)).pack(padx=10, pady=(0, 5))
+                
+                var = tk.BooleanVar(value=True)
+                chk = ctk.CTkCheckBox(card_frame, text=f"x{quantity}", variable=var, font=ctk.CTkFont(size=14, weight="bold"))
+                chk.pack(pady=(0, 10))
+                
+                if clean_shoper_code:
+                    selection_vars[clean_shoper_code] = {"var": var, "quantity": quantity}
+                
+                row, col = divmod(i, 4)
+                card_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+                items_frame.grid_columnconfigure(col, weight=1)
+
+        # ... (reszta kodu - przyciski - bez zmian) ...
+        buttons = ctk.CTkFrame(top, fg_color="transparent")
+        buttons.pack(fill="x", padx=20, pady=(10, 20))
+        buttons.grid_columnconfigure((0, 1), weight=1)
+
+        def _mark_selected():
+            products_to_sell = { code: data['quantity'] for code, data in selection_vars.items() if data['var'].get() }
+            if not products_to_sell:
+                messagebox.showwarning("Zamówienia", "Zaznacz przynajmniej jedną kartę.")
+                return
+            self.complete_order(order, products_to_sell=products_to_sell)
+            top.destroy()
+
+        self.create_button(buttons, text="Oznacz jako sprzedane", command=_mark_selected, fg_color=SAVE_BUTTON_COLOR).grid(row=0, column=0, padx=4, pady=8, sticky="ew")
+        self.create_button(buttons, text="Zamknij", command=top.destroy, fg_color=NAV_BUTTON_COLOR).grid(row=0, column=1, padx=4, pady=8, sticky="ew")
+
+    def complete_order(
+        self,
+        order: Mapping[str, Any],
+        selected_warehouses: list[str],
+        product_counts: Counter,
+    ):
+        """Finalizes the order by updating CSV files."""
+        if not selected_warehouses:
+            messagebox.showwarning("Błąd", "Nie wybrano żadnych kart do oznaczenia.")
             return
 
-        for r in rows:
-            if r.get("warehouse_code") in codes_to_mark:
-                r["sold"] = "1"
+        # 1. Oznacz jako sprzedane w magazyn.csv
+        marked_count = csv_utils.mark_warehouse_codes_as_sold(selected_warehouses)
+        if not marked_count:
+            messagebox.showerror("Błąd", "Nie udało się oznaczyć kart w magazyn.csv.")
+            return
 
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-            writer.writeheader()
-            writer.writerows(rows)
+        # 2. Zmniejsz stany w store_export.csv (z potwierdzeniem)
+        csv_utils.decrement_store_stock(product_counts)
 
+        # 3. Odświeżenie interfejsu
         if hasattr(self, "update_inventory_stats"):
-            try:
-                self.update_inventory_stats()
-            except Exception:
-                logger.exception("Failed to update inventory stats")
+            self.update_inventory_stats(force=True)
 
-        if hasattr(self, "show_magazyn_view"):
+        messagebox.showinfo("Operacja zakończona", f"Oznaczono {marked_count} kart jako sprzedane.")
+
+        if hasattr(self, "show_orders") and self.orders_output:
             try:
-                self.show_magazyn_view()
+                self.show_orders(self.orders_output)
             except Exception:
-                logger.exception("Failed to refresh magazyn window")
+                pass
 
     def confirm_order(self):
         """Confirm the first pending order and mark codes as sold."""
@@ -2981,6 +4577,88 @@ class CardEditorApp:
             return
         order = orders.pop(0)
         self.complete_order(order)
+
+    def print_order_items(
+        self,
+        order_entry: Mapping[str, Any],
+        image_map: Mapping[str, str],
+        warehouse_map: Mapping[str, list],
+    ) -> None:
+        """Generate an HTML file with thumbnails for printing."""
+
+        order_data = order_entry.get("data", {})
+        items = order_data.get("products", [])
+
+        html_parts = [
+            "<html><head><title>Lista do zebrania</title><style>",
+            "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 20px; }",
+            ".header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 25px; }",
+            "h1 { margin: 0; } .details p { margin: 5px 0; font-size: 1.1em; }",
+            ".item { display: flex; align-items: flex-start; border-bottom: 1px solid #ccc; padding: 15px 0; }",
+            ".item img { width: 80px; height: auto; margin-right: 20px; border-radius: 4px; }",
+            ".item-info { flex-grow: 1; }",
+            ".item-name { font-size: 1.3em; font-weight: bold; margin-bottom: 5px; }",
+            ".item-details { font-family: monospace; color: #555; }",
+            ".summary { border-top: 2px solid #333; padding-top: 15px; margin-top: 25px; font-size: 1.2em; text-align: right; }",
+            "</style></head><body>"
+        ]
+
+        # --- Nagłówek zamówienia ---
+        html_parts.append(f"<div class='header'><h1>{html.escape(order_entry.get('title', ''))}</h1><div class='details'>")
+        if order_entry.get('customer'): html_parts.append(f"<p><b>Klient:</b> {html.escape(order_entry['customer'])}</p>")
+        if order_entry.get('created'): html_parts.append(f"<p><b>Data:</b> {html.escape(order_entry['created'])}</p>")
+        if order_entry.get('total'): html_parts.append(f"<p><b>Wartość:</b> {html.escape(order_entry['total'])}</p>")
+        html_parts.append("</div></div>")
+
+        total_quantity = 0
+        # --- Lista produktów ---
+        for item in items:
+            name = item.get("name") or "Brak nazwy"
+            quantity = _coerce_quantity(item.get('quantity'))
+            total_quantity += quantity
+            product_code = item.get("code")
+
+            image_path = image_map.get(product_code)
+            img_tag = '<div style="width:80px; height:112px; border:1px solid #ccc; text-align:center; display:flex; align-items:center; justify-content:center; background:#f0f0f0; margin-right:20px; border-radius:4px;">?</div>'
+            if image_path and os.path.exists(image_path):
+                try:
+                    with open(image_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("ascii")
+                    mime, _ = mimetypes.guess_type(image_path)
+                    img_tag = f'<img src="data:{mime or "image/png"};base64,{b64}">'
+                except Exception as e:
+                    logger.warning(f"Could not embed image {image_path}: {e}")
+
+            # Znajdź kody magazynowe do pobrania
+            codes_to_pick = warehouse_map.get(product_code, [])[:quantity]
+
+            html_parts.append("<div class='item'>")
+            html_parts.append(img_tag)
+            html_parts.append("<div class='item-info'>")
+            html_parts.append(f"<div class='item-name'>{html.escape(name)} (x{quantity})</div>")
+            html_parts.append(f"<div class='item-details'><b>Kod produktu:</b> {html.escape(product_code or '')}</div>")
+            if codes_to_pick:
+                for code in codes_to_pick:
+                    location = self.location_from_code(code.get('warehouse_code', ''))
+                    html_parts.append(f"<div class='item-details'><b>Do pobrania:</b> {html.escape(code.get('warehouse_code', ''))} ({location})</div>")
+            else:
+                html_parts.append("<div class='item-details' style='color:red;'><b>Do pobrania:</b> BRAK W MAGAZYNIE!</div>")
+            html_parts.append("</div></div>")
+
+        # --- Podsumowanie ---
+        html_parts.append(f"<div class='summary'><p><b>Łączna liczba sztuk do zebrania: {total_quantity}</b></p></div>")
+        html_parts.append("</body></html>")
+        html_content = "".join(html_parts)
+
+        try:
+            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", suffix=".html") as tmp:
+                tmp.write(html_content)
+                tmp_path = Path(tmp.name)
+
+            webbrowser.open(f"file://{tmp_path.resolve()}")
+            messagebox.showinfo("Drukowanie", "Lista do druku została otwarta w przeglądarce. Użyj opcji 'Drukuj' (Ctrl+P).")
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Nie udało się otworzyć listy do druku: {e}")
 
     @staticmethod
     def location_from_code(code: str) -> str:
@@ -3127,12 +4805,26 @@ class CardEditorApp:
         self.mag_placeholder_photo = _create_image(placeholder_img)
 
         # reset containers
+        for frame in getattr(self, "_mag_frame_pool", []):
+            if frame is None:
+                continue
+            destroy = getattr(frame, "destroy", None)
+            if callable(destroy):
+                try:
+                    destroy()
+                except Exception:
+                    pass
+        self._mag_frame_pool: list[Optional[ctk.CTkFrame]] = []
+
         self.mag_card_rows = []
         self.mag_card_images = []
         self.mag_card_image_labels = []
         self.mag_card_frames = []
         self._image_threads = []
         self._mag_column_occ: dict[tuple[int, int], int] = {}
+        self._mag_image_paths: list[str] = []
+        self._mag_loaded_images: dict[int, Any] = {}
+        self._mag_loading_indices: set[int] = set()
 
         if not os.path.exists(csv_path):
             self._mag_prev_thumb = 0
@@ -3198,91 +4890,69 @@ class CardEditorApp:
                 idx = len(self.mag_card_rows)
                 self.mag_card_rows.append(combined)
                 self.mag_card_images.append(self.mag_placeholder_photo)
+                self._mag_image_paths.append(combined.get("image") or "")
                 self.mag_card_image_labels.append(None)
 
-                img_path = combined.get("image") or ""
-                if urlparse(img_path).scheme in ("http", "https"):
-                    def _worker(i=idx, url=img_path):
-                        img = _load_image(url)
-                        if img is None:
-                            return
-
-                        def _update(img=img) -> None:
-                            img_resized = _resize_to_width(img, thumb_size)
-                            photo = _create_image(img_resized)
-                            self.mag_card_images[i] = photo
-                            lbl = self.mag_card_image_labels[i]
-                            exists_fn = getattr(lbl, "winfo_exists", None)
-                            if not lbl or (exists_fn and not exists_fn()):
-                                return
-                            if hasattr(lbl, "configure"):
-                                try:
-                                    lbl.configure(image=photo)
-                                except tk.TclError:
-                                    return
-                            else:  # simple dummy widgets in tests
-                                lbl.image = photo
-                            relayout = getattr(self, "_relayout_mag_cards", None)
-                            if callable(relayout):
-                                after2 = getattr(self.root, "after", None)
-                                if callable(after2):
-                                    after2(0, relayout)
-                                else:
-                                    relayout()
-
-                        after = getattr(self.root, "after", None)
-                        if callable(after):
-                            after(0, _update)
-                        else:
-                            _update()
-
-                    th = threading.Thread(target=_worker, daemon=True)
-                    th.start()
-                    self._image_threads.append(th)
-                else:
-                    def _worker(i=idx, path=img_path):
-                        img = _load_image(path)
-                        if img is None:
-                            return
-
-                        def _update(img=img) -> None:
-                            img_resized = _resize_to_width(img, thumb_size)
-                            photo = _create_image(img_resized)
-                            self.mag_card_images[i] = photo
-                            lbl = self.mag_card_image_labels[i]
-                            exists_fn = getattr(lbl, "winfo_exists", None)
-                            if not lbl or (exists_fn and not exists_fn()):
-                                return
-                            if hasattr(lbl, "configure"):
-                                try:
-                                    lbl.configure(image=photo)
-                                except tk.TclError:
-                                    return
-                            else:  # simple dummy widgets in tests
-                                lbl.image = photo
-                            relayout = getattr(self, "_relayout_mag_cards", None)
-                            if callable(relayout):
-                                after2 = getattr(self.root, "after", None)
-                                if callable(after2):
-                                    after2(0, relayout)
-                                else:
-                                    relayout()
-
-                        after = getattr(self.root, "after", None)
-                        if callable(after):
-                            after(0, _update)
-                        else:
-                            _update()
-
-                    th = threading.Thread(target=_worker, daemon=True)
-                    th.start()
-                    self._image_threads.append(th)
-
+        self._mag_frame_pool = [None] * len(self.mag_card_rows)
         self._mag_prev_thumb = 0
         try:
             self._mag_csv_mtime = os.path.getmtime(csv_path)
         except OSError:
             self._mag_csv_mtime = None
+
+        def _ensure_image(index: int) -> None:
+            if index < 0 or index >= len(self._mag_image_paths):
+                return
+            if index in self._mag_loaded_images or index in self._mag_loading_indices:
+                return
+
+            path = self._mag_image_paths[index]
+            if not path:
+                return
+
+            self._mag_loading_indices.add(index)
+
+            def _worker(i=index, img_path=path):
+                img = _load_image(img_path)
+                if img is None:
+                    self._mag_loading_indices.discard(i)
+                    return
+
+                def _update(image=img):
+                    self._mag_loading_indices.discard(i)
+                    img_resized = _resize_to_width(image, thumb_size)
+                    photo = _create_image(img_resized)
+                    self._mag_loaded_images[i] = photo
+                    self.mag_card_images[i] = photo
+                    lbl = self.mag_card_image_labels[i]
+                    exists_fn = getattr(lbl, "winfo_exists", None)
+                    if lbl and (exists_fn is None or exists_fn()):
+                        if hasattr(lbl, "configure"):
+                            try:
+                                lbl.configure(image=photo)
+                            except tk.TclError:
+                                pass
+                        else:
+                            lbl.image = photo
+                    relayout = getattr(self, "_relayout_mag_cards", None)
+                    if callable(relayout):
+                        after2 = getattr(self.root, "after", None)
+                        if callable(after2):
+                            after2(0, relayout)
+                        else:
+                            relayout()
+
+                after = getattr(self.root, "after", None)
+                if callable(after):
+                    after(0, _update)
+                else:
+                    _update()
+
+            th = threading.Thread(target=_worker, daemon=True)
+            th.start()
+            self._image_threads.append(th)
+
+        self._ensure_mag_image = _ensure_image
 
     def show_magazyn_view(self):
         """Display storage occupancy inside the main window."""
@@ -3342,6 +5012,9 @@ class CardEditorApp:
         self.mag_labels = []
         self.mag_box_order = []
 
+        self._mag_filtered_total = 0
+        self._mag_canvas_bind_id = None
+
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
 
@@ -3376,7 +5049,9 @@ class CardEditorApp:
         )
         search_entry.pack(side="left", padx=5, pady=5)
 
-        search_button = ctk.CTkButton(control_frame, text="Szukaj")
+        search_button = ctk.CTkButton(
+            control_frame, text="Szukaj", fg_color=FETCH_BUTTON_COLOR
+        )
         search_button.pack(side="left", padx=5, pady=5)
 
         self.mag_sort_var = _safe_var("added")
@@ -3425,9 +5100,9 @@ class CardEditorApp:
                 if width <= 1:
                     width_fn = getattr(self.magazyn_frame, "winfo_width", lambda: 0)
                     width = width_fn()
-                if width <= 1:
-                    return
                 max_thumb = MAX_CARD_THUMB_SIZE
+                if width <= 1:
+                    width = max_thumb * 4 + MAG_CARD_GAP * 6
                 cols = max(1, width // (max_thumb + MAG_CARD_GAP * 2))
                 thumb = max(
                     32,
@@ -3589,65 +5264,174 @@ class CardEditorApp:
 
                 indices.sort(key=_quantity, reverse=True)
 
+            total_cards = len(indices)
+            self._mag_filtered_total = total_cards
+            self._mag_visible_indices = list(indices)
+
             unbind = getattr(self.mag_list_frame, "unbind", None)
             if callable(unbind) and getattr(self, "_mag_bind_id", None):
                 unbind("<Configure>", self._mag_bind_id)
                 self._mag_bind_id = None
+            canvas_obj = getattr(self.mag_list_frame, "_parent_canvas", None)
+            canvas_unbind = getattr(canvas_obj, "unbind", None)
+            if callable(canvas_unbind) and getattr(self, "_mag_canvas_bind_id", None):
+                try:
+                    canvas_unbind("<Configure>", self._mag_canvas_bind_id)
+                except Exception:
+                    pass
+                self._mag_canvas_bind_id = None
             root_unbind = getattr(current_root, "unbind", None)
             if callable(root_unbind) and getattr(self, "_root_mag_bind_id", None):
                 root_unbind("<Configure>", self._root_mag_bind_id)
                 self._root_mag_bind_id = None
 
             frames = getattr(self, "mag_card_frames", [])
-            self.mag_card_frames = []
             for frame in frames:
-                try:
-                    frame.destroy()
-                except Exception:
-                    pass
+                forget = getattr(frame, "grid_forget", None)
+                if callable(forget):
+                    try:
+                        forget()
+                    except Exception:
+                        pass
+            self.mag_card_frames = []
+            self.mag_card_labels = []
+            self.mag_sold_labels = []
+
             labels = getattr(self, "mag_card_image_labels", [])
             for i in range(len(labels)):
                 labels[i] = None
-            self.mag_card_labels = []
-            self.mag_sold_labels = []
-            displayed = set(indices)
+
+            pool = getattr(self, "_mag_frame_pool", [])
+            if len(pool) < len(self.mag_card_rows):
+                pool.extend([None] * (len(self.mag_card_rows) - len(pool)))
+
+            def _widget_exists(widget: object) -> bool:
+                if widget is None:
+                    return False
+                exists_fn = getattr(widget, "winfo_exists", None)
+                if callable(exists_fn):
+                    try:
+                        return bool(exists_fn())
+                    except Exception:
+                        return False
+                return True
+
+            displayed: set[int] = set()
 
             for idx in indices:
                 row = self.mag_card_rows[idx]
-                photo = self.mag_card_images[idx]
-                frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
-                col_conf = getattr(frame, "grid_columnconfigure", None)
-                if callable(col_conf):
-                    col_conf(0, weight=1)
-                is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
-                text = row.get("name", "")
-                color = TEXT_COLOR
-                font = None
-                if is_sold:
-                    text = f"[SOLD] {text}"
-                    color = SOLD_COLOR
+                frame = pool[idx] if idx < len(pool) else None
+                if not _widget_exists(frame) or getattr(frame, "master", None) is not list_frame:
+                    if _widget_exists(frame):
+                        destroy = getattr(frame, "destroy", None)
+                        if callable(destroy):
+                            try:
+                                destroy()
+                            except Exception:
+                                pass
+                    frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
+                    if hasattr(frame, "grid_columnconfigure"):
+                        frame.grid_columnconfigure(0, weight=1)
+                    img_label = ctk.CTkLabel(frame, image=self.mag_card_images[idx], text="")
+                    img_label.grid(row=0, column=0, sticky="n")
                     if hasattr(ctk, "CTkFont"):
-                        font = ctk.CTkFont(size=20, overstrike=True)
+                        unsold_font: Any = ctk.CTkFont(size=20)
                     else:
-                        font = ("TkDefaultFont", 20, "overstrike")
+                        unsold_font = ("TkDefaultFont", 20)
+                    label = ctk.CTkLabel(
+                        frame,
+                        text="",
+                        text_color=TEXT_COLOR,
+                        width=CARD_THUMB_SIZE,
+                        wraplength=CARD_THUMB_SIZE,
+                        justify="center",
+                        font=unsold_font,
+                    )
+                    label.grid(row=1, column=0, sticky="new")
+                    frame._mag_unsold_font = unsold_font  # type: ignore[attr-defined]
+                    frame._mag_sold_font = None  # type: ignore[attr-defined]
+                    frame._mag_image_label = img_label  # type: ignore[attr-defined]
+                    frame._mag_name_label = label  # type: ignore[attr-defined]
+                    frame._mag_badge_label = None  # type: ignore[attr-defined]
+                    pool[idx] = frame
+                else:
+                    img_label = getattr(frame, "_mag_image_label", None)
+                    if not _widget_exists(img_label):
+                        img_label = ctk.CTkLabel(frame, image=self.mag_card_images[idx], text="")
+                        img_label.grid(row=0, column=0, sticky="n")
+                        frame._mag_image_label = img_label  # type: ignore[attr-defined]
+                    label = getattr(frame, "_mag_name_label", None)
+                    if not _widget_exists(label):
+                        unsold_font = getattr(frame, "_mag_unsold_font", None)
+                        if unsold_font is None:
+                            if hasattr(ctk, "CTkFont"):
+                                unsold_font = ctk.CTkFont(size=20)
+                            else:
+                                unsold_font = ("TkDefaultFont", 20)
+                            frame._mag_unsold_font = unsold_font  # type: ignore[attr-defined]
+                        label = ctk.CTkLabel(
+                            frame,
+                            text="",
+                            text_color=TEXT_COLOR,
+                            width=CARD_THUMB_SIZE,
+                            wraplength=CARD_THUMB_SIZE,
+                            justify="center",
+                            font=unsold_font,
+                        )
+                        label.grid(row=1, column=0, sticky="new")
+                        frame._mag_name_label = label  # type: ignore[attr-defined]
+                    else:
+                        unsold_font = getattr(frame, "_mag_unsold_font", None)
 
-                img_label = ctk.CTkLabel(frame, image=photo, text="")
-                grid = getattr(img_label, "grid", None)
-                if callable(grid):
-                    grid(row=0, column=0, sticky="n")
+                img_label = getattr(frame, "_mag_image_label", None)
+                label = getattr(frame, "_mag_name_label", None)
+                if not (_widget_exists(img_label) and _widget_exists(label)):
+                    continue
+
+                photo = self.mag_card_images[idx]
+                if hasattr(img_label, "configure"):
+                    img_label.configure(image=photo)
+                else:
+                    img_label.image = photo  # type: ignore[attr-defined]
                 self.mag_card_image_labels[idx] = img_label
 
+                is_sold = str(row.get("sold") or "").lower() in {"1", "true", "yes"}
+                text = row.get("name", "")
+                if is_sold:
+                    text = f"[SOLD] {text}"
+                    sold_font = getattr(frame, "_mag_sold_font", None)
+                    if sold_font is None:
+                        if hasattr(ctk, "CTkFont"):
+                            sold_font = ctk.CTkFont(size=20, overstrike=True)
+                        else:
+                            sold_font = ("TkDefaultFont", 20, "overstrike")
+                        frame._mag_sold_font = sold_font  # type: ignore[attr-defined]
+                    label.configure(text=text, text_color=SOLD_COLOR, font=sold_font)
+                    self.mag_sold_labels.append(label)
+                else:
+                    unsold_font = getattr(frame, "_mag_unsold_font", None)
+                    if unsold_font is not None:
+                        label.configure(text=text, text_color=TEXT_COLOR, font=unsold_font)
+                    else:
+                        label.configure(text=text, text_color=TEXT_COLOR)
+                    self.mag_card_labels.append(label)
+
                 count = int(row.get("_count", 1))
+                badge = getattr(frame, "_mag_badge_label", None)
                 if count > 1:
-                    badge = ctk.CTkLabel(
-                        frame,
-                        text=str(count),
-                        fg_color="#FF0000",
-                        text_color="white",
-                        width=20,
-                        height=20,
-                        corner_radius=10,
-                    )
+                    if not _widget_exists(badge):
+                        badge = ctk.CTkLabel(
+                            frame,
+                            text=str(count),
+                            fg_color="#FF0000",
+                            text_color="white",
+                            width=20,
+                            height=20,
+                            corner_radius=10,
+                        )
+                        frame._mag_badge_label = badge  # type: ignore[attr-defined]
+                    else:
+                        badge.configure(text=str(count))
                     place = getattr(badge, "place", None)
                     if callable(place):
                         place(in_=img_label, relx=1.0, rely=0.0, anchor="ne")
@@ -3660,22 +5444,18 @@ class CardEditorApp:
                             grid_badge(row=0, column=0, sticky="ne")
                         else:
                             badge.pack()
+                elif _widget_exists(badge):
+                    forget_badge = getattr(badge, "place_forget", None)
+                    if callable(forget_badge):
+                        forget_badge()
+                    else:
+                        grid_forget = getattr(badge, "grid_forget", None)
+                        if callable(grid_forget):
+                            grid_forget()
 
-                label_kwargs = {
-                    "text": text,
-                    "text_color": color,
-                    "width": CARD_THUMB_SIZE,
-                    "wraplength": CARD_THUMB_SIZE,
-                    "justify": "center",
-                }
-                if font is not None:
-                    label_kwargs["font"] = font
-                label = ctk.CTkLabel(frame, **label_kwargs)
-                grid = getattr(label, "grid", None)
-                if callable(grid):
-                    grid(row=1, column=0, sticky="new")
-
-                self.mag_card_frames.append(frame)
+                ensure = getattr(self, "_ensure_mag_image", None)
+                if callable(ensure):
+                    ensure(idx)
 
                 for widget in (img_label, label):
                     widget.bind("<Button-1>", lambda e, r=row: self.show_card_details(r))
@@ -3684,10 +5464,13 @@ class CardEditorApp:
                         lambda e, r=row: self.show_card_details(r),
                     )
 
-                if is_sold:
-                    self.mag_sold_labels.append(label)
-                else:
-                    self.mag_card_labels.append(label)
+                self.mag_card_frames.append(frame)
+                displayed.add(idx)
+
+            try:
+                _relayout_mag_cards()
+            except Exception:
+                pass
 
             for i in range(len(self.mag_card_image_labels)):
                 if i not in displayed:
@@ -3721,21 +5504,25 @@ class CardEditorApp:
                 self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
 
         self._update_mag_list = _update_mag_list
+
+        def _reset_and_update():
+            _update_mag_list()
+
         if hasattr(search_entry, "bind"):
-            search_entry.bind("<Return>", lambda _e: _update_mag_list())
+            search_entry.bind("<Return>", lambda _e: _reset_and_update())
         if hasattr(search_button, "configure"):
-            search_button.configure(command=_update_mag_list)
+            search_button.configure(command=_reset_and_update)
         else:
-            search_button.command = _update_mag_list
-        self.mag_sold_filter_var.trace_add("write", _update_mag_list)
+            search_button.command = _reset_and_update
+        self.mag_sold_filter_var.trace_add("write", lambda *_: _reset_and_update())
         if hasattr(sort_menu, "configure"):
-            sort_menu.configure(command=lambda _: _update_mag_list())
+            sort_menu.configure(command=lambda *_: _reset_and_update())
         else:
-            sort_menu.command = lambda _: _update_mag_list()
+            sort_menu.command = lambda *_: _reset_and_update()
         if hasattr(sold_filter_menu, "configure"):
-            sold_filter_menu.configure(command=lambda _: _update_mag_list())
+            sold_filter_menu.configure(command=lambda *_: _reset_and_update())
         else:
-            sold_filter_menu.command = lambda _: _update_mag_list()
+            sold_filter_menu.command = lambda *_: _reset_and_update()
         _update_mag_list()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -3748,6 +5535,14 @@ class CardEditorApp:
                 unbind = getattr(mag_frame, "unbind", None)
                 if callable(unbind) and getattr(self, "_mag_bind_id", None):
                     unbind("<Configure>", self._mag_bind_id)
+                canvas = getattr(mag_frame, "_parent_canvas", None)
+                canvas_unbind = getattr(canvas, "unbind", None)
+                if callable(canvas_unbind) and getattr(self, "_mag_canvas_bind_id", None):
+                    try:
+                        canvas_unbind("<Configure>", self._mag_canvas_bind_id)
+                    except Exception:
+                        pass
+            self._mag_canvas_bind_id = None
             if getattr(self, "_root_mag_bind_id", None):
                 root_unbind = getattr(current_root, "unbind", None)
                 if callable(root_unbind):
@@ -3758,11 +5553,17 @@ class CardEditorApp:
                 self.back_to_welcome()
 
         self.create_button(
-            btn_frame, text="Odśwież", command=self.refresh_magazyn
+            btn_frame,
+            text="Odśwież",
+            command=self.refresh_magazyn,
+            fg_color=FETCH_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         self.create_button(
-            btn_frame, text="Powrót", command=_close_mag_window
+            btn_frame,
+            text="Powrót",
+            command=_close_mag_window,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         stats_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
@@ -3896,10 +5697,7 @@ class CardEditorApp:
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
-            if box == SPECIAL_BOX_NUMBER:
-                col_capacity = storage.BOX_COLUMN_CAPACITY
-            else:
-                col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
+            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
             value = filled / col_capacity if col_capacity else 0
             bar.set(value)
             lbl = self.mag_percent_labels.get((box, col))
@@ -4079,12 +5877,14 @@ class CardEditorApp:
                 top,
                 selected_var.get() if selected_var is not None else selected_default,
             ),
+            fg_color=SAVE_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
         ctk.CTkButton(
             buttons_frame,
             text="Zamknij",
             command=close_details,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
     def mark_as_sold(
@@ -4095,33 +5895,19 @@ class CardEditorApp:
     ):
         """Mark the card as sold, update CSV and refresh views."""
 
-        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
-        try:
-            with open(csv_path, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                rows = list(reader)
-                fieldnames = reader.fieldnames or []
-        except FileNotFoundError:
-            return
-
-        if "sold" not in fieldnames:
-            fieldnames.append("sold")
-
         codes = [
             c.strip()
             for c in str(row.get("warehouse_code", "")).split(";")
             if c.strip()
         ]
         target = warehouse_code or (codes[0] if codes else "")
-        for r in rows:
-            if r.get("warehouse_code") == target:
-                r["sold"] = "1"
-                break
+        marked = csv_utils.mark_warehouse_codes_as_sold([target])
+        if not marked:
+            return
 
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-            writer.writeheader()
-            writer.writerows(rows)
+        product_code = csv_utils.infer_product_code(row)
+        if product_code:
+            csv_utils.decrement_store_stock({product_code: 1})
 
         if window is not None:
             try:
@@ -4233,21 +6019,24 @@ class CardEditorApp:
         self.input_frame.columnconfigure(1, weight=1)
         self.input_frame.rowconfigure(5, weight=1)
 
-
+        tk.Label(
+            self.input_frame, text="Nazwa", bg=self.root.cget("background")
         ).grid(row=0, column=0, sticky="e")
         self.price_name_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Nazwa karty"
         )
         self.price_name_entry.grid(row=0, column=1, sticky="ew")
 
-
+        tk.Label(
+            self.input_frame, text="Numer", bg=self.root.cget("background")
         ).grid(row=1, column=0, sticky="e")
         self.price_number_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Numer"
         )
         self.price_number_entry.grid(row=1, column=1, sticky="ew")
 
-
+        tk.Label(
+            self.input_frame, text="Set", bg=self.root.cget("background")
         ).grid(row=2, column=0, sticky="e")
         self.price_set_entry = ctk.CTkEntry(
             self.input_frame, width=200, placeholder_text="Set"
@@ -4263,6 +6052,49 @@ class CardEditorApp:
 
         self.price_reverse_var.trace_add("write", lambda *a: self.on_reverse_toggle())
 
+        controls_frame = ctk.CTkFrame(
+            self.image_frame,
+            fg_color=BG_COLOR,
+        )
+        controls_frame.pack(fill="x", pady=(0, 10))
+        controls_frame.columnconfigure(3, weight=1)
+
+        ctk.CTkLabel(
+            controls_frame,
+            text="Widok:",
+            text_color=TEXT_COLOR,
+        ).grid(row=0, column=0, padx=(10, 5), pady=5, sticky="w")
+
+        self._pricing_view_map = {"Lista": "list", "Siatka": "grid"}
+        self.pricing_view_mode = tk.StringVar(value="list")
+        self.pricing_view_display_var = ctk.StringVar(value="Lista")
+        self.pricing_view_switch = ctk.CTkSegmentedButton(
+            controls_frame,
+            values=list(self._pricing_view_map.keys()),
+            command=self.on_pricing_view_change,
+            variable=self.pricing_view_display_var,
+        )
+        self.pricing_view_switch.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.pricing_view_switch.set("Lista")
+
+        ctk.CTkLabel(
+            controls_frame,
+            text="Sortowanie:",
+            text_color=TEXT_COLOR,
+        ).grid(row=0, column=2, padx=(20, 5), pady=5, sticky="w")
+
+        self._pricing_sort_map = {"Nazwa": "name", "Cena": "price"}
+        self.pricing_sort_key = tk.StringVar(value="name")
+        self.pricing_sort_display_var = ctk.StringVar(value="Nazwa")
+        self.pricing_sort_menu = ctk.CTkOptionMenu(
+            controls_frame,
+            values=list(self._pricing_sort_map.keys()),
+            command=self.on_pricing_sort_change,
+            variable=self.pricing_sort_display_var,
+        )
+        self.pricing_sort_menu.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+        self.pricing_sort_menu.set("Nazwa")
+
         btn_frame = tk.Frame(
             self.input_frame, bg=self.root.cget("background")
         )
@@ -4275,7 +6107,7 @@ class CardEditorApp:
             text="Wyszukaj",
             command=self.run_pricing_search,
             width=120,
-            fg_color="#00a000",
+            fg_color=FETCH_BUTTON_COLOR,
         ).grid(row=0, column=0, padx=5)
 
         self.create_button(
@@ -4283,6 +6115,7 @@ class CardEditorApp:
             text="Wyczyść",
             command=self.clear_price_pool,
             width=120,
+            fg_color=NAV_BUTTON_COLOR,
         ).grid(row=0, column=1, padx=5)
 
         self.result_frame = tk.Frame(
@@ -4290,11 +6123,16 @@ class CardEditorApp:
         )
         self.result_frame.pack(expand=True, fill="both", pady=10)
 
+        self.search_results: list[dict[str, Any]] = []
+        self.search_result_images: list[Any] = []
+        self.search_result_logo_images: list[Any] = []
+        self._primary_search_result: Optional[dict[str, Any]] = None
+
         self.pool_frame = tk.Frame(
             self.pricing_frame, bg=self.root.cget("background")
         )
         self.pool_frame.grid(row=2, column=0, columnspan=2, pady=5)
-
+        self.pool_total_label = tk.Label(
             self.pool_frame,
             text="Suma puli: 0.00",
             bg=self.root.cget("background"),
@@ -4306,6 +6144,7 @@ class CardEditorApp:
             text="Powrót",
             command=self.back_to_welcome,
             width=120,
+            fg_color=NAV_BUTTON_COLOR,
         ).pack(side="left", padx=5)
 
     def run_pricing_search(self):
@@ -4313,54 +6152,303 @@ class CardEditorApp:
         name = self.price_name_entry.get()
         number = self.price_number_entry.get()
         set_name = self.price_set_entry.get()
-        is_reverse = self.price_reverse_var.get()
-
-        info = self.lookup_card_info(name, number, set_name)
-        for w in self.result_frame.winfo_children():
-            w.destroy()
+        results = self.fetch_card_variants(name, number, set_name)
+        self.search_results = results
         self.price_labels = []
         self.result_image_label = None
         self.set_logo_label = None
         self.add_pool_button = None
-        if not info:
+        self.card_info_labels = []
+        if not results:
+            for w in self.result_frame.winfo_children():
+                w.destroy()
+            self._primary_search_result = None
             messagebox.showinfo("Brak wyników", "Nie znaleziono karty.")
             return
-        self.current_price_info = info
+        self.render_pricing_results()
 
-        if info.get("image_url"):
-            try:
-                res = requests.get(info["image_url"], timeout=10)
-                if res.status_code == 200:
-                    img = load_rgba_image(io.BytesIO(res.content))
-                    if img:
-                        img.thumbnail((240, 340))
-                        self.pricing_photo = _create_image(img)
-                        self.result_image_label = ctk.CTkLabel(
-                            self.result_frame,
-                            image=self.pricing_photo,
-                            text="",
-                        )
-                        self.result_image_label.pack(pady=5)
-            except (requests.RequestException, OSError, UnidentifiedImageError) as e:
-                logger.warning("Loading image failed: %s", e)
+    def render_pricing_results(self):
+        """Render pricing search results according to current settings."""
 
-        if info.get("set_logo_url"):
-            try:
-                res = requests.get(info["set_logo_url"], timeout=10)
-                if res.status_code == 200:
-                    img = load_rgba_image(io.BytesIO(res.content))
-                    if img:
-                        img.thumbnail((180, 60))
-                        self.set_logo_photo = _create_image(img)
-                        self.set_logo_label = ctk.CTkLabel(
-                            self.result_frame,
-                            image=self.set_logo_photo,
-                            text="",
-                        )
-                        self.set_logo_label.pack(pady=5)
-            except (requests.RequestException, OSError, UnidentifiedImageError) as e:
-                logger.warning("Loading set logo failed: %s", e)
-        self.display_price_info(info, is_reverse)
+        for widget in self.result_frame.winfo_children():
+            widget.destroy()
+
+        results = getattr(self, "search_results", [])
+        if not results:
+            ctk.CTkLabel(
+                self.result_frame,
+                text="Brak wyników do wyświetlenia.",
+                text_color=TEXT_COLOR,
+            ).pack(pady=20)
+            self._primary_search_result = None
+            return
+
+        sorted_results = self._get_sorted_search_results(results)
+        self.search_result_images = []
+        self.search_result_logo_images = []
+        self._primary_search_result = sorted_results[0] if sorted_results else None
+
+        if self._primary_search_result:
+            base_rate = self._primary_search_result.get("eur_pln_rate")
+            price_eur = self._primary_search_result.get("price_eur")
+            price_pln = self._primary_search_result.get("price_pln")
+            if price_eur is not None and base_rate is None:
+                try:
+                    base_rate = float(self.get_exchange_rate())
+                except (TypeError, ValueError):
+                    base_rate = None
+            self.current_price_info = {
+                "price_pln": price_pln,
+                "price_eur": price_eur or 0,
+                "eur_pln_rate": base_rate or 0,
+            }
+        else:
+            self.current_price_info = None
+
+        view_mode = self.pricing_view_mode.get()
+        if view_mode == "grid":
+            self.render_results_grid(sorted_results)
+        else:
+            self.render_results_list(sorted_results)
+
+    def _get_sorted_search_results(self, results: list[dict[str, Any]]):
+        key = self.pricing_sort_key.get()
+        reverse_flag = False
+
+        if key == "price":
+            def sort_key(res: dict[str, Any]):
+                price = self._get_result_price(res)
+                if price is None:
+                    return (1, float("inf"), (res.get("name") or "").lower())
+                return (0, price, (res.get("name") or "").lower())
+
+            sorted_results = sorted(results, key=sort_key, reverse=reverse_flag)
+        else:
+            sorted_results = sorted(
+                results,
+                key=lambda res: (res.get("name") or "").lower(),
+                reverse=reverse_flag,
+            )
+        return sorted_results
+
+    def _get_result_price(self, result: dict[str, Any]) -> Optional[float]:
+        price_pln = result.get("price_pln")
+        if price_pln in {None, ""}:
+            return None
+        price = self.apply_variant_multiplier(
+            price_pln, is_reverse=self.price_reverse_var.get()
+        )
+        try:
+            return float(price)
+        except (TypeError, ValueError):
+            return None
+
+    def _format_result_price(self, result: dict[str, Any]) -> str:
+        price = self._get_result_price(result)
+        if price is None:
+            return "Cena: brak danych"
+        return f"Cena: {price:.2f} PLN"
+
+    def _build_result_image(self, url: str, size: tuple[int, int]) -> Optional[Any]:
+        if not url:
+            return None
+        img = _get_thumbnail(url, size)
+        if not img:
+            return None
+        return _create_image(img.copy()) if hasattr(img, "copy") else _create_image(img)
+
+    def render_results_list(self, results: list[dict[str, Any]]):
+        container = ctk.CTkFrame(self.result_frame, fg_color=BG_COLOR)
+        container.pack(fill="both", expand=True)
+
+        for result in results:
+            item_frame = ctk.CTkFrame(
+                container,
+                fg_color=LIGHT_BG_COLOR,
+                corner_radius=8,
+            )
+            item_frame.pack(fill="x", padx=10, pady=6)
+            item_frame.grid_columnconfigure(1, weight=1)
+
+            thumb_photo = self._build_result_image(result.get("image_url"), (160, 220))
+            thumb_label = ctk.CTkLabel(item_frame, text="")
+            thumb_label.grid(row=0, column=0, rowspan=3, padx=10, pady=10)
+            if thumb_photo:
+                thumb_label.configure(image=thumb_photo)
+                thumb_label.image = thumb_photo
+                self.search_result_images.append(thumb_photo)
+
+            name = result.get("name") or "Nieznana karta"
+            number = result.get("number") or "-"
+            set_name = result.get("set") or "-"
+
+            ctk.CTkLabel(
+                item_frame,
+                text=name,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 18, "bold"),
+            ).grid(row=0, column=1, sticky="w", padx=5, pady=(10, 2))
+
+            ctk.CTkLabel(
+                item_frame,
+                text=f"#{number} | {set_name}",
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).grid(row=1, column=1, sticky="w", padx=5)
+
+            ctk.CTkLabel(
+                item_frame,
+                text=self._format_result_price(result),
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).grid(row=2, column=1, sticky="w", padx=5, pady=(0, 10))
+
+            logo_photo = self._build_result_image(result.get("set_logo_url"), (120, 40))
+            if logo_photo:
+                logo_label = ctk.CTkLabel(item_frame, text="", image=logo_photo)
+                logo_label.grid(row=0, column=2, rowspan=2, padx=10, pady=10)
+                logo_label.image = logo_photo
+                self.search_result_logo_images.append(logo_photo)
+
+            add_button = ctk.CTkButton(
+                item_frame,
+                text="Dodaj do kolekcji",
+                width=180,
+                height=36,
+                fg_color=SAVE_BUTTON_COLOR,
+                hover_color=HOVER_COLOR,
+                command=lambda res=result: self.add_search_result_to_collection(res),
+                font=("Segoe UI", 16, "bold"),
+            )
+            button_column = 3 if logo_photo else 2
+            add_button.grid(
+                row=0,
+                column=button_column,
+                rowspan=3,
+                padx=10,
+                pady=10,
+                sticky="e",
+            )
+
+    def render_results_grid(self, results: list[dict[str, Any]]):
+        grid_container = tk.Frame(
+            self.result_frame,
+            bg=self.root.cget("background"),
+        )
+        grid_container.pack(fill="both", expand=True)
+
+        columns = 3
+        for col in range(columns):
+            grid_container.grid_columnconfigure(col, weight=1)
+
+        for index, result in enumerate(results):
+            row, col = divmod(index, columns)
+            card_frame = ctk.CTkFrame(
+                grid_container,
+                fg_color=LIGHT_BG_COLOR,
+                corner_radius=12,
+            )
+            card_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+            thumb_photo = self._build_result_image(result.get("image_url"), (200, 260))
+            image_label = ctk.CTkLabel(card_frame, text="")
+            image_label.pack(padx=10, pady=(12, 6))
+            if thumb_photo:
+                image_label.configure(image=thumb_photo)
+                image_label.image = thumb_photo
+                self.search_result_images.append(thumb_photo)
+
+            name = result.get("name") or "Nieznana karta"
+            number = result.get("number") or "-"
+            set_name = result.get("set") or "-"
+            price_text = self._format_result_price(result)
+
+            ctk.CTkLabel(
+                card_frame,
+                text=name,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 16, "bold"),
+            ).pack(padx=10, pady=(0, 4))
+
+            ctk.CTkLabel(
+                card_frame,
+                text=f"#{number} | {set_name}",
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).pack(padx=10)
+
+            ctk.CTkLabel(
+                card_frame,
+                text=price_text,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 14),
+            ).pack(padx=10, pady=(4, 6))
+
+            logo_photo = self._build_result_image(result.get("set_logo_url"), (120, 40))
+            if logo_photo:
+                logo_label = ctk.CTkLabel(card_frame, text="", image=logo_photo)
+                logo_label.pack(padx=10, pady=(4, 10))
+                logo_label.image = logo_photo
+                self.search_result_logo_images.append(logo_photo)
+
+            add_button = ctk.CTkButton(
+                card_frame,
+                text="+",
+                width=36,
+                height=36,
+                fg_color=SAVE_BUTTON_COLOR,
+                hover_color=HOVER_COLOR,
+                font=("Segoe UI", 18, "bold"),
+                command=lambda res=result: self.add_search_result_to_collection(res),
+            )
+            add_button.place(in_=image_label, relx=0.95, rely=0.05, anchor="ne")
+
+    def on_pricing_view_change(self, selected_label: str):
+        value = self._pricing_view_map.get(selected_label)
+        if value:
+            self.pricing_view_mode.set(value)
+        if getattr(self, "search_results", None):
+            self.render_pricing_results()
+
+    def on_pricing_sort_change(self, selected_label: str):
+        key = self._pricing_sort_map.get(selected_label)
+        if key:
+            self.pricing_sort_key.set(key)
+        if getattr(self, "search_results", None):
+            self.render_pricing_results()
+
+    def add_search_result_to_collection(self, result: dict[str, Any]):
+        if not result:
+            return
+
+        collection_entry = {
+            "nazwa": result.get("name", ""),
+            "numer": result.get("number", ""),
+            "set": result.get("set", ""),
+        }
+
+        price_value = self._get_result_price(result)
+        if price_value is not None:
+            collection_entry["cena"] = f"{price_value:.2f}"
+        else:
+            collection_entry["cena"] = ""
+
+        if getattr(self, "output_data", None) is None:
+            self.output_data = []
+        self.output_data.append(collection_entry)
+
+        message = (
+            f"Dodano do kolekcji: {collection_entry['nazwa']} "
+            f"({collection_entry['numer']})"
+        )
+        try:
+            self.log(message)
+        except AttributeError:
+            logger.info(message)
+        try:
+            messagebox.showinfo("Sukces", message)
+        except tk.TclError:
+            logger.info("%s", message)
 
     def display_price_info(self, info, is_reverse):
         """Show pricing data with optional reverse multiplier."""
@@ -4369,7 +6457,7 @@ class CardEditorApp:
         )
         price_80 = round(price_pln * 0.8, 2)
         if not getattr(self, "price_labels", None):
-
+            eur = tk.Label(
                 self.result_frame,
                 text=f"Cena EUR: {info['price_eur']}",
                 fg="blue",
@@ -4399,6 +6487,7 @@ class CardEditorApp:
                 self.result_frame,
                 text="Dodaj do puli",
                 command=self.add_to_price_pool,
+                fg_color=SAVE_BUTTON_COLOR,
             )
             self.add_pool_button.pack(pady=5)
             self.price_labels = [eur, rate, pln, pln80]
@@ -4410,18 +6499,25 @@ class CardEditorApp:
             pln80.config(text=f"80% ceny PLN: {price_80}")
 
     def on_reverse_toggle(self, *args):
+        if getattr(self, "search_results", None):
+            self.render_pricing_results()
+            return
         if getattr(self, "current_price_info", None):
             self.display_price_info(
                 self.current_price_info, self.price_reverse_var.get()
             )
 
     def add_to_price_pool(self):
-        if not getattr(self, "current_price_info", None):
+        price_source = getattr(self, "_primary_search_result", None)
+        if price_source:
+            price = self._get_result_price(price_source)
+        elif getattr(self, "current_price_info", None):
+            price = self.apply_variant_multiplier(
+                self.current_price_info["price_pln"],
+                is_reverse=self.price_reverse_var.get(),
+            )
+        else:
             return
-        price = self.apply_variant_multiplier(
-            self.current_price_info["price_pln"],
-            is_reverse=self.price_reverse_var.get(),
-        )
         try:
             self.price_pool_total += float(price)
         except (TypeError, ValueError):
@@ -4430,7 +6526,6 @@ class CardEditorApp:
             self.pool_total_label.config(
                 text=f"Suma puli: {self.price_pool_total:.2f}"
             )
-
 
     def clear_price_pool(self):
         self.price_pool_total = 0.0
@@ -4465,9 +6560,25 @@ class CardEditorApp:
         if getattr(self, "auction_frame", None):
             self.auction_frame.destroy()
             self.auction_frame = None
+        if getattr(self, "auction_run_window", None):
+            try:
+                self.auction_run_window.close()
+            except Exception:
+                pass
+            finally:
+                self.auction_run_window = None
         if getattr(self, "statistics_frame", None):
             self.statistics_frame.destroy()
             self.statistics_frame = None
+        if getattr(self, "auction_preview_window", None):
+            try:
+                if str(self.auction_preview_window.winfo_exists()) == "1":
+                    self.auction_preview_window.destroy()
+            except tk.TclError:
+                pass
+            self.auction_preview_window = None
+            self.auction_preview_tree = None
+            self.auction_preview_next_var = None
         self.setup_welcome_screen()
 
     def setup_editor_ui(self):
@@ -4508,11 +6619,11 @@ class CardEditorApp:
         # Do not stretch the button frame so that buttons remain centered
         self.button_frame.grid(row=15, column=0, columnspan=6, pady=10)
 
-
         self.end_button = self.create_button(
             self.button_frame,
             text="Zakończ i zapisz",
             command=self.export_csv,
+            fg_color=SAVE_BUTTON_COLOR,
         )
         self.end_button.pack(side="left", padx=5)
 
@@ -4520,6 +6631,7 @@ class CardEditorApp:
             self.button_frame,
             text="Powrót",
             command=self.back_to_welcome,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.back_button.pack(side="left", padx=5)
 
@@ -4528,6 +6640,7 @@ class CardEditorApp:
             self.button_frame,
             text="\u23ee Poprzednia",
             command=self.previous_card,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.prev_button.pack(side="left", padx=5)
 
@@ -4535,6 +6648,7 @@ class CardEditorApp:
             self.button_frame,
             text="Nast\u0119pna \u23ed",
             command=self.next_card,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.next_button.pack(side="left", padx=5)
 
@@ -4542,6 +6656,7 @@ class CardEditorApp:
             self.button_frame,
             text="\U0001F9FE \u015aci\u0105ga",
             command=self.toggle_cheatsheet,
+            fg_color=NAV_BUTTON_COLOR,
         )
         self.cheat_button.pack(side="left", padx=5)
 
@@ -4573,7 +6688,8 @@ class CardEditorApp:
 
         grid_opts = {"padx": 5, "pady": 2}
 
-
+        tk.Label(
+            self.info_frame, text="Język", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row, column=0, sticky="w", **grid_opts
         )
@@ -4585,7 +6701,8 @@ class CardEditorApp:
         lang_dropdown.grid(row=start_row, column=1, sticky="ew", **grid_opts)
         lang_dropdown.bind("<<ComboboxSelected>>", self.update_set_options)
 
-
+        tk.Label(
+            self.info_frame, text="Nazwa", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 1, column=0, sticky="w", **grid_opts
         )
@@ -4594,6 +6711,8 @@ class CardEditorApp:
         )
         self.entries["nazwa"].grid(row=start_row + 1, column=1, sticky="ew", **grid_opts)
 
+        tk.Label(
+            self.info_frame, text="Numer", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 2, column=0, sticky="w", **grid_opts
         )
@@ -4602,7 +6721,8 @@ class CardEditorApp:
         )
         self.entries["numer"].grid(row=start_row + 2, column=1, sticky="ew", **grid_opts)
 
-
+        tk.Label(
+            self.info_frame, text="Era", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(row=start_row + 3, column=0, sticky="w", **grid_opts)
         self.era_var = tk.StringVar()
         self.era_dropdown = ctk.CTkComboBox(
@@ -4616,7 +6736,7 @@ class CardEditorApp:
         self.entries["era"] = self.era_var
 
         tk.Label(
-            self.info_frame, text="Set", bg=self.root.cget("background")
+            self.info_frame, text="Set", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 4, column=0, sticky="w", **grid_opts
         )
@@ -4629,23 +6749,67 @@ class CardEditorApp:
         self.set_dropdown.bind("<Tab>", self.autocomplete_set)
         self.entries["set"] = self.set_var
 
-
+        tk.Label(
+            self.info_frame, text="Typ", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 5, column=0, sticky="w", **grid_opts
         )
-        self.type_vars = {}
+        self.card_type_var = tk.StringVar(value=CARD_TYPE_DEFAULT)
+        self.entries["card_type"] = self.card_type_var
         self.type_frame = ctk.CTkFrame(self.info_frame)
-        self.type_frame.grid(row=start_row + 5, column=1, columnspan=7, sticky="w", **grid_opts)
-        types = ["Common", "Holo", "Reverse"]
-        for t in types:
-            var = tk.BooleanVar()
-            self.type_vars[t] = var
-            ctk.CTkCheckBox(
+        self.type_frame.grid(
+            row=start_row + 5, column=1, columnspan=7, sticky="w", **grid_opts
+        )
+        for idx, (code, label) in enumerate(
+            (("C", "Common"), ("H", "Holo"), ("R", "Reverse"))
+        ):
+            ctk.CTkRadioButton(
                 self.type_frame,
-                text=t,
-                variable=var,
-            ).pack(side="left", padx=2)
+                text=label,
+                variable=self.card_type_var,
+                value=code,
+            ).grid(row=0, column=idx, padx=2, pady=2, sticky="w")
 
+        class _CardTypeProxy:
+            def __init__(self, var: tk.StringVar, code: str):
+                self._var = var
+                self._code = code
+
+            def get(self) -> bool:
+                try:
+                    return normalize_card_type_code(self._var.get()) == self._code
+                except tk.TclError:
+                    return False
+
+            def set(self, value: bool) -> None:
+                try:
+                    if value:
+                        self._var.set(self._code)
+                    elif normalize_card_type_code(self._var.get()) == self._code:
+                        self._var.set(CARD_TYPE_DEFAULT)
+                except tk.TclError:
+                    pass
+
+        self.type_vars = {
+            "Holo": _CardTypeProxy(self.card_type_var, "H"),
+            "Reverse": _CardTypeProxy(self.card_type_var, "R"),
+        }
+
+        self.ball_type_var = tk.StringVar(value="")
+        ball_frame = ctk.CTkFrame(self.type_frame, fg_color="transparent")
+        ball_frame.grid(row=0, column=3, padx=(10, 0), sticky="w")
+        ctk.CTkLabel(ball_frame, text="Ball:").pack(side="left", padx=(0, 4))
+        for label, value in (("Pokéball", "P"), ("Masterball", "M")):
+            ctk.CTkRadioButton(
+                ball_frame,
+                text=label,
+                variable=self.ball_type_var,
+                value=value,
+            ).pack(side="left", padx=2)
+        self.entries["ball_type"] = self.ball_type_var
+
+        tk.Label(
+            self.info_frame, text="Stan", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 6, column=0, sticky="w", **grid_opts
         )
@@ -4659,7 +6823,8 @@ class CardEditorApp:
         )
         stan_dropdown.grid(row=start_row + 6, column=1, sticky="ew", **grid_opts)
 
-
+        tk.Label(
+            self.info_frame, text="Cena", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 7, column=0, sticky="w", **grid_opts
         )
@@ -4668,7 +6833,8 @@ class CardEditorApp:
         )
         self.entries["cena"].grid(row=start_row + 7, column=1, sticky="ew", **grid_opts)
 
-
+        tk.Label(
+            self.info_frame, text="PSA 10", bg=FIELD_BG_COLOR, fg=TEXT_COLOR
         ).grid(
             row=start_row + 8, column=0, sticky="w", **grid_opts
         )
@@ -4681,24 +6847,18 @@ class CardEditorApp:
 
         self.api_button = self.create_button(
             self.info_frame,
-            text="Pobierz cenę z bazy",
+            text="Pobierz cenę",
             command=self.fetch_card_data,
+            fg_color=FETCH_BUTTON_COLOR,
+            width=120,
         )
-        self.api_button.grid(row=start_row + 8, column=0, columnspan=2, sticky="ew", **grid_opts)
-
-        self.variants_button = self.create_button(
-            self.info_frame,
-            text="Inne warianty",
-            command=self.show_variants,
-        )
-        self.variants_button.grid(
-            row=start_row + 8, column=2, columnspan=2, sticky="ew", **grid_opts
-        )
+        self.api_button.grid(row=start_row + 8, column=0, columnspan=1, sticky="ew", **grid_opts)
 
         self.cardmarket_button = self.create_button(
             self.info_frame,
             text="Cardmarket",
             command=self.open_cardmarket_search,
+            fg_color=FETCH_BUTTON_COLOR,
         )
         self.cardmarket_button.grid(
             row=start_row + 8, column=4, columnspan=2, sticky="ew", **grid_opts
@@ -4708,28 +6868,31 @@ class CardEditorApp:
             self.info_frame,
             text="Zapisz i dalej",
             command=self.save_and_next,
+            fg_color=SAVE_BUTTON_COLOR,
+            width=120,
         )
-        self.save_button.grid(row=start_row + 9, column=0, columnspan=2, sticky="ew", **grid_opts)
+        self.save_button.grid(row=start_row + 9, column=0, columnspan=1, sticky="ew", **grid_opts)
 
         self.eur_entry = ctk.CTkEntry(
-            self.info_frame, width=200, placeholder_text="Kwota w EUR"
+            self.info_frame, width=120, placeholder_text="Kwota w EUR"
         )
         self.eur_entry.grid(
-            row=start_row + 10, column=0, columnspan=4, sticky="ew", **grid_opts
+            row=start_row + 10, column=0, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.convert_button = self.create_button(
             self.info_frame,
             text="Przelicz",
             command=self.convert_eur_to_pln,
+            fg_color=FETCH_BUTTON_COLOR,
         )
         self.convert_button.grid(
-            row=start_row + 10, column=4, columnspan=2, sticky="ew", **grid_opts
+            row=start_row + 10, column=2, columnspan=2, sticky="ew", **grid_opts
         )
 
         self.pln_result_label = ctk.CTkLabel(self.info_frame, text="PLN: -")
         self.pln_result_label.grid(
-            row=start_row + 11, column=0, columnspan=6, sticky="ew", **grid_opts
+            row=start_row + 11, column=0, columnspan=4, sticky="ew", **grid_opts
         )
 
         self.eur_entry.bind("<Return>", self.convert_eur_to_pln)
@@ -4753,8 +6916,12 @@ class CardEditorApp:
     def update_set_options(self, event=None):
         lang = self.lang_var.get().strip().upper()
         era = self.era_var.get().strip()
-        self.sets_file = ""
-        sets_by_era = tcg_sets_jp_by_era if lang == "JP" else tcg_sets_eng_by_era
+        if lang == "JP":
+            self.sets_file = "tcg_sets_jp.json"
+            sets_by_era = tcg_sets_jp_by_era
+        else:
+            self.sets_file = "tcg_sets.json"
+            sets_by_era = tcg_sets_eng_by_era
 
         if era and era in sets_by_era:
             values = [item["name"] for item in sets_by_era[era]]
@@ -4764,6 +6931,32 @@ class CardEditorApp:
         self.set_dropdown.configure(values=values)
         if getattr(self, "cheat_frame", None) is not None:
             self.create_cheat_frame()
+
+    def _get_card_type_code(self) -> str:
+        var = getattr(self, "card_type_var", None)
+        if var is None:
+            return CARD_TYPE_DEFAULT
+        try:
+            value = var.get()
+        except tk.TclError:
+            value = None
+        return normalize_card_type_code(value)
+
+    def _set_card_type_code(self, value: Any) -> None:
+        var = getattr(self, "card_type_var", None)
+        if var is None:
+            return
+        try:
+            var.set(normalize_card_type_code(value))
+        except tk.TclError:
+            pass
+
+    def _set_card_type_from_mapping(self, data: Mapping[str, Any] | None) -> None:
+        if data is None:
+            self._set_card_type_code(CARD_TYPE_DEFAULT)
+            return
+        code = infer_card_type_code(data)
+        self._set_card_type_code(code)
 
     def filter_sets(self, event=None):
         typed = self.set_var.get().strip().lower()
@@ -4950,13 +7143,22 @@ class CardEditorApp:
             return
 
         if box == SPECIAL_BOX_NUMBER:
-            if column != 1 or not (1 <= pos <= SPECIAL_BOX_CAPACITY):
+            special_columns = storage.BOX_COLUMNS.get(SPECIAL_BOX_NUMBER, 1)
+            if not (
+                1 <= column <= special_columns
+                and 1 <= pos <= BOX_COLUMN_CAPACITY
+            ):
                 messagebox.showerror(
                     "Błąd",
-                    f"Dla boxu {SPECIAL_BOX_NUMBER} kolumna musi być 1, pozycja 1-{SPECIAL_BOX_CAPACITY}",
+                    f"Dla boxu {SPECIAL_BOX_NUMBER} kolumna musi być 1-{special_columns}, "
+                    f"pozycja 1-{BOX_COLUMN_CAPACITY}",
                 )
                 return
-            self.starting_idx = BOX_COUNT * BOX_CAPACITY + (pos - 1)
+            self.starting_idx = (
+                BOX_COUNT * BOX_CAPACITY
+                + (column - 1) * BOX_COLUMN_CAPACITY
+                + (pos - 1)
+            )
         else:
             if not (1 <= column <= GRID_COLUMNS and 1 <= pos <= BOX_COLUMN_CAPACITY):
                 messagebox.showerror(
@@ -5092,6 +7294,10 @@ class CardEditorApp:
                         entry.set("ENG")
                     elif key == "stan":
                         entry.set("NM")
+                    elif key == "ball_type":
+                        entry.set("")
+                    elif key == "card_type":
+                        entry.set(CARD_TYPE_DEFAULT)
                     else:
                         entry.set("")
                 else:
@@ -5101,24 +7307,30 @@ class CardEditorApp:
             except tk.TclError:
                 self.entries.pop(key, None)
 
-        for var in self.type_vars.values():
-            var.set(False)
-
         skip_analysis = False
         self.selected_candidate_meta = None
         if cache_key and cache_key in self.card_cache:
             cached = self.card_cache[cache_key]
-            for field, value in cached.get("entries", {}).items():
+            entry_data = dict(cached.get("entries", {}) or {})
+            for field, value in entry_data.items():
                 entry = self.entries.get(field)
                 if isinstance(entry, (tk.Entry, ctk.CTkEntry)):
                     if field == "numer":
                         value = sanitize_number(str(value))
                     entry.insert(0, value)
                 elif isinstance(entry, tk.StringVar):
+                    if field == "card_type":
+                        value = normalize_card_type_code(value)
                     entry.set(value)
-            for name, val in cached.get("types", {}).items():
-                if name in self.type_vars:
-                    self.type_vars[name].set(val)
+            combined = dict(entry_data)
+            types = cached.get("types")
+            if isinstance(types, Mapping):
+                combined.setdefault("types", types)
+            if "typ" not in combined and cached.get("typ"):
+                combined["typ"] = cached["typ"]
+            if cached.get("card_type") and "card_type" not in combined:
+                combined["card_type"] = cached["card_type"]
+            self._set_card_type_from_mapping(combined)
             self.update_set_options()
 
         elif inv_entry:
@@ -5128,6 +7340,7 @@ class CardEditorApp:
             )
             self.entries["set"].set(inv_entry.get("set", ""))
             self.entries["era"].set(inv_entry.get("era", ""))
+            self._set_card_type_from_mapping(inv_entry)
             self.update_set_options()
             skip_analysis = True
             logger.info(
@@ -5182,13 +7395,10 @@ class CardEditorApp:
                         str(meta.get("numer", meta.get("number", "")))
                     )
                     set_name = meta.get("set", meta.get("set_name", ""))
-                variant = (
-                    csv_row.get("variant")
-                    if csv_row
-                    else meta.get("wariant") or meta.get("variant")
-                )
+                variant_source = csv_row if csv_row else meta
+                variant_code = infer_card_type_code(variant_source)
                 duplicates = csv_utils.find_duplicates(
-                    name, number, set_name, variant
+                    name, number, set_name, variant_code
                 )
                 if duplicates:
                     codes = ", ".join(
@@ -5217,7 +7427,7 @@ class CardEditorApp:
                     self.entries["numer"].insert(0, number)
                     self.entries["set"].set("")
                     self.entries["set"].set(set_name)
-                    era_name = ""
+                    era_name = get_set_era(set_name)
                     self.entries["era"].set(era_name)
                     cena = getattr(
                         self, "get_price_from_db", lambda *a, **k: None
@@ -5226,12 +7436,15 @@ class CardEditorApp:
                         cena = getattr(
                             self, "fetch_card_price", lambda *a, **k: None
                         )(name, number, set_name)
+                    meta_code = infer_card_type_code(meta)
                     if cena is not None:
                         self.entries["cena"].delete(0, tk.END)
                         self.entries["cena"].insert(0, str(cena))
                         is_rev = getattr(self, "price_reverse_var", None)
                         price = self.apply_variant_multiplier(
-                            cena, is_reverse=is_rev.get() if is_rev else False
+                            cena,
+                            card_type=meta_code,
+                            is_reverse=is_rev.get() if is_rev else False,
                         )
                         try:
                             self.price_pool_total += float(price)
@@ -5241,11 +7454,7 @@ class CardEditorApp:
                             self.pool_total_label.config(
                                 text=f"Suma puli: {self.price_pool_total:.2f}"
                             )
-                    if isinstance(meta.get("typ"), str):
-                        for name in meta["typ"].split(","):
-                            name = name.strip()
-                            if name in self.type_vars:
-                                self.type_vars[name].set(True)
+                    self._set_card_type_code(meta_code)
                     self.update_set_options()
                     skip_analysis = True
                     logger.info(
@@ -5296,7 +7505,9 @@ class CardEditorApp:
             return f"{name}|{number}|{set_name}|"
         return None
 
-    def _update_card_progress(self, value: float, show: bool = False):
+    def _update_card_progress(
+        self, value: float, show: bool = False, hide: bool = False
+    ):
         """Update the progress bar for analyzing a single card."""
         if not hasattr(self, "progress_bar"):
             return
@@ -5304,6 +7515,14 @@ class CardEditorApp:
             self.progress_bar.set(value)
             if show and hasattr(self, "progress_frame"):
                 self.progress_frame.grid()
+            elif hide and hasattr(self, "progress_frame"):
+                remover = getattr(self.progress_frame, "grid_remove", None)
+                if callable(remover):
+                    remover()
+                else:
+                    forget = getattr(self.progress_frame, "grid_forget", None)
+                    if callable(forget):
+                        forget()
         except tk.TclError:
             pass
 
@@ -5345,8 +7564,12 @@ class CardEditorApp:
 
             btn_frame = ctk.CTkFrame(dialog)
             btn_frame.pack(fill="x", padx=10, pady=5)
-            ctk.CTkButton(btn_frame, text=_("Select"), command=_select).pack(side="left", expand=True)
-            ctk.CTkButton(btn_frame, text=_("Skip"), command=_cancel).pack(side="right", expand=True)
+            ctk.CTkButton(
+                btn_frame, text=_("Select"), command=_select, fg_color=SAVE_BUTTON_COLOR
+            ).pack(side="left", expand=True)
+            ctk.CTkButton(
+                btn_frame, text=_("Skip"), command=_cancel, fg_color=NAV_BUTTON_COLOR
+            ).pack(side="right", expand=True)
 
             dialog.transient(self.root)
             dialog.grab_set()
@@ -5471,7 +7694,7 @@ class CardEditorApp:
                     "set_format": meta.get("set_format", ""),
                     "variant": csv_row.get("variant"),
                     "price": csv_row.get("price"),
-                    "era": csv_row.get("era", ""),
+                    "era": get_set_era(csv_row.get("set", "")),
                     "warehouse_code": code,
                 }
             else:
@@ -5494,10 +7717,20 @@ class CardEditorApp:
                 preview_cb=getattr(self, "update_set_area_preview", None),
                 preview_image=getattr(self, "current_card_image", None),
             )
+        ball_suffix = None
+        ball_var = getattr(self, "ball_type_var", None)
+        if ball_var is not None:
+            try:
+                current_ball = (ball_var.get() or "").strip().upper()
+            except tk.TclError:
+                current_ball = ""
+            if current_ball in {"P", "M"}:
+                ball_suffix = current_ball
         product_code = csv_utils.build_product_code(
             result.get("set", ""),
             result.get("number", ""),
             result.get("variant"),
+            ball_suffix=ball_suffix,
         )
         result["product_code"] = product_code
         store_row = getattr(self, "store_data", {}).get(product_code)
@@ -5516,8 +7749,6 @@ class CardEditorApp:
         if idx != self.index:
             return
         progress_cb = getattr(self, "_update_card_progress", None)
-        if progress_cb:
-            progress_cb(1.0)
         if result:
             name = result.get("name", "")
             number = result.get("number", "")
@@ -5527,7 +7758,7 @@ class CardEditorApp:
                 if m:
                     number, total = m.group(1), m.group(2)
             set_name = result.get("set", "")
-            era_name = result.get("era", "")
+            era_name = result.get("era", "") or get_set_era(set_name)
             price = result.get("price")
             number = sanitize_number(str(number))
             self.entries["nazwa"].delete(0, tk.END)
@@ -5549,11 +7780,25 @@ class CardEditorApp:
                 if hasattr(self, "location_label"):
                     self.location_label.configure(text=code)
 
-            variant = result.get("variant")
+            self._set_card_type_from_mapping(result)
+            variant_code = infer_card_type_code(result)
             duplicates = csv_utils.find_duplicates(
-                name, number, set_name, variant
+                name, number, set_name, variant_code
             )
             if duplicates:
+                if progress_cb:
+                    progress_cb(0, hide=True)
+                csv_price = next(
+                    (row.get("price") for row in duplicates if row.get("price")),
+                    None,
+                )
+                if csv_price is not None:
+                    price = csv_price
+                    result["price"] = csv_price
+                    price_entry = self.entries.get("cena")
+                    if price_entry is not None:
+                        price_entry.delete(0, tk.END)
+                        price_entry.insert(0, csv_price)
                 codes = ", ".join(
                     [d.get("warehouse_code", "") for d in duplicates if d.get("warehouse_code")]
                 )
@@ -5565,7 +7810,7 @@ class CardEditorApp:
                         "Skipping duplicate card %s #%s in set %s", name, number, set_name
                     )
                     if progress_cb:
-                        progress_cb(1.0)
+                        progress_cb(1.0, hide=True)
                     self.current_analysis_thread = None
                     return
                 self.current_location = self.next_free_location()
@@ -5574,6 +7819,8 @@ class CardEditorApp:
                 logger.info(
                     "Assigned storage location %s to duplicate card", self.current_location
                 )
+            elif progress_cb:
+                progress_cb(1.0, hide=True)
             rect = result.get("rect")
             self._analysis_orientation = result.get("orientation", 0)
             if rect and hasattr(self, "current_card_image"):
@@ -5719,14 +7966,15 @@ class CardEditorApp:
         If configuration is missing or authentication fails, a configuration
         dialog is shown to the user.
         """
-        global SHOPER_API_URL, SHOPER_API_TOKEN
+        global SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID
         url = os.getenv("SHOPER_API_URL", "").strip()
         token = os.getenv("SHOPER_API_TOKEN", "").strip()
+        client_id = os.getenv("SHOPER_CLIENT_ID", "").strip()
         if not url or not token:
             self.open_config_dialog()
             return
         try:
-            client = ShoperClient(url, token)
+            client = ShoperClient(url, token, client_id or None)
             try:
                 # perform a simple request to verify credentials
                 client.get("products", params={"page": 1, "per-page": 1})
@@ -5735,8 +7983,12 @@ class CardEditorApp:
                 self.open_config_dialog()
                 return
             self.shoper_client = client
-            SHOPER_API_URL, SHOPER_API_TOKEN = url, token
-        except requests.RequestException as exc:
+            SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID = (
+                url,
+                token,
+                client_id,
+            )
+        except (requests.RequestException, RuntimeError) as exc:
             messagebox.showerror("Błąd", f"Nie można połączyć się z API Shoper: {exc}")
             self.open_config_dialog()
 
@@ -5783,11 +8035,10 @@ class CardEditorApp:
 
     def update_sets(self):
         """Check remote API for new sets and update local files."""
-
         try:
             self.loading_label.configure(text="Sprawdzanie nowych setów...")
             self.root.update()
-            with open(sets_path, encoding="utf-8") as f:
+            with open(self.sets_file, encoding="utf-8") as f:
                 current_sets = json.load(f)
         except (OSError, json.JSONDecodeError):
             current_sets = {}
@@ -5838,7 +8089,9 @@ class CardEditorApp:
             new_items.append({"name": name, "code": code})
 
         if added:
-
+            with open(self.sets_file, "w", encoding="utf-8") as f:
+                json.dump(current_sets, f, indent=2, ensure_ascii=False)
+            reload_sets()
             refresh_logo_cache()
             names = ", ".join(item["name"] for item in new_items)
             self.loading_label.configure(
@@ -5882,7 +8135,7 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
-
+        full_name = get_set_name(set_code)
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -5921,9 +8174,16 @@ class CardEditorApp:
             candidates = []
 
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -5986,7 +8246,8 @@ class CardEditorApp:
         if set_input == "prismatic evolutions: additionals":
             set_code = "xpre"
         else:
-
+            set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6024,9 +8285,16 @@ class CardEditorApp:
                     cards = []
 
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -6077,6 +8345,139 @@ class CardEditorApp:
             logger.warning("Invalid JSON from TCGGO: %s", e)
         return ""
 
+    def fetch_card_variants(self, name, number, set_name):
+        """Return all matching cards from the API with prices."""
+        name_api = normalize(name, keep_spaces=True)
+        name_input = normalize(name)
+        number_input = number.strip().lower()
+        set_input = set_name.strip().lower()
+        if set_input == "prismatic evolutions: additionals":
+            set_code = "xpre"
+        else:
+            set_code = get_set_code(set_name)
+        full_name = get_set_name(set_code)
+        if hasattr(self, "set_var"):
+            try:
+                self.set_var.set(full_name)
+            except tk.TclError:
+                pass
+
+        try:
+            headers = {}
+            if RAPIDAPI_KEY and RAPIDAPI_HOST:
+                url = f"https://{RAPIDAPI_HOST}/cards/search"
+                params = {"search": name_api}
+                headers = {
+                    "X-RapidAPI-Key": RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": RAPIDAPI_HOST,
+                }
+            else:
+                url = "https://www.tcggo.com/api/cards/"
+                params = {
+                    "name": name_api,
+                    "number": number_input,
+                    "set": set_code,
+                }
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code != 200:
+                logger.warning("API error: %s", response.status_code)
+                return []
+
+            cards = response.json()
+            if isinstance(cards, dict):
+                if "cards" in cards:
+                    cards = cards["cards"]
+                elif "data" in cards:
+                    cards = cards["data"]
+                else:
+                    cards = []
+
+            results = []
+            eur_pln = self.get_exchange_rate()
+            for card in cards:
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
+
+                name_match = name_input in card_name
+                number_match = not number_input or number_input == card_number
+                set_match = set_input in card_set or card_set.startswith(set_input)
+
+                if name_match and number_match and set_match:
+                    price_eur = extract_cardmarket_price(card)
+                    price_pln = None
+                    price_eur_value = None
+                    if price_eur is not None:
+                        try:
+                            price_eur_value = round(float(price_eur), 2)
+                        except (TypeError, ValueError):
+                            price_eur_value = None
+                    try:
+                        eur_pln_rate = round(float(eur_pln), 4)
+                    except (TypeError, ValueError):
+                        eur_pln_rate = None
+
+                    if price_eur_value is not None:
+                        try:
+                            price_pln = round(
+                                float(price_eur_value)
+                                * float(eur_pln)
+                                * PRICE_MULTIPLIER,
+                                2,
+                            )
+                        except (TypeError, ValueError):
+                            price_pln = None
+
+                    set_info = card.get("episode") or card.get("set") or {}
+                    if not isinstance(set_info, dict):
+                        set_info = {}
+                    images = set_info.get("images", {})
+                    if not isinstance(images, dict):
+                        images = {}
+                    set_logo = (
+                        images.get("logo")
+                        or images.get("logoUrl")
+                        or images.get("logo_url")
+                        or set_info.get("logo")
+                    )
+                    card_images = card.get("images", {})
+                    if not isinstance(card_images, dict):
+                        card_images = {}
+                    image_url = (
+                        card_images.get("large")
+                        or card.get("image")
+                        or card.get("imageUrl")
+                        or card.get("image_url")
+                    )
+
+                    results.append(
+                        {
+                            "name": card.get("name", ""),
+                            "number": card_number_raw,
+                            "set": set_info.get("name", ""),
+                            "price_pln": price_pln,
+                            "price_eur": price_eur_value,
+                            "eur_pln_rate": eur_pln_rate,
+                            "image_url": image_url,
+                            "set_logo_url": set_logo,
+                        }
+                    )
+            return results
+        except requests.Timeout:
+            logger.warning("Request timed out")
+        except requests.RequestException as e:
+            logger.warning("Fetching variants from TCGGO failed: %s", e)
+        except ValueError as e:
+            logger.warning("Invalid JSON from TCGGO: %s", e)
+        return []
 
     def lookup_card_info(self, name, number, set_name, is_holo=False, is_reverse=False):
         """Return image URL and pricing information for the first matching card."""
@@ -6088,7 +8489,7 @@ class CardEditorApp:
             set_code = "xpre"
         else:
             set_code = get_set_code(set_name)
-
+        full_name = get_set_name(set_code)
         if hasattr(self, "set_var"):
             try:
                 self.set_var.set(full_name)
@@ -6123,9 +8524,16 @@ class CardEditorApp:
                     cards = []
 
             for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
+                card_name_raw = card.get("name", "")
+                card_number_raw = str(card.get("card_number", ""))
+                card_set_info = card.get("episode", {})
+                card_set_raw = ""
+                if isinstance(card_set_info, dict):
+                    card_set_raw = str(card_set_info.get("name", ""))
+
+                card_name = normalize(card_name_raw)
+                card_number = card_number_raw.lower()
+                card_set = card_set_raw.lower()
 
                 name_match = name_input in card_name
                 number_match = number_input == card_number
@@ -6154,6 +8562,9 @@ class CardEditorApp:
                         or card.get("imageUrl")
                         or card.get("image_url")
                     )
+                    set_name_value = ""
+                    if isinstance(set_info, dict):
+                        set_name_value = set_info.get("name", "")
                     return {
                         "image_url": image_url,
                         "set_logo_url": set_logo,
@@ -6161,6 +8572,9 @@ class CardEditorApp:
                         "eur_pln_rate": round(base_rate, 4),
                         "price_pln": price_pln,
                         "price_pln_80": round(price_pln * 0.8, 2),
+                        "name": card_name_raw,
+                        "number": card_number_raw,
+                        "set": set_name_value,
                     }
         except requests.Timeout:
             logger.warning("Request timed out")
@@ -6202,17 +8616,14 @@ class CardEditorApp:
             else:
                 self.log("Nie udało się automatycznie dopasować setu.")
 
-        is_reverse = self.type_vars["Reverse"].get()
-        is_holo = self.type_vars["Holo"].get()
+        card_type_code = self._get_card_type_code()
 
         number = sanitize_number(number_raw.split('/')[0])
 
         # Teraz pobierz cenę, mając już pewność co do setu (lub jego braku)
         cena = self.get_price_from_db(name, number, set_name)
         if cena is not None:
-            cena = self.apply_variant_multiplier(
-                cena, is_reverse=is_reverse, is_holo=is_holo
-            )
+            cena = self.apply_variant_multiplier(cena, card_type=card_type_code)
             self.entries["cena"].delete(0, tk.END)
             self.entries["cena"].insert(0, str(cena))
             self.log(f"Price for {name} {number}: {cena} zł")
@@ -6220,7 +8631,7 @@ class CardEditorApp:
             fetched = self.fetch_card_price(name, number, set_name)
             if fetched is not None:
                 fetched = self.apply_variant_multiplier(
-                    fetched, is_reverse=is_reverse, is_holo=is_holo
+                    fetched, card_type=card_type_code
                 )
                 self.entries["cena"].delete(0, tk.END)
                 self.entries["cena"].insert(0, str(fetched))
@@ -6239,7 +8650,6 @@ class CardEditorApp:
             self.log(f"PSA10 price for {name} {number}: {psa10_price} zł")
         else:
             self.log(f"PSA10 price for {name} {number} not found")
-
 
     def open_cardmarket_search(self):
         """Open a Cardmarket search for the current card in the default browser."""
@@ -6264,13 +8674,27 @@ class CardEditorApp:
             logger.warning("Failed to fetch exchange rate: %s", exc)
         return 4.265
 
-    def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
+    def apply_variant_multiplier(
+        self,
+        price,
+        card_type: Any = None,
+        *,
+        is_reverse: bool = False,
+        is_holo: bool = False,
+    ):
         """Apply holo/reverse or special variant multiplier when needed."""
+
         if price is None:
             return None
-        multiplier = 1
-        if is_reverse or is_holo:
-            multiplier *= HOLO_REVERSE_MULTIPLIER
+        code = csv_utils.try_normalize_variant_code(card_type)
+        if not code:
+            if is_holo:
+                code = "H"
+            elif is_reverse:
+                code = "R"
+            else:
+                code = CARD_TYPE_DEFAULT
+        multiplier = HOLO_REVERSE_MULTIPLIER if code in {"H", "R"} else 1
 
         try:
             return round(float(price) * multiplier, 2)
@@ -6288,6 +8712,13 @@ class CardEditorApp:
                 data[k] = v.get()
             except tk.TclError:
                 continue
+        if "ball_type" in data:
+            ball_value = (data["ball_type"] or "").strip().upper()
+            if ball_value not in {"P", "M"}:
+                ball_value = ""
+            data["ball_type"] = ball_value
+        else:
+            ball_value = ""
         data.setdefault("psa10_price", "")
         data.setdefault("nazwa", "")
         data.setdefault("numer", "")
@@ -6298,9 +8729,12 @@ class CardEditorApp:
         set_name = data.get("set")
         if not data["psa10_price"]:
             data["psa10_price"] = self.fetch_psa10_price(name, number, set_name)
-        types = {name: var.get() for name, var in self.type_vars.items()}
-        data["typ"] = ",".join([name for name, selected in types.items() if selected])
+        card_type_code = normalize_card_type_code(data.get("card_type"))
+        data["card_type"] = card_type_code
+        types = card_type_flags(card_type_code)
         data["types"] = types
+        data["typ"] = card_type_label(card_type_code)
+        data["variant"] = csv_utils.variant_code_to_name(card_type_code)
         existing_wc = ""
         if getattr(self, "output_data", None) and 0 <= self.index < len(self.output_data):
             current = self.output_data[self.index]
@@ -6359,6 +8793,7 @@ class CardEditorApp:
         self.card_cache[key] = {
             "entries": {k: v for k, v in data.items()},
             "types": types,
+            "card_type": card_type_code,
         }
 
         front_path = self.cards[self.index]
@@ -6366,14 +8801,13 @@ class CardEditorApp:
         self.file_to_key[front_file] = key
 
         data["image1"] = f"{BASE_IMAGE_URL}/{self.folder_name}/{front_file}"
-        variant = (
-            "Holo"
-            if types.get("Holo")
-            else "Reverse"
-            if types.get("Reverse")
-            else ""
+        ball_suffix = ball_value or None
+        data["product_code"] = csv_utils.build_product_code(
+            set_name,
+            number,
+            card_type_code,
+            ball_suffix=ball_suffix,
         )
-        data["product_code"] = csv_utils.build_product_code(set_name, number, variant)
         data["unit"] = "szt."
         data["category"] = f"Karty Pokémon > {data['era']} > {data['set']}"
         data["producer"] = "Pokémon"
@@ -6440,11 +8874,9 @@ class CardEditorApp:
             cena_local = self.get_price_from_db(
                 data["nazwa"], data["numer"], data["set"]
             )
-            is_reverse = self.type_vars["Reverse"].get()
-            is_holo = self.type_vars["Holo"].get()
             if cena_local is not None:
                 cena_local = self.apply_variant_multiplier(
-                    cena_local, is_reverse=is_reverse, is_holo=is_holo
+                    cena_local, card_type=card_type_code
                 )
                 data["cena"] = str(cena_local)
             else:
@@ -6455,7 +8887,7 @@ class CardEditorApp:
                 )
                 if fetched is not None:
                     fetched = self.apply_variant_multiplier(
-                        fetched, is_reverse=is_reverse, is_holo=is_holo
+                        fetched, card_type=card_type_code
                     )
                     data["cena"] = str(fetched)
                 else:
@@ -6551,52 +8983,70 @@ class CardEditorApp:
         """Display a dialog for editing Shoper API configuration."""
         url_var = tk.StringVar(value=os.getenv("SHOPER_API_URL", ""))
         token_var = tk.StringVar(value=os.getenv("SHOPER_API_TOKEN", ""))
+        client_id_var = tk.StringVar(value=os.getenv("SHOPER_CLIENT_ID", ""))
 
         top = ctk.CTkToplevel(self.root)
         top.title("Konfiguracja Shoper API")
         top.grab_set()
 
-        ctk.CTkLabel(top, text="URL API:", text_color=TEXT_COLOR).grid(
+        ctk.CTkLabel(top, text="Client ID:", text_color=TEXT_COLOR).grid(
             row=0, column=0, padx=10, pady=(10, 5), sticky="e"
         )
-        url_entry = ctk.CTkEntry(top, textvariable=url_var, width=400)
-        url_entry.grid(row=0, column=1, padx=10, pady=(10, 5))
+        client_id_entry = ctk.CTkEntry(top, textvariable=client_id_var, width=400)
+        client_id_entry.grid(row=0, column=1, padx=10, pady=(10, 5))
 
-        ctk.CTkLabel(top, text="Token API:", text_color=TEXT_COLOR).grid(
+        ctk.CTkLabel(top, text="URL API:", text_color=TEXT_COLOR).grid(
             row=1, column=0, padx=10, pady=5, sticky="e"
         )
+        url_entry = ctk.CTkEntry(top, textvariable=url_var, width=400)
+        url_entry.grid(row=1, column=1, padx=10, pady=5)
+
+        ctk.CTkLabel(top, text="Token API:", text_color=TEXT_COLOR).grid(
+            row=2, column=0, padx=10, pady=5, sticky="e"
+        )
         token_entry = ctk.CTkEntry(top, textvariable=token_var, width=400)
-        token_entry.grid(row=1, column=1, padx=10, pady=5)
+        token_entry.grid(row=2, column=1, padx=10, pady=5)
 
         def save():
             url = url_var.get().strip()
             token = token_var.get().strip()
+            client_id = client_id_var.get().strip()
             if not url or not token:
-                messagebox.showerror("Błąd", "Podaj URL i token API")
+                messagebox.showerror(
+                    "Błąd", "Podaj URL i token API (oraz Client ID jeśli wymagany)"
+                )
                 return
             set_key(ENV_FILE, "SHOPER_API_URL", url)
             set_key(ENV_FILE, "SHOPER_API_TOKEN", token)
+            set_key(ENV_FILE, "SHOPER_CLIENT_ID", client_id)
             os.environ["SHOPER_API_URL"] = url
             os.environ["SHOPER_API_TOKEN"] = token
+            os.environ["SHOPER_CLIENT_ID"] = client_id
             try:
-                client = ShoperClient(url, token)
+                client = ShoperClient(url, token, client_id or None)
                 try:
                     client.get("products", params={"page": 1, "per-page": 1})
                 except RuntimeError as exc:
                     messagebox.showerror("Błąd", f"Autoryzacja nieudana: {exc}")
                     return
                 self.shoper_client = client
-                global SHOPER_API_URL, SHOPER_API_TOKEN
-                SHOPER_API_URL, SHOPER_API_TOKEN = url, token
+                global SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID
+                SHOPER_API_URL, SHOPER_API_TOKEN, SHOPER_CLIENT_ID = (
+                    url,
+                    token,
+                    client_id,
+                )
                 messagebox.showinfo("Sukces", "Zapisano konfigurację Shoper API")
                 top.destroy()
-            except requests.RequestException as exc:
+            except (requests.RequestException, RuntimeError) as exc:
                 messagebox.showerror(
                     "Błąd", f"Nie można połączyć się z API Shoper: {exc}"
                 )
 
-        save_btn = ctk.CTkButton(top, text="Zapisz", command=save)
-        save_btn.grid(row=2, column=0, columnspan=2, pady=10)
+        save_btn = ctk.CTkButton(
+            top, text="Zapisz", command=save, fg_color=SAVE_BUTTON_COLOR
+        )
+        save_btn.grid(row=3, column=0, columnspan=2, pady=10)
         top.grid_columnconfigure(1, weight=1)
         self.root.wait_window(top)
 
@@ -6604,3 +9054,532 @@ class CardEditorApp:
         """Send a CSV file using the Shoper API or WebDAV fallback."""
         csv_utils.send_csv_to_shoper(self, file_path)
 
+
+
+class AuctionRunWindow:
+    """Window that monitors and controls live Discord auctions."""
+
+    POLL_INTERVAL_MS = 1000
+    IMAGE_SIZE = (320, 460)
+    PARTICIPANT_LIMIT = 50
+
+    def __init__(self, app: "CardEditorApp"):
+        self.app = app
+        self.bot = getattr(app, "bot", None)
+        self.window = ctk.CTkToplevel(app.root)
+        self.window.title("Panel aukcji")
+        try:
+            self.window.configure(fg_color=BG_COLOR)
+        except tk.TclError:
+            pass
+        try:
+            self.window.minsize(520, 720)
+        except tk.TclError:
+            pass
+        if hasattr(self.window, "transient"):
+            self.window.transient(app.root)
+        if hasattr(self.window, "lift"):
+            self.window.lift()
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+        self._current_image_source: Optional[str] = None
+        self._photo = None
+        self._poll_job: Optional[str] = None
+        self._last_participants: list[str] = []
+
+        self.title_var = tk.StringVar(value="Brak aktywnej aukcji")
+        self.start_price_var = tk.StringVar(value="-")
+        self.current_price_var = tk.StringVar(value="-")
+        self.timer_var = tk.StringVar(value="0 s")
+        self.step_var = tk.StringVar(value="1")
+
+        container = ctk.CTkFrame(self.window, fg_color=BG_COLOR)
+        container.pack(expand=True, fill="both", padx=12, pady=12)
+
+        ctk.CTkLabel(
+            container,
+            textvariable=self.title_var,
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 26, "bold"),
+        ).pack(pady=(0, 12))
+
+        self.image_label = ctk.CTkLabel(
+            container, text="Brak podglądu", text_color=TEXT_COLOR
+        )
+        self.image_label.pack(pady=(0, 12))
+
+        info_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        info_frame.pack(fill="x", pady=(0, 12))
+        info_frame.grid_columnconfigure(1, weight=1)
+
+        for row, (label, var) in enumerate(
+            (
+                ("Cena startowa:", self.start_price_var),
+                ("Aktualna cena:", self.current_price_var),
+                ("Pozostały czas:", self.timer_var),
+            )
+        ):
+            ctk.CTkLabel(
+                info_frame,
+                text=label,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 18),
+            ).grid(row=row, column=0, sticky="w", padx=4, pady=2)
+            ctk.CTkLabel(
+                info_frame,
+                textvariable=var,
+                text_color=TEXT_COLOR,
+                font=("Segoe UI", 18, "bold"),
+            ).grid(row=row, column=1, sticky="w", padx=4, pady=2)
+
+        ctk.CTkLabel(
+            info_frame,
+            text="Kwota przebicia:",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 18),
+        ).grid(row=3, column=0, sticky="w", padx=4, pady=2)
+        self.step_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.step_var,
+        )
+        self.step_entry.grid(row=3, column=1, sticky="we", padx=4, pady=2)
+
+        participants_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        participants_frame.pack(expand=True, fill="both", pady=(0, 12))
+        ctk.CTkLabel(
+            participants_frame,
+            text="Uczestnicy",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 20, "bold"),
+        ).pack(anchor="w")
+
+        list_container = tk.Frame(participants_frame, bg=BG_COLOR, borderwidth=0)
+        list_container.pack(expand=True, fill="both", pady=(6, 0))
+        self.participants_list = tk.Listbox(
+            list_container,
+            height=12,
+            bg=BG_COLOR,
+            fg="white",
+            highlightthickness=0,
+            relief="flat",
+            activestyle="none",
+            exportselection=False,
+        )
+        self.participants_list.pack(expand=True, fill="both")
+        self.participants_list.insert(tk.END, "Brak ofert")
+
+        button_frame = ctk.CTkFrame(container, fg_color=BG_COLOR)
+        button_frame.pack(fill="x")
+
+        self.start_button = ctk.CTkButton(
+            button_frame,
+            text="Start aukcji",
+            command=self.start_auction,
+            fg_color=SAVE_BUTTON_COLOR,
+        )
+        self.start_button.pack(side="left", expand=True, fill="x", padx=4)
+
+        self.next_button = ctk.CTkButton(
+            button_frame,
+            text="Następna karta",
+            command=self.next_card,
+            fg_color=FETCH_BUTTON_COLOR,
+        )
+        self.next_button.pack(side="left", expand=True, fill="x", padx=4)
+
+        self.stop_button = ctk.CTkButton(
+            button_frame,
+            text="Zakończ",
+            command=self.finish,
+            fg_color=NAV_BUTTON_COLOR,
+        )
+        self.stop_button.pack(side="left", expand=True, fill="x", padx=4)
+
+        self.sync_queue_with_bot()
+        self._update_upcoming_info()
+        self.app._update_auction_status()
+        self._poll_status()
+
+    def sync_queue_with_bot(self) -> None:
+        """Populate the Discord bot queue with auctions from the editor."""
+
+        bot_module = getattr(self.app, "bot", None)
+        if bot_module is None or not hasattr(bot_module, "Aukcja"):
+            return
+        self.bot = bot_module
+        auctions = []
+        for row in self.app.auction_queue:
+            auction = self._row_to_auction(row)
+            if auction is not None:
+                auctions.append(auction)
+        bot_module.aukcje_kolejka = auctions
+
+    def _row_to_auction(self, row: dict) -> Optional[object]:
+        if self.bot is None or not hasattr(self.bot, "Aukcja"):
+            return None
+        nazwa = str(row.get("nazwa_karty") or row.get("name") or "").strip()
+        numer = str(row.get("numer_karty") or row.get("number") or "").strip()
+        opis = str(row.get("opis") or row.get("description") or "").strip()
+        start = row.get("cena_początkowa") or row.get("price") or 0
+        przebicie = row.get("kwota_przebicia") or row.get("przebicie") or 1
+        czas = row.get("czas_trwania") or row.get("czas") or 30
+        try:
+            auction = self.bot.Aukcja(nazwa, numer, opis, start, przebicie, czas)
+        except Exception:
+            logger.exception("Failed to build auction from row: %s", row)
+            return None
+        try:
+            start_value = float(str(start).replace(",", "."))
+        except (TypeError, ValueError):
+            start_value = getattr(auction, "cena", 0.0)
+        try:
+            step_value = float(str(przebicie).replace(",", "."))
+        except (TypeError, ValueError):
+            step_value = getattr(auction, "przebicie", 1.0)
+        setattr(auction, "kwota_przebicia", step_value)
+        setattr(auction, "start_price", start_value)
+        setattr(auction, "source_row", row)
+        image_path = row.get("images 1") or row.get("image")
+        if image_path:
+            setattr(auction, "local_image", image_path)
+        return auction
+
+    def start_auction(self) -> None:
+        """Begin the next auction in the queue."""
+
+        if not self._ensure_bot_ready():
+            return
+        queue = getattr(self.bot, "aukcje_kolejka", [])
+        current = getattr(self.bot, "aktualna_aukcja", None)
+        if not queue and current is None:
+            messagebox.showinfo("Aukcja", "Brak kart w kolejce.")
+            return
+        if queue:
+            step_value = self._parse_step_input()
+            if step_value is None:
+                return
+            self._apply_step_to_auction(queue[0], step_value)
+        coro = self.bot.start_next_auction(None)
+        self._submit_bot_coro(coro, self.start_button)
+
+    def next_card(self) -> None:
+        """Trigger the next card in the queue."""
+
+        if not self._ensure_bot_ready():
+            return
+        queue = getattr(self.bot, "aukcje_kolejka", [])
+        if queue:
+            step_value = self._parse_step_input()
+            if step_value is None:
+                return
+            self._apply_step_to_auction(queue[0], step_value)
+        coro = self.bot.start_next_auction(None)
+        self._submit_bot_coro(coro, self.next_button)
+
+    def finish(self) -> None:
+        """Reset the current auction and close the window."""
+
+        if self.bot is not None and hasattr(self.bot, "aktualna_aukcja"):
+            self.bot.aktualna_aukcja = None
+        self.close()
+
+    def close(self) -> None:
+        """Destroy the window and cancel pending callbacks."""
+
+        if self._poll_job is not None and self.window is not None:
+            try:
+                self.window.after_cancel(self._poll_job)
+            except tk.TclError:
+                pass
+            self._poll_job = None
+        if self.window is not None:
+            try:
+                self.window.destroy()
+            except tk.TclError:
+                pass
+        self.window = None
+        if getattr(self.app, "auction_run_window", None) is self:
+            self.app.auction_run_window = None
+
+    def update_from_status(self, data: Optional[dict]) -> None:
+        """Update displayed values based on the latest JSON payload."""
+
+        if self.window is None:
+            return
+        self.bot = getattr(self.app, "bot", self.bot)
+        auction = getattr(self.bot, "aktualna_aukcja", None) if self.bot else None
+        if auction:
+            self._display_auction(auction)
+        else:
+            self._update_upcoming_info()
+
+        if data:
+            price = data.get("ostateczna_cena")
+            if price is not None:
+                self._set_price(self.current_price_var, price)
+            remaining = self._compute_remaining_seconds(data)
+            if remaining is not None:
+                self.timer_var.set(f"{remaining} s")
+            obraz = data.get("obraz")
+            if obraz:
+                self._update_image(obraz)
+
+        self._update_participants(data)
+
+    def _display_auction(self, auction: object) -> None:
+        name = getattr(auction, "nazwa", "")
+        number = getattr(auction, "numer", "")
+        title = name.strip()
+        if number:
+            title = f"{title} ({number})" if title else str(number)
+        self.title_var.set(title or "Aukcja")
+        start_price = getattr(auction, "start_price", getattr(auction, "cena", 0))
+        self._set_price(self.start_price_var, start_price)
+        self._set_price(self.current_price_var, getattr(auction, "cena", 0))
+        self._set_step_display(
+            getattr(auction, "kwota_przebicia", getattr(auction, "przebicie", None))
+        )
+        image_source = getattr(auction, "obraz_url", None) or getattr(auction, "local_image", None)
+        if image_source:
+            self._update_image(image_source)
+
+    def _update_upcoming_info(self) -> None:
+        bot_module = getattr(self.app, "bot", None)
+        if bot_module is None:
+            self.title_var.set("Brak połączenia z botem")
+            self.start_price_var.set("-")
+            self.current_price_var.set("-")
+            self.timer_var.set("0 s")
+            self._update_image(None)
+            self._set_participant_entries([])
+            return
+        self.bot = bot_module
+        if getattr(bot_module, "aktualna_aukcja", None):
+            self._display_auction(bot_module.aktualna_aukcja)
+            return
+        queue = list(getattr(bot_module, "aukcje_kolejka", []))
+        if queue:
+            upcoming = queue[0]
+            name = getattr(upcoming, "nazwa", "")
+            number = getattr(upcoming, "numer", "")
+            title = name.strip()
+            if number:
+                title = f"{title} ({number})" if title else str(number)
+            self.title_var.set(title or "Następna karta")
+            start_price = getattr(upcoming, "start_price", getattr(upcoming, "cena", 0))
+            self._set_price(self.start_price_var, start_price)
+            self._set_price(self.current_price_var, getattr(upcoming, "cena", start_price))
+            self._set_step_display(
+                getattr(upcoming, "kwota_przebicia", getattr(upcoming, "przebicie", None))
+            )
+            czas = getattr(upcoming, "czas", None)
+            if czas is not None:
+                try:
+                    self.timer_var.set(f"{int(czas)} s")
+                except (TypeError, ValueError):
+                    self.timer_var.set(str(czas))
+            image_source = getattr(upcoming, "local_image", None) or getattr(upcoming, "obraz_url", None)
+            self._update_image(image_source)
+        else:
+            self.title_var.set("Brak aktywnej aukcji")
+            self.start_price_var.set("-")
+            self.current_price_var.set("-")
+            self.timer_var.set("0 s")
+            self._update_image(None)
+            self._set_participant_entries([])
+
+    def _set_price(self, var: tk.StringVar, value: object) -> None:
+        text = "-"
+        if value is not None:
+            try:
+                text = f"{float(value):.2f} PLN"
+            except (TypeError, ValueError):
+                text = str(value)
+        var.set(text)
+
+    def _set_step_display(self, value: object) -> None:
+        if value is None:
+            return
+        text = self._format_step_value(value)
+        if self.step_var.get() != text:
+            self.step_var.set(text)
+
+    def _format_step_value(self, value: object) -> str:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        if int(number) == number:
+            return str(int(number))
+        text = f"{number:.2f}"
+        text = text.rstrip("0").rstrip(".")
+        return text or "0"
+
+    def _parse_step_input(self) -> Optional[float]:
+        value = (self.step_var.get() or "").strip()
+        if not value:
+            value = "1"
+        normalized = value.replace(",", ".")
+        try:
+            step = float(normalized)
+        except ValueError:
+            messagebox.showerror("Błąd", "Nieprawidłowa kwota przebicia.")
+            return None
+        if step <= 0:
+            messagebox.showerror("Błąd", "Kwota przebicia musi być dodatnia.")
+            return None
+        self._set_step_display(step)
+        return step
+
+    def _apply_step_to_auction(self, auction: Optional[object], step_value: float) -> None:
+        if auction is None:
+            return
+        try:
+            step_float = float(step_value)
+        except (TypeError, ValueError):
+            return
+        try:
+            auction.przebicie = step_float
+        except Exception:
+            pass
+        setattr(auction, "kwota_przebicia", step_float)
+        source_row = getattr(auction, "source_row", None)
+        if isinstance(source_row, dict):
+            source_row["kwota_przebicia"] = self.step_var.get()
+
+    def _update_image(self, source: Optional[str]) -> None:
+        if source == self._current_image_source:
+            return
+        self._current_image_source = source
+        if not source:
+            self.image_label.configure(image=None, text="Brak podglądu")
+            self._photo = None
+            return
+        img = _get_thumbnail(source, self.IMAGE_SIZE)
+        if img is None:
+            self.image_label.configure(image=None, text="Brak podglądu")
+            self._photo = None
+            return
+        self._photo = _create_image(img)
+        self.image_label.configure(image=self._photo, text="")
+
+    def _update_participants(self, data: Optional[dict]) -> None:
+        entries: list[str] = []
+        auction = getattr(self.bot, "aktualna_aukcja", None) if self.bot else None
+        history = None
+        if auction and getattr(auction, "historia", None):
+            try:
+                history = list(auction.historia)
+            except Exception:
+                history = []
+        elif data and data.get("historia"):
+            history = list(data.get("historia", []))
+        if history:
+            trimmed = history[-self.PARTICIPANT_LIMIT :]
+            for entry in trimmed:
+                entries.append(self._format_history_entry(entry))
+        self._set_participant_entries(entries)
+
+    def _format_history_entry(self, entry: object) -> str:
+        try:
+            user, price, _timestamp = entry
+        except (ValueError, TypeError):
+            return str(entry)
+        try:
+            price_text = f"{float(price):.2f} PLN"
+        except (TypeError, ValueError):
+            price_text = str(price)
+        return f"{user} – {price_text}"
+
+    def _set_participant_entries(self, entries: list[str]) -> None:
+        display = entries or ["Brak ofert"]
+        if display == self._last_participants:
+            return
+        self.participants_list.delete(0, tk.END)
+        for item in display:
+            self.participants_list.insert(tk.END, item)
+        self._last_participants = list(display)
+
+    def _compute_remaining_seconds(self, data: dict) -> Optional[int]:
+        start_str = data.get("start_time")
+        if not start_str:
+            return None
+        try:
+            start = datetime.datetime.fromisoformat(start_str.rstrip("Z"))
+            duration = int(data.get("czas", 0))
+            end = start + datetime.timedelta(seconds=duration)
+            remaining = int((end - datetime.datetime.utcnow()).total_seconds())
+            return max(remaining, 0)
+        except (ValueError, TypeError):
+            return None
+
+    def _poll_status(self) -> None:
+        if self.window is None:
+            return
+        try:
+            self.app._update_auction_status()
+        except Exception:
+            logger.exception("Failed to refresh auction status")
+        if self.window is not None:
+            try:
+                self._poll_job = self.window.after(
+                    self.POLL_INTERVAL_MS, self._poll_status
+                )
+            except tk.TclError:
+                self._poll_job = None
+
+    def _ensure_bot_ready(self) -> bool:
+        self.bot = getattr(self.app, "bot", self.bot)
+        if self.bot is None:
+            messagebox.showerror("Błąd", "Bot aukcyjny nie jest dostępny.")
+            return False
+        loop = getattr(self.bot, "loop", None)
+        if loop is None or not getattr(loop, "is_running", lambda: False)():
+            messagebox.showerror("Błąd", "Bot aukcyjny nie jest uruchomiony.")
+            return False
+        return True
+
+    def _submit_bot_coro(
+        self, coro: Awaitable[object], button: Optional["ctk.CTkButton"] = None
+    ) -> None:
+        if self.window is None:
+            return
+        loop = getattr(self.bot, "loop", None)
+        if loop is None:
+            messagebox.showerror("Błąd", "Brak aktywnej pętli asynchronicznej.")
+            return
+        if button is not None:
+            try:
+                button.configure(state="disabled")
+            except tk.TclError:
+                pass
+        try:
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+        except RuntimeError as exc:
+            logger.exception("Failed to submit coroutine to bot loop")
+            messagebox.showerror("Błąd", str(exc))
+            if button is not None:
+                try:
+                    button.configure(state="normal")
+                except tk.TclError:
+                    pass
+            return
+
+        def _on_done(fut):
+            try:
+                fut.result()
+            except Exception as exc:  # pragma: no cover - network/discord errors
+                logger.exception("Bot coroutine failed", exc_info=exc)
+                if self.window is not None:
+                    try:
+                        self.window.after(0, lambda: messagebox.showerror("Błąd", str(exc)))
+                    except tk.TclError:
+                        pass
+            finally:
+                if button is not None and self.window is not None:
+                    try:
+                        self.window.after(0, lambda: button.configure(state="normal"))
+                    except tk.TclError:
+                        pass
+
+        future.add_done_callback(_on_done)

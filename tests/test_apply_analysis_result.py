@@ -12,19 +12,30 @@ def make_dummy():
     num_entry = MagicMock()
     set_var = MagicMock()
     era_var = MagicMock()
+    card_type_var = SimpleNamespace(get=lambda: "C", set=MagicMock())
     name_entry.delete = MagicMock()
     name_entry.insert = MagicMock()
     num_entry.delete = MagicMock()
     num_entry.insert = MagicMock()
     set_var.set = MagicMock()
     dummy = SimpleNamespace(
-        entries={"nazwa": name_entry, "numer": num_entry, "set": set_var, "era": era_var},
+        entries={
+            "nazwa": name_entry,
+            "numer": num_entry,
+            "set": set_var,
+            "era": era_var,
+            "card_type": card_type_var,
+        },
         root=SimpleNamespace(),
         index=0,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
+        card_type_var=card_type_var,
     )
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
+    dummy._get_card_type_code = ui.CardEditorApp._get_card_type_code.__get__(dummy, ui.CardEditorApp)
+    dummy._set_card_type_code = ui.CardEditorApp._set_card_type_code.__get__(dummy, ui.CardEditorApp)
+    dummy._set_card_type_from_mapping = ui.CardEditorApp._set_card_type_from_mapping.__get__(dummy, ui.CardEditorApp)
     return dummy, name_entry, num_entry, set_var
 
 
@@ -42,6 +53,9 @@ def make_dummy_with_progress():
     dummy.next_free_location = MagicMock(return_value="K1R1P1")
     dummy.location_label = SimpleNamespace(configure=MagicMock())
     dummy.current_analysis_thread = "t"
+    dummy._get_card_type_code = ui.CardEditorApp._get_card_type_code.__get__(dummy, ui.CardEditorApp)
+    dummy._set_card_type_code = ui.CardEditorApp._set_card_type_code.__get__(dummy, ui.CardEditorApp)
+    dummy._set_card_type_from_mapping = ui.CardEditorApp._set_card_type_from_mapping.__get__(dummy, ui.CardEditorApp)
     return dummy, name_entry, num_entry, set_var
 
 
@@ -56,7 +70,7 @@ def test_apply_analysis_result_duplicate_cancel(monkeypatch):
         {"name": "Pika", "number": "001", "set": "Set X", "era": ""}, 0
     )
 
-    find_mock.assert_called_once_with("Pika", "1", "Set X", None)
+    find_mock.assert_called_once_with("Pika", "1", "Set X", "C")
     ask_mock.assert_called_once()
     assert dummy._update_card_progress.call_args_list == [
         call(0, hide=True),
@@ -77,7 +91,7 @@ def test_apply_analysis_result_duplicate_confirm(monkeypatch):
         {"name": "Pika", "number": "001", "set": "Set X", "era": ""}, 0
     )
 
-    find_mock.assert_called_once_with("Pika", "1", "Set X", None)
+    find_mock.assert_called_once_with("Pika", "1", "Set X", "C")
     ask_mock.assert_called_once()
     dummy._update_card_progress.assert_called_once_with(0, hide=True)
     dummy.next_free_location.assert_called_once()

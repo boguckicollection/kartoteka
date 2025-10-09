@@ -1,9 +1,10 @@
+import csv
 import os
 import re
-import csv
 from datetime import date, timedelta
-from typing import Optional, Tuple
+from typing import Any, Mapping, Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
+import unicodedata
 
 import logging
 
@@ -55,6 +56,44 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
+logger = logging.getLogger(__name__)
+
+
+def get_warehouse_inventory():
+    """Wczytuje całą zawartość pliku magazyn.csv."""
+    try:
+        with open(WAREHOUSE_CSV, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            return list(reader)
+    except FileNotFoundError:
+        logger.error(f"Plik magazynu {WAREHOUSE_CSV} nie został znaleziony.")
+        return []
+    except Exception as e:
+        logger.error(f"Błąd odczytu pliku {WAREHOUSE_CSV}: {e}")
+        return []
+
+def _ensure_warehouse_csv_exists(path: str = WAREHOUSE_CSV) -> None:
+    """Create an empty warehouse CSV with headers when missing."""
+
+    if not path:
+        return
+
+    directory = os.path.dirname(path)
+    try:
+        if directory and not os.path.isdir(directory):
+            os.makedirs(directory, exist_ok=True)
+        if os.path.exists(path):
+            return
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(WAREHOUSE_FIELDNAMES)
+    except OSError as exc:  # pragma: no cover - best effort logging
+        logger.warning("Unable to initialise warehouse CSV at %s: %s", path, exc)
+
+
+_ensure_warehouse_csv_exists()
+
+
 def load_store_export(path: str = STORE_EXPORT_CSV) -> dict[str, dict[str, str]]:
     """Return mapping of ``product_code`` to rows from the store export CSV.
 
@@ -101,10 +140,64 @@ def _sanitize_number(value: str) -> str:
     return value.strip().lstrip("0") or "0"
 
 
-VARIANT_SUFFIXES = {"holo": "H", "reverse": "R"}
+VARIANT_CODE_TO_NAME = {"C": "common", "H": "holo", "R": "reverse"}
+VARIANT_SUFFIXES = {name: code for code, name in VARIANT_CODE_TO_NAME.items()}
 
 
-def build_product_code(set_name: str, number: str, variant: str | None = None) -> str:
+def try_normalize_variant_code(value: Any) -> Optional[str]:
+    """Return the variant code (``C``, ``H`` or ``R``) when recognised."""
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        normalized = unicodedata.normalize("NFKD", stripped)
+        ascii_variant = "".join(ch for ch in normalized if not unicodedata.combining(ch)) or stripped
+        upper = ascii_variant.upper()
+        if upper in VARIANT_CODE_TO_NAME:
+            return upper
+        lower = ascii_variant.lower()
+        if lower in VARIANT_SUFFIXES:
+            return VARIANT_SUFFIXES[lower]
+    return None
+
+
+def normalize_variant_code(value: Any, *, default: str = "C") -> str:
+    """Return a variant code, falling back to ``default`` when unknown."""
+
+    return try_normalize_variant_code(value) or default
+
+
+def variant_code_to_name(code: str, *, default: str = "common") -> str:
+    """Return the textual name for ``code``."""
+
+    return VARIANT_CODE_TO_NAME.get(code, default)
+
+
+def infer_variant_code(data: Mapping[str, Any] | None) -> str:
+    """Infer variant code from ``data`` supporting legacy structures."""
+
+    if not data:
+        return "C"
+    for key in ("card_type", "variant", "typ"):
+        code = try_normalize_variant_code(data.get(key))
+        if code:
+            return code
+    types = data.get("types") if isinstance(data, Mapping) else None
+    if isinstance(types, Mapping):
+        if types.get("Holo") or types.get("holo"):
+            return "H"
+        if types.get("Reverse") or types.get("reverse"):
+            return "R"
+    return "C"
+
+
+def build_product_code(
+    set_name: str,
+    number: str,
+    variant: str | None = None,
+    ball_suffix: str | None = None,
+) -> str:
     """Return a product code based on set abbreviation and card number."""
     from .ui import get_set_abbr  # local import to avoid circular dependency
 
@@ -113,8 +206,155 @@ def build_product_code(set_name: str, number: str, variant: str | None = None) -
         sanitized = re.sub(r"[^A-Za-z0-9]", "", set_name).upper()
         abbr = sanitized[:3]
     num = _sanitize_number(str(number))
-    suffix = VARIANT_SUFFIXES.get((variant or "").strip().lower(), "")
-    return f"PKM-{abbr}-{num}{suffix}"
+    variant_code = normalize_variant_code(variant)
+    ball = (ball_suffix or "").strip().upper()
+    if ball not in {"P", "M"}:
+        ball = ""
+    return f"PKM-{abbr}-{num}{variant_code}{ball}"
+
+
+def infer_product_code(data: Mapping[str, Any] | None) -> str:
+    """Return a product code derived from ``data`` when available."""
+
+    if not data:
+        return ""
+
+    for key in ("product_code", "code", "producer_code"):
+        value = str(data.get(key) or "").strip()
+        if value:
+            return value
+
+    set_name = data.get("set") or data.get("set_name") or ""
+    number = data.get("number") or data.get("numer") or ""
+    variant = data.get("variant") or data.get("card_type")
+    ball = data.get("ball") or data.get("ball_suffix")
+    if not set_name or not number:
+        return ""
+
+    try:
+        return build_product_code(set_name, number, variant, ball)
+    except Exception:
+        return ""
+
+
+def decrement_store_stock(product_counts: Mapping[str, int]):
+    """Zmniejsza stan magazynowy ('availability') w store_export.csv i prosi o potwierdzenie."""
+    if not product_counts:
+        return
+    try:
+        with open(STORE_EXPORT_CSV, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = list(reader)
+            fieldnames = reader.fieldnames
+    except FileNotFoundError:
+        logger.warning(f"Plik {STORE_EXPORT_CSV} nie został znaleziony.")
+        return
+
+    if not fieldnames or "product_code" not in fieldnames or "availability" not in fieldnames:
+        logger.error(f"Plik {STORE_EXPORT_CSV} ma nieprawidłowe nagłówki.")
+        return
+
+    for row in rows:
+        product_code = row.get("product_code")
+        if product_code in product_counts:
+            current_stock = int(row.get("availability", 0))
+            sold_quantity = product_counts[product_code]
+            row["availability"] = str(max(0, current_stock - sold_quantity))
+
+    if messagebox.askyesno("Potwierdzenie zapisu", f"Czy na pewno chcesz zapisać zmiany stanów magazynowych w pliku {os.path.basename(STORE_EXPORT_CSV)}?"):
+        try:
+            with open(STORE_EXPORT_CSV, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+                writer.writeheader()
+                writer.writerows(rows)
+            logger.info(f"Plik {STORE_EXPORT_CSV} został zaktualizowany.")
+        except OSError as e:
+            logger.error(f"Błąd zapisu do pliku {STORE_EXPORT_CSV}: {e}")
+    else:
+        logger.info("Zapis do store_export.csv anulowany przez użytkownika.")
+
+
+def mark_warehouse_codes_as_sold(codes, *, path: str | None = None) -> int:
+    """Mark cards associated with ``codes`` as sold in the warehouse CSV.
+
+    The helper understands grouped entries where multiple warehouse codes are
+    stored in a single CSV row.  When such a row contains both sold and unsold
+    codes the function keeps the unsold codes together and duplicates the row
+    with the sold flag set for each sold code.  This mirrors how the magazyn
+    view groups cards while ensuring sold entries are removed from future
+    exports.
+
+    Parameters
+    ----------
+    codes:
+        Iterable with warehouse codes to mark as sold.  Empty or falsy entries
+        are ignored.
+    path:
+        Optional explicit path to the CSV file.  When omitted the configured
+        :data:`WAREHOUSE_CSV` is used.
+
+    Returns
+    -------
+    int
+        Number of codes that were successfully marked as sold.
+    """
+
+    codes_to_mark = [c.strip() for c in (codes or []) if str(c).strip()]
+    if not codes_to_mark:
+        return 0
+
+    csv_path = path or WAREHOUSE_CSV
+    if not csv_path:
+        return 0
+
+    try:
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            rows = list(reader)
+            fieldnames = reader.fieldnames or WAREHOUSE_FIELDNAMES
+    except FileNotFoundError:
+        return 0
+
+    sold_codes: set[str] = set()
+    updated_rows: list[dict[str, str]] = []
+
+    for row in rows:
+        raw_codes = str(row.get("warehouse_code") or "")
+        split_codes = [c.strip() for c in raw_codes.split(";") if c.strip()]
+        matches = [c for c in split_codes if c in codes_to_mark]
+
+        if not matches:
+            updated_rows.append(row)
+            continue
+
+        remaining = [c for c in split_codes if c not in matches]
+        if remaining:
+            unsold_row = dict(row)
+            unsold_row["warehouse_code"] = ";".join(remaining)
+            # ensure unsold row does not inherit a sold flag
+            if str(unsold_row.get("sold") or "").lower() in {"1", "true", "yes"}:
+                unsold_row["sold"] = ""
+            updated_rows.append(unsold_row)
+
+        for code in matches:
+            sold_row = dict(row)
+            sold_row["warehouse_code"] = code
+            sold_row["sold"] = "1"
+            updated_rows.append(sold_row)
+            sold_codes.add(code)
+
+    if not sold_codes:
+        return 0
+
+    if "sold" not in fieldnames:
+        fieldnames = list(fieldnames) + ["sold"]
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        writer.writerows(updated_rows)
+
+    return len(sold_codes)
 
 
 def find_duplicates(
@@ -141,7 +381,7 @@ def find_duplicates(
     number = _sanitize_number(str(number))
     name_norm = normalize(name)
     set_norm = normalize(set_name)
-    variant_norm = normalize(variant) if variant else None
+    requested_code = try_normalize_variant_code(variant)
 
     if not os.path.exists(WAREHOUSE_CSV):
         return matches
@@ -153,12 +393,12 @@ def find_duplicates(
                 row_number = _sanitize_number(str(row.get("number", "")))
                 row_name = normalize(row.get("name") or "")
                 row_set = normalize(row.get("set") or "")
-                row_variant = normalize(row.get("variant") or "common") or "common"
+                row_variant_code = infer_variant_code(row)
                 if (
                     row_name == name_norm
                     and row_number == number
                     and row_set == set_norm
-                    and (variant_norm is None or row_variant == variant_norm)
+                    and (requested_code is None or row_variant_code == requested_code)
                 ):
                     matches.append(row)
     except OSError:
@@ -327,14 +567,8 @@ def format_store_row(row):
 
 def format_warehouse_row(row):
     """Return a row formatted for the warehouse CSV."""
-    types = row.get("types") or {}
-    variant = (
-        "holo"
-        if types.get("Holo")
-        else "reverse"
-        if types.get("Reverse")
-        else row.get("variant", "common")
-    )
+    variant_code = infer_variant_code(row)
+    variant = variant_code_to_name(variant_code)
     return {
         "name": row.get("nazwa", ""),
         "number": row.get("numer", ""),
@@ -424,7 +658,8 @@ def load_csv_data(app):
             row["product_code"] = build_product_code(
                 row.get("set", ""),
                 number,
-                row.get("variant"),
+                infer_variant_code(row),
+                ball_suffix=row.get("ball_type"),
             )
 
     if qty_field is None:

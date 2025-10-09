@@ -37,7 +37,7 @@ def _create_store_csv(path):
         writer = csv.DictWriter(f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";")
         writer.writeheader()
         writer.writerow({
-            "product_code": "PKM-PAL-1",
+            "product_code": "PKM-PAL-1C",
             "name": "Pikachu",
             "producer_code": "1",
             "category": "Karty Pokémon > EraX > Paldea Evolved",
@@ -61,8 +61,8 @@ def test_load_store_export(tmp_path):
     csv_path = tmp_path / "store_export.csv"
     _create_store_csv(csv_path)
     data = csv_utils.load_store_export(str(csv_path))
-    assert "PKM-PAL-1" in data
-    assert data["PKM-PAL-1"]["price"] == "99"
+    assert "PKM-PAL-1C" in data
+    assert data["PKM-PAL-1C"]["price"] == "99"
 
 
 def test_analyze_and_fill_uses_store_export(monkeypatch, tmp_path):
@@ -75,6 +75,7 @@ def test_analyze_and_fill_uses_store_export(monkeypatch, tmp_path):
     set_var = DummyVar("")
     era_var = DummyVar("")
     price_entry = MagicMock()
+    card_type_var = DummyVar("C")
     for entry in (name_entry, num_entry, price_entry):
         entry.delete = MagicMock()
         entry.insert = MagicMock()
@@ -87,6 +88,7 @@ def test_analyze_and_fill_uses_store_export(monkeypatch, tmp_path):
             "set": set_var,
             "era": era_var,
             "cena": price_entry,
+            "card_type": card_type_var,
         },
         index=0,
         update_set_options=lambda: None,
@@ -94,8 +96,12 @@ def test_analyze_and_fill_uses_store_export(monkeypatch, tmp_path):
         store_data=store_data,
         hash_db=None,
         auto_lookup=False,
+        card_type_var=card_type_var,
     )
     dummy._apply_analysis_result = ui.CardEditorApp._apply_analysis_result.__get__(dummy, ui.CardEditorApp)
+    dummy._get_card_type_code = ui.CardEditorApp._get_card_type_code.__get__(dummy, ui.CardEditorApp)
+    dummy._set_card_type_code = ui.CardEditorApp._set_card_type_code.__get__(dummy, ui.CardEditorApp)
+    dummy._set_card_type_from_mapping = ui.CardEditorApp._set_card_type_from_mapping.__get__(dummy, ui.CardEditorApp)
 
     monkeypatch.setattr(
         ui,

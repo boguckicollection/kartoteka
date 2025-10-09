@@ -30,7 +30,7 @@ def test_push_product_posts_attribute(monkeypatch):
     )
 
     dummy = SimpleNamespace(
-        output_data=[{"foo": "bar"}],
+        output_data=[{"foo": "bar", "card_type": "R"}],
         index=0,
         save_current_data=lambda: None,
         _build_shoper_payload=lambda card: {"name": "x"},

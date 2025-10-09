@@ -29,7 +29,8 @@ def make_dummy():
             "język": DummyVar("ENG"),
             "stan": DummyVar("NM"),
             "cena": DummyVar(""),
-            "psa10_price": DummyVar("")
+            "psa10_price": DummyVar(""),
+            "card_type": DummyVar("C"),
         },
         type_vars={"Reverse": DummyVar(False), "Holo": DummyVar(False)},
         card_cache={},
@@ -78,5 +79,5 @@ def test_html_generated():
     assert "<li>Profesjonalna obsługa klienta</li>" in data["description"]
     assert "https://kartoteka.shop/pl/c/Base-Set" in data["description"]
     assert dummy.product_code_map == {}
-    assert data["product_code"] == "PKM-BAS-4"
+    assert data["product_code"] == "PKM-BAS-4C"
     assert data["warehouse_code"] == "K1R1P1"

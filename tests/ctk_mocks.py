@@ -67,6 +67,20 @@ class DummyCTkButton(_Widget):
         self.kwargs = kwargs
 
 
+class DummyCTkCheckBox(_Widget):
+    def __init__(self, master=None, text="", variable=None, text_color=None, **kwargs):
+        self.master = master
+        self.text = text
+        self.variable = variable
+        self.text_color = text_color
+        self.kwargs = kwargs
+        if variable is not None and hasattr(variable, "get"):
+            try:
+                variable.set(variable.get())
+            except Exception:
+                pass
+
+
 class DummyCTkScrollableFrame(_Widget):
     def __init__(self, master=None, fg_color=None, **kwargs):
         self.master = master

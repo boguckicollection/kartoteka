@@ -106,6 +106,46 @@
       "code": "rsv10pt5",
       "abbr": "WHT",
       "total": 173
+    },
+    {
+      "name": "Scarlet & Violet",
+      "code": "sv1",
+      "abbr": "SVI"
+    },
+    {
+      "name": "Paldea Evolved",
+      "code": "sv2",
+      "abbr": "PAL"
+    },
+    {
+      "name": "Scarlet & Violet Energies",
+      "code": "sve",
+      "abbr": "SVE"
+    },
+    {
+      "name": "Obsidian Flames",
+      "code": "sv3",
+      "abbr": "OBF"
+    },
+    {
+      "name": "Paradox Rift",
+      "code": "sv4",
+      "abbr": "PAR"
+    },
+    {
+      "name": "Temporal Forces",
+      "code": "sv5",
+      "abbr": "TEF"
+    },
+    {
+      "name": "Twilight Masquerade",
+      "code": "sv6",
+      "abbr": "TWM"
+    },
+    {
+      "name": "Stellar Crown",
+      "code": "sv7",
+      "abbr": "SCR"
     }
   ],
   "Sword & Shield": [
@@ -229,6 +269,56 @@
       "code": "swsh12pt5",
       "abbr": "CRZ",
       "total": 160
+    },
+    {
+      "name": "Champion's Path",
+      "code": "swsh35",
+      "abbr": "CPA"
+    },
+    {
+      "name": "Shining Fates",
+      "code": "swsh45",
+      "abbr": "SHF"
+    },
+    {
+      "name": "Shining Fates Shiny Vault",
+      "code": "swsh45sv",
+      "abbr": "SHF"
+    },
+    {
+      "name": "Celebrations: Classic Collection",
+      "code": "cel25c",
+      "abbr": "CEL"
+    },
+    {
+      "name": "Brilliant Stars Trainer Gallery",
+      "code": "swsh9tg",
+      "abbr": "BRS"
+    },
+    {
+      "name": "Astral Radiance Trainer Gallery",
+      "code": "swsh10tg",
+      "abbr": "ASR"
+    },
+    {
+      "name": "Pokémon GO",
+      "code": "pgo",
+      "abbr": "PGO"
+    },
+    {
+      "name": "Lost Origin Trainer Gallery",
+      "code": "swsh11tg",
+      "abbr": "LOR"
+    },
+    {
+      "name": "Silver Tempest Trainer Gallery",
+      "code": "swsh12tg",
+      "abbr": "SIT"
+    },
+    {
+      "name": "Crown Zenith Galarian Gallery",
+      "code": "swsh12pt5gg",
+      "abbr": "CRZ"
     }
   ],
   "Sun & Moon": [
@@ -363,6 +453,16 @@
       "code": "sm12",
       "abbr": "CEC",
       "total": 272
+    },
+    {
+      "name": "Shining Legends",
+      "code": "sm35",
+      "abbr": "SLG"
+    },
+    {
+      "name": "Dragon Majesty",
+      "code": "sm75",
+      "abbr": "DRM"
     }
   ],
   "XY": [
@@ -1002,6 +1102,55 @@
       "name": "Team Rocket",
       "code": "base5",
       "total": 83
+    }
+  ],
+  "Other": [
+    {
+      "name": "Legendary Collection",
+      "code": "base6",
+      "abbr": "LC"
+    },
+    {
+      "name": "Best of Game",
+      "code": "bp",
+      "abbr": "BP"
+    },
+    {
+      "name": "Pokémon Futsal Collection",
+      "code": "fut20",
+      "abbr": "FUT20"
+    }
+  ],
+  "HeartGold & SoulSilver": [
+    {
+      "name": "HGSS Black Star Promos",
+      "code": "hsp",
+      "abbr": "PR-HS"
+    }
+  ],
+  "EX": [
+    {
+      "name": "EX Trainer Kit Latias",
+      "code": "tk1a"
+    },
+    {
+      "name": "EX Trainer Kit Latios",
+      "code": "tk1b"
+    },
+    {
+      "name": "EX Trainer Kit 2 Plusle",
+      "code": "tk2a"
+    },
+    {
+      "name": "EX Trainer Kit 2 Minun",
+      "code": "tk2b"
+    }
+  ],
+  "Mega Evolution": [
+    {
+      "name": "Mega Evolution",
+      "code": "me1",
+      "abbr": "MEG"
     }
   ]
 }
