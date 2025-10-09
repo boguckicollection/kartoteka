@@ -70,6 +70,11 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--products-only",
+        action="store_true",
+        help="Pobierz tylko listę produktów dla podanego order_id",
+    )
+    parser.add_argument(
         "--per-page",
         type=int,
         default=5,
@@ -101,9 +106,27 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     filters = _normalise_filters(args.filter)
 
     client = ShoperClient()
-    response = client.list_orders(
-        filters=filters or None, page=args.page, per_page=args.per_page
-    )
+
+    # Sprawdzamy, czy użytkownik prosi tylko o listę produktów
+    order_id_filter = filters.get("order_id")
+    if args.products_only:
+        if isinstance(order_id_filter, str) and order_id_filter.isdigit():
+            print(f"Pobieranie listy produktów dla zamówienia #{order_id_filter}...")
+            # Używamy nowej metody get_order_products
+            response = client.get_order_products(order_id_filter)
+        else:
+            print("Błąd: Użyj --products-only razem z --filter 'order_id=NUMER'")
+            return 1
+    # Sprawdzamy, czy prośba dotyczy jednego, pełnego zamówienia
+    elif isinstance(order_id_filter, str) and order_id_filter.isdigit() and len(filters) == 1:
+        print(f"Pobieranie szczegółów zamówienia #{order_id_filter}...")
+        single_order = client.get_order(order_id_filter)
+        response = {"list": [single_order]} if single_order else {}
+    # W każdym innym przypadku pobieramy listę zamówień
+    else:
+        response = client.list_orders(
+            filters=filters or None, page=args.page, per_page=args.per_page
+        )
 
     orders = response.get("list", [])
     if args.raw:
