@@ -59,6 +59,19 @@ WAREHOUSE_FIELDNAMES = [
 logger = logging.getLogger(__name__)
 
 
+def get_warehouse_inventory():
+    """Wczytuje całą zawartość pliku magazyn.csv."""
+    try:
+        with open(WAREHOUSE_CSV, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            return list(reader)
+    except FileNotFoundError:
+        logger.error(f"Plik magazynu {WAREHOUSE_CSV} nie został znaleziony.")
+        return []
+    except Exception as e:
+        logger.error(f"Błąd odczytu pliku {WAREHOUSE_CSV}: {e}")
+        return []
+
 def _ensure_warehouse_csv_exists(path: str = WAREHOUSE_CSV) -> None:
     """Create an empty warehouse CSV with headers when missing."""
 

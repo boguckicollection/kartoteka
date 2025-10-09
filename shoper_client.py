@@ -1,6 +1,8 @@
 import logging
 import os
 import time
+import json
+
 from typing import Optional
 
 import requests
@@ -145,7 +147,40 @@ class ShoperClient:
 
     def get_order(self, order_id):
         """Retrieve a single order by id."""
-        return self.get(f"orders/{order_id}")
+        # Dodajemy parametr "with", aby API dołączyło listę produktów i inne szczegóły
+        params = {"with": "products,delivery_address,billing_address,status,user"}
+        return self.get(f"orders/{order_id}", params=params)
+    
+    def get_order_products(self, order_id):
+        """Pobiera listę WSZYSTKICH produktów dla konkretnego zamówienia, obsługując paginację."""
+        all_products = []
+        page = 1
+        while True:
+            filters = json.dumps({"order_id": order_id})
+            params = {"filters": filters, "page": page, "limit": 50}
+
+            response = self.get("order-products", params=params)
+
+            products_on_page = response.get("list", [])
+            if not products_on_page:
+                break  # Koniec produktów, przerywamy pętlę
+
+            all_products.extend(products_on_page)
+
+            current_page = int(response.get("page", 1))
+            total_pages = int(response.get("pages", 1))
+
+            if current_page >= total_pages:
+                break
+
+            page += 1
+
+        return {"list": all_products, "count": len(all_products)}
+    
+    def get_order_products(self, order_id):
+        """Pobiera listę produktów dla konkretnego zamówienia."""
+        params = {"filters": json.dumps({"order_id": order_id})}
+        return self.get("order-products", params=params)
 
     # New helper methods for dashboard statistics
     def get_orders(self, status=None, filters=None, page=1, per_page=20):

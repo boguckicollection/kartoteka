@@ -4671,11 +4671,11 @@ class CardEditorApp:
             except Exception:
                 logger.exception("Failed to update inventory stats")
 
-        if hasattr(self, "show_magazyn_view"):
+        if hasattr(self, "show_orders") and self.orders_output:
             try:
-                self.show_magazyn_view()
+                self.show_orders(self.orders_output)
             except Exception:
-                logger.exception("Failed to refresh magazyn window")
+                pass
 
         # Usuń zrealizowane zamówienie z bieżącej listy
         order_id = order.get("order_id") or order.get("id")
