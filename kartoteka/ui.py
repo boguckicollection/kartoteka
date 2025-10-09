@@ -345,43 +345,70 @@ class OrdersListView(ctk.CTkScrollableFrame):
 
             meta_parts: list[str] = []
             status = entry.get("status")
-            if isinstance(status, dict): # Pobieramy nazwę z obiektu status
-                status_name = status.get('name')
-                if status_name:
-                    meta_parts.append(f"Status: {status_name}")
-            elif status:
+            if status:
                 meta_parts.append(f"Status: {status}")
-
+            status_type = entry.get("status_type")
+            if status_type:
+                meta_parts.append(f"Typ statusu: {status_type}")
             customer = entry.get("customer")
             if customer:
                 meta_parts.append(f"Klient: {customer}")
-
             created = entry.get("created")
             if created:
-                # Formatujemy datę do czytelniejszej postaci
-                try:
-                    date_obj = datetime.datetime.fromisoformat(created)
-                    meta_parts.append(f"Data: {date_obj.strftime('%Y-%m-%d %H:%M')}")
-                except (ValueError, TypeError):
-                    meta_parts.append(f"Data: {created}")
-
+                meta_parts.append(f"Data: {created}")
             total_value = entry.get("total")
             if total_value:
                 meta_parts.append(f"Wartość: {total_value}")
-
             quantity = entry.get("quantity")
             if quantity not in (None, ""):
-                meta_parts.append(f"Liczba sztuk: {quantity}")
-
+                meta_parts.append(f"Ilość kart: {quantity}")
             if meta_parts:
                 ctk.CTkLabel(
                     card,
                     text="  •  ".join(meta_parts),
-                    text_color="#DDDDDD",
+                    text_color=TEXT_COLOR,
                     font=self._meta_font,
                     anchor="w",
                     justify="left",
                 ).pack(anchor="w", padx=16, pady=(0, 10))
+
+            for item in entry.get("items", []):
+                row = ctk.CTkFrame(card, fg_color=FIELD_BG_COLOR, corner_radius=8)
+                row.pack(fill="x", expand=True, padx=16, pady=6)
+                row.grid_columnconfigure(0, weight=1)
+
+                name = item.get("name") or "-"
+                quantity = item.get("quantity")
+                quantity_text = f" x{quantity}" if quantity not in (None, "") else ""
+                ctk.CTkLabel(
+                    row,
+                    text=f"{name}{quantity_text}",
+                    text_color=TEXT_COLOR,
+                    font=self._item_font,
+                    anchor="w",
+                    justify="left",
+                ).grid(row=0, column=0, sticky="w", padx=12, pady=(8, 0))
+
+                code = item.get("code") or "-"
+                ctk.CTkLabel(
+                    row,
+                    text=f"Kod: {code}",
+                    text_color=TEXT_COLOR,
+                    font=self._meta_font,
+                    anchor="w",
+                    justify="left",
+                ).grid(row=1, column=0, sticky="w", padx=12)
+
+                location = item.get("location")
+                location_text = location or "Brak przypisanej lokalizacji"
+                ctk.CTkLabel(
+                    row,
+                    text=f"Lokalizacja: {location_text}",
+                    text_color=TEXT_COLOR,
+                    font=self._meta_font,
+                    anchor="w",
+                    justify="left",
+                ).grid(row=2, column=0, sticky="w", padx=12, pady=(0, 8))
 
             def _bind_clicks(widget):
                 bind = getattr(widget, "bind", None)
@@ -4411,11 +4438,13 @@ class CardEditorApp:
             messagebox.showerror("Błąd", str(e))
 
     def show_order_details(self, entry: Mapping[str, Any] | None):
-        """Display order details with a grid of selectable card thumbnails and diagnostic logging."""
+        """Display details for ``entry`` and allow marking selected cards."""
+
         if not entry:
             return
 
-        order = entry.get("data", {})
+        order = entry.get("data", {}) if isinstance(entry, Mapping) else {}
+
         oid = order.get("order_id") or order.get("id")
         title = f"Szczegóły zamówienia #{oid}" if oid else "Szczegóły zamówienia"
 
@@ -4425,149 +4454,257 @@ class CardEditorApp:
         top.lift()
         top.focus_force()
         top.protocol("WM_DELETE_WINDOW", top.destroy)
-        top.geometry("900x700")
+        top.geometry("800x600")
         top.title(title)
         top.configure(fg_color=BG_COLOR)
 
-        # --- Nagłówek z danymi zamówienia ---
+        # --- Nagłówek ---
         header = ctk.CTkFrame(top, fg_color=BG_COLOR, corner_radius=0)
         header.pack(fill="x", padx=20, pady=(20, 10))
         header.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(header, text=title, text_color=TEXT_COLOR, font=ctk.CTkFont(size=24, weight="bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        ctk.CTkLabel(
+            header,
+            text=title,
+            text_color=TEXT_COLOR,
+            font=ctk.CTkFont(size=24, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
-        status_obj = entry.get("status")
-        status_name = status_obj.get('name') if isinstance(status_obj, dict) else status_obj
+        # --- Dane zamówienia (czytelniejszy układ) ---
+        meta_info = {
+            "Klient:": entry.get("customer"),
+            "Data:": entry.get("created"),
+            "Status:": entry.get("status"),
+            "Wartość:": entry.get("total"),
+        }
 
-        meta_info = { "Klient:": entry.get("customer"), "Data:": entry.get("created"), "Status:": status_name, "Wartość:": entry.get("total") }
-        for i, (label, value) in enumerate(meta_info.items()):
+        row_idx = 1
+        for label, value in meta_info.items():
             if value:
-                ctk.CTkLabel(header, text=label, text_color="#AAAAAA", font=ctk.CTkFont(size=16)).grid(row=i + 1, column=0, sticky="w", padx=(0, 15))
-                ctk.CTkLabel(header, text=str(value), text_color=TEXT_COLOR, font=ctk.CTkFont(size=16, weight="bold")).grid(row=i + 1, column=1, sticky="w")
+                ctk.CTkLabel(
+                    header,
+                    text=label,
+                    text_color="#AAAAAA",
+                    font=ctk.CTkFont(size=16),
+                ).grid(row=row_idx, column=0, sticky="w", padx=(0, 15))
 
-        # --- Siatka z produktami ---
+                ctk.CTkLabel(
+                    header,
+                    text=str(value),
+                    text_color=TEXT_COLOR,
+                    font=ctk.CTkFont(size=16, weight="bold"),
+                ).grid(row=row_idx, column=1, sticky="w")
+                row_idx += 1
+
+        # --- Lista produktów ---
         items_frame = ctk.CTkScrollableFrame(top, fg_color=LIGHT_BG_COLOR)
         items_frame.pack(expand=True, fill="both", padx=20, pady=10)
 
-        selection_vars = {}
-        items = order.get("products", [])
+        selection_vars: dict[str, Any] = {}
+        items = entry.get("items") or []
+        code_map_source: Mapping[str, str] | None = (
+            entry.get("_code_map") if isinstance(entry, Mapping) else {}
+        )
 
-        # --- LOGIKA DIAGNOSTYCZNA ---
-        print("\n--- DIAGNOSTYKA DOPASOWANIA PRODUKTÓW ---")
-        
-        # Krok 1: Sprawdzenie, czy dane z store_export.csv są w ogóle załadowane
-        if not self.store_data:
-            print("[BŁĄD KRYTYCZNY] Dane z pliku store_export.csv (self.store_data) nie zostały załadowane!")
-            ctk.CTkLabel(items_frame, text="BŁĄD: Nie wczytano danych z pliku store_export.csv!", text_color="red").pack()
-            return
+        if not items and oid:
+            try:
+                full_order = self.shoper_client.get_order(oid)
+            except Exception:
+                logger.exception("Failed to fetch order %s details", oid)
+            else:
+                if isinstance(full_order, Mapping):
+                    fetched_items, fetched_code_map, _ = self._prepare_order_items(full_order)
+                    if fetched_items:
+                        order = full_order
+                        items = fetched_items
+                        if isinstance(entry, dict):
+                            entry["data"] = full_order
+                            entry["items"] = fetched_items
+                            entry["_code_map"] = fetched_code_map
+                        code_map_source = fetched_code_map
 
-        print(f"Załadowano {len(self.store_data)} produktów z store_export.csv.")
-        sample_codes = list(self.store_data.keys())[:3]
-        print(f"Przykładowe kody z wczytanego pliku: {sample_codes}")
-
-        # Mapa: kod produktu -> link do obrazka
-        product_code_to_image = {
-            p_code.strip(): data.get('images 1') for p_code, data in self.store_data.items() if data and data.get('images 1')
-        }
+        code_to_product: dict[str, str] = dict(code_map_source or {})
 
         if not items:
-            ctk.CTkLabel(items_frame, text="Brak produktów w zamówieniu.", font=ctk.CTkFont(size=16)).pack(pady=20)
+            ctk.CTkLabel(
+                items_frame,
+                text="W tym zamówieniu nie znaleziono produktów.",
+                font=ctk.CTkFont(size=16),
+            ).pack(pady=20)
         else:
-            for i, item in enumerate(items):
-                shoper_code = item.get("code")
-                name = item.get("name", "Brak nazwy")
-                quantity = _coerce_quantity(item.get('quantity'))
-                
-                print(f"\n-> Przetwarzanie produktu: '{name}'")
-                print(f"   - Kod z API Shoper: '{shoper_code}'")
+            for item in items:
+                item_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=12)
+                item_frame.pack(fill="x", expand=True, padx=10, pady=6)
 
-                # Upewniamy się, że porównujemy czyste kody (bez spacji itp.)
-                clean_shoper_code = str(shoper_code).strip() if shoper_code else None
-                image_path = product_code_to_image.get(clean_shoper_code)
-                
-                if image_path:
-                    print(f"   - ZNALEZIONO DOPASOWANIE! Link do obrazka: {image_path}")
-                else:
-                    print("   - NIE ZNALEZIONO OBRAZKA. Sprawdzam, dlaczego...")
-                    if clean_shoper_code in self.store_data:
-                        print(f"   - Błąd: Kod '{clean_shoper_code}' istnieje w CSV, ale w jego wierszu brakuje linku w kolumnie 'images 1'.")
-                    else:
-                        print(f"   - Błąd: Kod '{clean_shoper_code}' nie został znaleziony jako klucz w danych z pliku CSV.")
+                full_name = item.get("name") or "-"
+                quantity = _coerce_quantity(item.get("quantity"))
 
-                card_frame = ctk.CTkFrame(items_frame, fg_color=BG_COLOR, corner_radius=8)
-                
-                thumb_label = ctk.CTkLabel(card_frame, text="?", width=120, height=168, fg_color=FIELD_BG_COLOR, corner_radius=6)
-                thumb_label.pack(padx=10, pady=(10, 5))
-                if image_path:
-                    try:
-                        img = _get_thumbnail(image_path, (120, 168))
-                        if img:
-                            photo = _create_image(img)
-                            thumb_label.configure(image=photo, text="")
-                            thumb_label.image = photo
-                    except Exception as e:
-                        logger.warning(f"Błąd ładowania miniaturki dla {shoper_code}: {e}")
+                # Próba rozdzielenia nazwy i numeru karty
+                card_name, card_number = full_name, ""
+                match = re.search(r"(.+?)\s+([\w\d-]+/\w*\d+)$", full_name)
+                if match:
+                    card_name, card_number = match.groups()
 
-                ctk.CTkLabel(card_frame, text=name, wraplength=120, font=ctk.CTkFont(size=12)).pack(padx=10, pady=(0, 5))
-                
-                var = tk.BooleanVar(value=True)
-                chk = ctk.CTkCheckBox(card_frame, text=f"x{quantity}", variable=var, font=ctk.CTkFont(size=14, weight="bold"))
-                chk.pack(pady=(0, 10))
-                
-                if clean_shoper_code:
-                    selection_vars[clean_shoper_code] = {"var": var, "quantity": quantity}
-                
-                row, col = divmod(i, 4)
-                card_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-                items_frame.grid_columnconfigure(col, weight=1)
+                ctk.CTkLabel(
+                    item_frame,
+                    text=f"{card_name.strip()} (x{quantity})",
+                    text_color=TEXT_COLOR,
+                    font=ctk.CTkFont(size=18, weight="bold"),
+                    anchor="w",
+                ).pack(anchor="w", padx=15, pady=(10, 0))
 
-        # ... (reszta kodu - przyciski - bez zmian) ...
+                if card_number:
+                    ctk.CTkLabel(
+                        item_frame,
+                        text=f"Numer: {card_number}",
+                        text_color="#BBBBBB",
+                        font=ctk.CTkFont(size=14),
+                        anchor="w",
+                    ).pack(anchor="w", padx=15, pady=(0, 5))
+
+                code_raw = item.get("code") or ""
+                codes = [c.strip() for c in str(code_raw).split(";") if c.strip()]
+
+                if not codes:
+                    ctk.CTkLabel(
+                        item_frame,
+                        text="Brak przypisanych kodów magazynowych",
+                        text_color="#FF8A80",
+                        font=ctk.CTkFont(size=14),
+                        anchor="w",
+                    ).pack(anchor="w", padx=15, pady=(0, 10))
+                    continue
+
+                checkbox_container = ctk.CTkFrame(item_frame, fg_color="transparent")
+                checkbox_container.pack(fill="x", padx=15, pady=(0, 10))
+
+                for idx, code in enumerate(codes):
+                    var = _create_bool_var(True) # Domyślnie zaznaczamy wszystkie
+                    product_code = code_to_product.get(code)
+                    if product_code:
+                        code_to_product[code] = product_code
+
+                    loc = self.location_from_code(code)
+                    checkbox_text = f"{code}  -  {loc}"
+
+                    checkbox = ctk.CTkCheckBox(
+                        checkbox_container,
+                        text=checkbox_text,
+                        variable=var,
+                        text_color=TEXT_COLOR,
+                        font=ctk.CTkFont(size=14)
+                    )
+                    checkbox.pack(anchor="w", pady=3)
+                    selection_vars[code] = var
+
+        # --- Przyciski akcji ---
         buttons = ctk.CTkFrame(top, fg_color="transparent")
         buttons.pack(fill="x", padx=20, pady=(10, 20))
-        buttons.grid_columnconfigure((0, 1), weight=1)
+        buttons.grid_columnconfigure((0, 1, 2), weight=1)
 
-        def _mark_selected():
-            products_to_sell = { code: data['quantity'] for code, data in selection_vars.items() if data['var'].get() }
-            if not products_to_sell:
-                messagebox.showwarning("Zamówienia", "Zaznacz przynajmniej jedną kartę.")
+        def _mark_selected() -> None:
+            selected = [code for code, var in selection_vars.items() if code and bool(var.get())]
+            if not selected:
+                messagebox.showwarning("Zamówienia", "Wybierz karty do oznaczenia jako sprzedane")
                 return
-            self.complete_order(order, products_to_sell=products_to_sell)
+            self.complete_order(order, selected_codes=selected, code_product_map=code_to_product)
             top.destroy()
 
-        self.create_button(buttons, text="Oznacz jako sprzedane", command=_mark_selected, fg_color=SAVE_BUTTON_COLOR).grid(row=0, column=0, padx=4, pady=8, sticky="ew")
-        self.create_button(buttons, text="Zamknij", command=top.destroy, fg_color=NAV_BUTTON_COLOR).grid(row=0, column=1, padx=4, pady=8, sticky="ew")
+        self.create_button(
+            buttons,
+            text="Oznacz jako sprzedane",
+            command=_mark_selected,
+            fg_color=SAVE_BUTTON_COLOR,
+        ).grid(row=0, column=0, padx=4, pady=8, sticky="ew")
+
+        self.create_button(
+            buttons,
+            text="Drukuj listę",
+            command=lambda: self.print_order_items(title, entry.get("customer"), entry.get("created"), entry.get("total"), items),
+            fg_color=FETCH_BUTTON_COLOR,
+        ).grid(row=0, column=1, padx=4, pady=8, sticky="ew")
+
+        self.create_button(
+            buttons,
+            text="Zamknij",
+            command=top.destroy,
+            fg_color=NAV_BUTTON_COLOR,
+        ).grid(row=0, column=2, padx=4, pady=8, sticky="ew")
 
     def complete_order(
         self,
         order: Mapping[str, Any],
-        selected_warehouses: list[str],
-        product_counts: Counter,
+        selected_codes: Iterable[str] | None = None,
+        code_product_map: Mapping[str, str] | None = None,
     ):
-        """Finalizes the order by updating CSV files."""
-        if not selected_warehouses:
-            messagebox.showwarning("Błąd", "Nie wybrano żadnych kart do oznaczenia.")
+        """Mark warehouse codes from ``order`` as sold and update stats."""
+
+        if not isinstance(order, Mapping):
             return
 
-        # 1. Oznacz jako sprzedane w magazyn.csv
-        marked_count = csv_utils.mark_warehouse_codes_as_sold(selected_warehouses)
+        codes_to_mark = {c.strip() for c in selected_codes if str(c).strip()}
+        if not codes_to_mark:
+            return
+
+        # Oznacz kody jako sprzedane w pliku magazynu
+        marked_count = csv_utils.mark_warehouse_codes_as_sold(codes_to_mark)
         if not marked_count:
-            messagebox.showerror("Błąd", "Nie udało się oznaczyć kart w magazyn.csv.")
+            messagebox.showwarning("Błąd", "Nie udało się oznaczyć żadnej karty jako sprzedanej.")
             return
 
-        # 2. Zmniejsz stany w store_export.csv (z potwierdzeniem)
-        csv_utils.decrement_store_stock(product_counts)
+        # Zmniejsz stany magazynowe w pliku sklepu
+        product_counts: Counter[str] = Counter()
+        if code_product_map:
+            for code in codes_to_mark:
+                product = code_product_map.get(code)
+                if product:
+                    product_counts[product] += 1
 
-        # 3. Odświeżenie interfejsu
+        if product_counts:
+            csv_utils.decrement_store_stock(product_counts)
+
+        # Odśwież statystyki i widok magazynu
         if hasattr(self, "update_inventory_stats"):
-            self.update_inventory_stats(force=True)
-
-        messagebox.showinfo("Operacja zakończona", f"Oznaczono {marked_count} kart jako sprzedane.")
+            try:
+                # Wymuś przeliczenie statystyk na nowo
+                self.update_inventory_stats(force=True)
+            except Exception:
+                logger.exception("Failed to update inventory stats")
 
         if hasattr(self, "show_orders") and self.orders_output:
             try:
                 self.show_orders(self.orders_output)
             except Exception:
                 pass
+
+        # Usuń zrealizowane zamówienie z bieżącej listy
+        order_id = order.get("order_id") or order.get("id")
+        pending = getattr(self, "pending_orders", None)
+        if order_id and isinstance(pending, list):
+            self.pending_orders = [
+                o for o in pending if (o.get("order_id") or o.get("id")) != order_id
+            ]
+
+        # Odśwież listę zamówień w interfejsie
+        if hasattr(self, "orders_output") and getattr(self, "orders_output", None):
+            try:
+                self.show_orders(self.orders_output)
+            except Exception:
+                logger.exception("Failed to refresh orders view after completion")
+
+        # Pokaż komunikat z podsumowaniem dla użytkownika
+        order_sum_str = str(order.get("sum", "0")).replace(",",".")
+        try:
+            order_value = float(order_sum_str)
+        except (ValueError, TypeError):
+            order_value = 0.0
+
+        messagebox.showinfo(
+            "Operacja zakończona",
+            f"Oznaczono {marked_count} kart jako sprzedane.\n"
+            f"Wartość zamówienia: {order_value:.2f} PLN.\n\n"
+            "Statystyki zostały zaktualizowane."
+        )
 
     def confirm_order(self):
         """Confirm the first pending order and mark codes as sold."""
@@ -4580,85 +4717,76 @@ class CardEditorApp:
 
     def print_order_items(
         self,
-        order_entry: Mapping[str, Any],
-        image_map: Mapping[str, str],
-        warehouse_map: Mapping[str, list],
+        title: str,
+        customer: str | None,
+        created: str | None,
+        total: str | None,
+        items: Iterable[Mapping[str, Any]],
     ) -> None:
-        """Generate an HTML file with thumbnails for printing."""
+        """Generate a printable summary for ``items`` and invoke system print."""
 
-        order_data = order_entry.get("data", {})
-        items = order_data.get("products", [])
+        lines = [title]
+        if customer:
+            lines.append(f"Klient: {customer}")
+        if created:
+            lines.append(f"Data: {created}")
+        if total:
+            lines.append(f"Wartość: {total}")
+        lines.append("")
 
-        html_parts = [
-            "<html><head><title>Lista do zebrania</title><style>",
-            "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 20px; }",
-            ".header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 25px; }",
-            "h1 { margin: 0; } .details p { margin: 5px 0; font-size: 1.1em; }",
-            ".item { display: flex; align-items: flex-start; border-bottom: 1px solid #ccc; padding: 15px 0; }",
-            ".item img { width: 80px; height: auto; margin-right: 20px; border-radius: 4px; }",
-            ".item-info { flex-grow: 1; }",
-            ".item-name { font-size: 1.3em; font-weight: bold; margin-bottom: 5px; }",
-            ".item-details { font-family: monospace; color: #555; }",
-            ".summary { border-top: 2px solid #333; padding-top: 15px; margin-top: 25px; font-size: 1.2em; text-align: right; }",
-            "</style></head><body>"
-        ]
-
-        # --- Nagłówek zamówienia ---
-        html_parts.append(f"<div class='header'><h1>{html.escape(order_entry.get('title', ''))}</h1><div class='details'>")
-        if order_entry.get('customer'): html_parts.append(f"<p><b>Klient:</b> {html.escape(order_entry['customer'])}</p>")
-        if order_entry.get('created'): html_parts.append(f"<p><b>Data:</b> {html.escape(order_entry['created'])}</p>")
-        if order_entry.get('total'): html_parts.append(f"<p><b>Wartość:</b> {html.escape(order_entry['total'])}</p>")
-        html_parts.append("</div></div>")
-
-        total_quantity = 0
-        # --- Lista produktów ---
         for item in items:
-            name = item.get("name") or "Brak nazwy"
-            quantity = _coerce_quantity(item.get('quantity'))
-            total_quantity += quantity
-            product_code = item.get("code")
+            name = item.get("name") or "-"
+            quantity = _coerce_quantity(item.get("quantity"))
+            code_raw = str(item.get("code") or "")
+            codes = [c.strip() for c in code_raw.split(";") if c.strip()]
+            if not codes:
+                codes = ["-"]
+            location_text = item.get("location")
+            if not location_text:
+                location_text = "; ".join(
+                    l for l in (self.location_from_code(code) for code in codes) if l
+                )
+            lines.append(
+                f"{name} x{quantity} [{'; '.join(codes)}] {location_text or ''}".strip()
+            )
 
-            image_path = image_map.get(product_code)
-            img_tag = '<div style="width:80px; height:112px; border:1px solid #ccc; text-align:center; display:flex; align-items:center; justify-content:center; background:#f0f0f0; margin-right:20px; border-radius:4px;">?</div>'
-            if image_path and os.path.exists(image_path):
-                try:
-                    with open(image_path, "rb") as f:
-                        b64 = base64.b64encode(f.read()).decode("ascii")
-                    mime, _ = mimetypes.guess_type(image_path)
-                    img_tag = f'<img src="data:{mime or "image/png"};base64,{b64}">'
-                except Exception as e:
-                    logger.warning(f"Could not embed image {image_path}: {e}")
+        content = "\n".join(lines)
 
-            # Znajdź kody magazynowe do pobrania
-            codes_to_pick = warehouse_map.get(product_code, [])[:quantity]
-
-            html_parts.append("<div class='item'>")
-            html_parts.append(img_tag)
-            html_parts.append("<div class='item-info'>")
-            html_parts.append(f"<div class='item-name'>{html.escape(name)} (x{quantity})</div>")
-            html_parts.append(f"<div class='item-details'><b>Kod produktu:</b> {html.escape(product_code or '')}</div>")
-            if codes_to_pick:
-                for code in codes_to_pick:
-                    location = self.location_from_code(code.get('warehouse_code', ''))
-                    html_parts.append(f"<div class='item-details'><b>Do pobrania:</b> {html.escape(code.get('warehouse_code', ''))} ({location})</div>")
-            else:
-                html_parts.append("<div class='item-details' style='color:red;'><b>Do pobrania:</b> BRAK W MAGAZYNIE!</div>")
-            html_parts.append("</div></div>")
-
-        # --- Podsumowanie ---
-        html_parts.append(f"<div class='summary'><p><b>Łączna liczba sztuk do zebrania: {total_quantity}</b></p></div>")
-        html_parts.append("</body></html>")
-        html_content = "".join(html_parts)
-
+        tmp_path = None
         try:
-            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", suffix=".html") as tmp:
-                tmp.write(html_content)
+            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", suffix=".txt") as tmp:
+                tmp.write(content)
                 tmp_path = Path(tmp.name)
+        except OSError as exc:
+            messagebox.showerror("Drukowanie", f"Nie udało się przygotować pliku do wydruku: {exc}")
+            return
 
-            webbrowser.open(f"file://{tmp_path.resolve()}")
-            messagebox.showinfo("Drukowanie", "Lista do druku została otwarta w przeglądarce. Użyj opcji 'Drukuj' (Ctrl+P).")
-        except Exception as e:
-            messagebox.showerror("Błąd", f"Nie udało się otworzyć listy do druku: {e}")
+        printed = False
+        error: Exception | None = None
+        if platform.system().lower().startswith("win"):
+            try:
+                os.startfile(str(tmp_path), "print")  # type: ignore[attr-defined]
+                printed = True
+            except Exception as exc:  # pragma: no cover - platform dependent
+                error = exc
+        else:
+            cmd = shutil.which("lpr")
+            if cmd:
+                try:
+                    subprocess.run([cmd, str(tmp_path)], check=True)
+                    printed = True
+                except Exception as exc:  # pragma: no cover - depends on environment
+                    error = exc
+
+        if printed:
+            messagebox.showinfo("Drukowanie", "Wysłano zamówienie do drukarki.")
+        else:
+            msg = "Nie udało się automatycznie wydrukować listy."
+            if tmp_path:
+                msg += f"\nPlik zapisany: {tmp_path}"
+            if error:
+                msg += f"\nSzczegóły: {error}"
+            messagebox.showwarning("Drukowanie", msg)
 
     @staticmethod
     def location_from_code(code: str) -> str:

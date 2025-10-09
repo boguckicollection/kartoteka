@@ -237,41 +237,98 @@ def infer_product_code(data: Mapping[str, Any] | None) -> str:
         return ""
 
 
-def decrement_store_stock(product_counts: Mapping[str, int]):
-    """Zmniejsza stan magazynowy ('availability') w store_export.csv i prosi o potwierdzenie."""
-    if not product_counts:
-        return
+def decrement_store_stock(
+    quantities: Mapping[str, int] | None,
+    *,
+    path: str | None = None,
+) -> int:
+    """Decrease stock values in the store CSV based on ``quantities``.
+
+    Each key in ``quantities`` represents a ``product_code`` and its value the
+    number of copies to deduct.  Rows that reach zero availability remain in
+    the file with their ``availability`` (and ``stock`` when present) set to
+    ``"0"``.
+
+    Returns the total number of stock units deducted across all products.
+    """
+
+    if not quantities:
+        return 0
+
+    normalized: dict[str, int] = {}
+    for key, value in quantities.items():
+        key_str = str(key or "").strip()
+        if not key_str:
+            continue
+        try:
+            qty = int(value)
+        except (TypeError, ValueError):
+            continue
+        if qty <= 0:
+            continue
+        normalized[key_str] = normalized.get(key_str, 0) + qty
+
+    if not normalized:
+        return 0
+
+    csv_path = path or STORE_EXPORT_CSV
+    if not csv_path or not os.path.exists(csv_path):
+        return 0
+
     try:
-        with open(STORE_EXPORT_CSV, "r", encoding="utf-8", newline="") as f:
+        with open(csv_path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             rows = list(reader)
-            fieldnames = reader.fieldnames
+            fieldnames = reader.fieldnames or STORE_FIELDNAMES
     except FileNotFoundError:
-        logger.warning(f"Plik {STORE_EXPORT_CSV} nie został znaleziony.")
-        return
+        return 0
 
-    if not fieldnames or "product_code" not in fieldnames or "availability" not in fieldnames:
-        logger.error(f"Plik {STORE_EXPORT_CSV} ma nieprawidłowe nagłówki.")
-        return
+    fieldnames = list(fieldnames)
+    if "availability" not in fieldnames:
+        fieldnames.append("availability")
+    if "stock" not in fieldnames:
+        fieldnames.append("stock")
+
+    updated_rows: list[dict[str, str]] = []
+    deducted_total = 0
 
     for row in rows:
-        product_code = row.get("product_code")
-        if product_code in product_counts:
-            current_stock = int(row.get("availability", 0))
-            sold_quantity = product_counts[product_code]
-            row["availability"] = str(max(0, current_stock - sold_quantity))
+        code = str(row.get("product_code") or "").strip()
+        qty = normalized.get(code)
+        if not code or qty is None:
+            updated_rows.append(row)
+            continue
 
-    if messagebox.askyesno("Potwierdzenie zapisu", f"Czy na pewno chcesz zapisać zmiany stanów magazynowych w pliku {os.path.basename(STORE_EXPORT_CSV)}?"):
+        availability_raw = row.get("availability")
+        if availability_raw in (None, ""):
+            availability_raw = row.get("stock")
+
         try:
-            with open(STORE_EXPORT_CSV, "w", encoding="utf-8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-                writer.writeheader()
-                writer.writerows(rows)
-            logger.info(f"Plik {STORE_EXPORT_CSV} został zaktualizowany.")
-        except OSError as e:
-            logger.error(f"Błąd zapisu do pliku {STORE_EXPORT_CSV}: {e}")
-    else:
-        logger.info("Zapis do store_export.csv anulowany przez użytkownika.")
+            availability = int(str(availability_raw or "0"))
+        except ValueError:
+            availability = 0
+
+        deducted = min(availability, qty)
+        remaining = availability - deducted
+        deducted_total += deducted
+
+        updated = dict(row)
+        remaining_str = str(max(remaining, 0))
+        updated["availability"] = remaining_str
+        if "stock" in fieldnames:
+            updated["stock"] = remaining_str
+        updated_rows.append(updated)
+
+    if deducted_total == 0:
+        return 0
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        for row in updated_rows:
+            writer.writerow({fn: row.get(fn, "") for fn in fieldnames})
+
+    return deducted_total
 
 
 def mark_warehouse_codes_as_sold(codes, *, path: str | None = None) -> int:

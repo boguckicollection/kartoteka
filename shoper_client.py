@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import json
+
 from typing import Optional
 
 import requests
@@ -114,7 +115,20 @@ class ShoperClient:
         per_page=20,
         include_products=True,
     ):
-        """Return a list of orders filtered by status or other fields."""
+        """Return a list of orders filtered by status or other fields.
+
+        Parameters
+        ----------
+        filters:
+            Optional mapping of query parameters supported by the API.
+        page / per_page:
+            Pagination arguments forwarded to the API.
+        include_products:
+            When ``True`` (the default) the request automatically expands the
+            response with product data so that the caller has immediate access
+            to ordered items without issuing follow-up requests.
+        """
+
         params = {"page": page}
         limit = self._coerce_limit(per_page)
         if limit is not None:
@@ -122,26 +136,14 @@ class ShoperClient:
         if filters:
             params.update(filters)
         self._normalise_status_filters(params)
-
-        # Krok 1: Pobieramy podstawową listę zamówień
-        response = self.get("orders", params=params)
-
-        # Krok 2: Jeśli chcemy produkty, pobieramy je dla każdego zamówienia osobno
-        if include_products and response and "list" in response:
-            orders_list = response.get("list", [])
-            for order in orders_list:
-                order_id = order.get("order_id")
-                if order_id:
-                    try:
-                        # Używamy naszej nowej, inteligentnej metody
-                        products_response = self.get_order_products(order_id)
-                        # Wstrzykujemy listę produktów do obiektu zamówienia
-                        order["products"] = products_response.get("list", [])
-                    except Exception as e:
-                        logger.error(f"Nie udało się pobrać produktów dla zamówienia #{order_id}: {e}")
-                        order["products"] = []
-
-        return response
+        if include_products:
+            includes = params.get("with")
+            if not includes:
+                includes = "products,delivery_address,billing_address,status,user"
+            elif isinstance(includes, (list, tuple, set)):
+                includes = ",".join(str(part) for part in includes if part)
+            params["with"] = includes
+        return self.get("orders", params=params)
 
     def get_order(self, order_id):
         """Retrieve a single order by id."""
